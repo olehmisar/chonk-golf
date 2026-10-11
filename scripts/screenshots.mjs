@@ -11,6 +11,8 @@ mkdirSync(out, { recursive: true });
 
 const pages = [
   ["leaderboard", "#/"],
+  ["leaderboard-range", "#/", ["Driving range"]],
+  ["leaderboard-ram", "#/", ["Peak RAM"]],
   ["submission-integ3", "#/s/integ3"],
   ["submission-threading", "#/s/track-threading"],
   ["rules", "#/rules"],
@@ -42,11 +44,14 @@ for (const v of variants) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-  for (const [name, hash] of pages) {
+  for (const [name, hash, clicks = []] of pages) {
+    await page.goto("about:blank");
     await page.goto(new URL(hash, base).toString());
     await page.waitForLoadState("networkidle");
+    for (const label of clicks) await page.getByRole("radio", { name: label }).click();
+    await page.waitForTimeout(400); // let colour transitions settle
     await page.evaluate(() => document.fonts.ready);
-    const file = join(out, `${name}.${v.name}.png`);
+    const file = join(out, [name, v.name, "png"].join("."));
     await page.screenshot({ path: file, fullPage: true });
     console.log("wrote", file);
   }

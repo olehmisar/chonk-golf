@@ -118,7 +118,7 @@ export function Leaderboard() {
   const [tab, setTab] = useState<Tab>("championship");
   const [metric, setMetric] = useState<Metric>("time");
   const [filter, setFilter] = useState<Filter>("all");
-  const [holes, setHoles] = useState(true);
+  const [holes, setHoles] = useState(() => window.matchMedia("(min-width: 768px)").matches);
 
   const leader = useMemo(
     () =>
@@ -212,6 +212,11 @@ export function Leaderboard() {
           </label>
         </div>
 
+        {metric === "ram" && rows.every((r) => r.ratio === null || r.x.s.kind === "reference") && (
+          <p className="rounded-lg border border-dashed border-line px-4 py-3 text-sm text-muted">
+            None of these cards reported peak RSS yet. New cards from the harness always include it.
+          </p>
+        )}
         <div className="overflow-x-auto rounded-xl border border-line bg-surface">
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
@@ -235,7 +240,9 @@ export function Leaderboard() {
               {rows.map(({ x, ratio, pos }) => {
                 const isPar = x.s.kind === "reference";
                 const per = metric === "time" ? x.flowRatio : x.flowRamRatio;
-                const against = x.s.against.id ? BY_ID.get(x.s.against.id)?.s.title : null;
+                const against = x.s.against.id
+                  ? BY_ID.get(x.s.against.id)?.s.title
+                  : x.s.against.description;
                 return (
                   <tr
                     key={x.s.id}
@@ -256,7 +263,7 @@ export function Leaderboard() {
                         </span>
                       )}
                     </td>
-                    <td className="max-w-[22rem] px-3 py-3">
+                    <td className="max-w-[22rem] min-w-[13rem] px-3 py-3">
                       <a
                         href={href.submission(x.s.id)}
                         className="font-semibold text-ink no-underline hover:underline"

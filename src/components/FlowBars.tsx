@@ -126,7 +126,6 @@ export function FlowBars({ s, kind, isPar }: { s: Submission; kind: Kind; isPar?
                       className="h-3 shrink-0 rounded-r-[4px] bg-you"
                       style={{ width: pct(r.ratio) }}
                     />
-                    <span className="num text-[11px] text-ink">{r.ratio.toFixed(3)}</span>
                     <div
                       className="pointer-events-none absolute inset-y-[-4px] border-l-2 border-dashed border-par"
                       style={{ left: pct(1) }}

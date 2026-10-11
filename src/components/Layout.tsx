@@ -44,9 +44,9 @@ function ThemeToggle() {
 }
 
 const NAV = [
-  { name: "board", label: "Leaderboard", href: href.board },
-  { name: "rules", label: "Rules", href: href.rules },
-  { name: "submit", label: "Submit", href: href.submit },
+  { name: "board", label: "Leaderboard", short: "Board", href: href.board },
+  { name: "rules", label: "Rules", short: "Rules", href: href.rules },
+  { name: "submit", label: "Submit", short: "Submit", href: href.submit },
 ] as const;
 
 export function Layout({ route, children }: { route: Route; children: ReactNode }) {
@@ -61,7 +61,7 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
             aria-label="chonk.golf home"
           >
             <Logo className="h-8 w-8" />
-            <span className="font-display text-xl font-semibold tracking-tight">
+            <span className="font-display text-lg font-semibold tracking-tight sm:text-xl">
               chonk<span className="text-flag">.</span>golf
             </span>
           </a>
@@ -77,7 +77,8 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
                     : "text-ink-2 hover:bg-surface-2"
                 }`}
               >
-                {n.label}
+                <span className="sm:hidden">{n.short}</span>
+                <span className="hidden sm:inline">{n.label}</span>
               </a>
             ))}
           </nav>

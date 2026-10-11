@@ -51,7 +51,11 @@ const STATUS: Record<Submission["status"], string> = {
 
 export function StatusChip({ s }: { s: Submission }) {
   const label =
-    s.status === "integrated" && s.integrated_in ? `in ${s.integrated_in}` : STATUS[s.status];
+    s.status === "integrated" && s.integrated_in
+      ? s.integrated_in === s.id
+        ? "Integrated series"
+        : `in ${s.integrated_in}`
+      : STATUS[s.status];
   const tone =
     s.status === "withdrawn"
       ? "text-muted line-through decoration-1"
