@@ -222,7 +222,7 @@ export function Leaderboard() {
   const leader = useMemo(
     () =>
       rank(
-        ALL.filter((x) => x.s.kind === "series"),
+        ALL.filter((x) => x.s.kind === "series" && !x.s.invalid),
         "time",
         "headline",
       )[0],
@@ -402,7 +402,7 @@ export function Leaderboard() {
                     <td className="px-3 py-3 text-center">
                       {isPar ? (
                         <span className="text-xs font-semibold text-warn uppercase">par</span>
-                      ) : ratio === null ? (
+                      ) : ratio === null || x.s.invalid ? (
                         <span className="text-muted">–</span>
                       ) : (
                         <span
@@ -424,6 +424,14 @@ export function Leaderboard() {
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
                         <span>{x.s.author}</span>
                         <StatusChip s={x.s} />
+                        {x.s.invalid && (
+                          <span
+                            title={x.s.invalid}
+                            className="rounded border border-flag/60 bg-bad-bg px-1.5 py-px text-[11px] font-semibold text-flag uppercase"
+                          >
+                            ✕ invalid
+                          </span>
+                        )}
                         {x.s.target === "wasm" && (
                           <span className="rounded border border-line px-1.5 py-px text-[11px] font-medium uppercase">
                             wasm

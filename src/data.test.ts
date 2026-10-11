@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { loadSubmissionFiles } from "../scripts/load-submissions.ts";
 import { describe, expect, test } from "vite-plus/test";
 import { FLOW_COUNT } from "./schema.ts";
-import { pctDelta, rank, score } from "./score.ts";
+import { pctDelta, rank, score, withPositions } from "./score.ts";
 import { submissionJsonSchema, validateSubmissions } from "./validate.ts";
 import { progressPoints } from "./progress.ts";
 
@@ -26,15 +26,29 @@ describe("seed data", () => {
     expect(onDisk).toEqual(JSON.parse(JSON.stringify(submissionJsonSchema())));
   });
 
-  test("final leads the championship on time", () => {
+  test("final2 leads the championship on time; invalid final ranks last with no position", () => {
     const series = submissions.filter((s) => s.kind === "series").map(score);
-    expect(rank(series, "time")[0]?.s.id).toBe("final");
+    const ranked = rank(series, "time");
+    expect(ranked[0]?.s.id).toBe("final2");
+    expect(ranked.at(-1)?.s.id).toBe("final");
+    const fin = series.find((x) => x.s.id === "final")!;
+    expect(fin.verdict).toBe("failed");
+    const pos = withPositions(ranked, "time");
+    expect(pos.at(-1)!.pos).toBe(pos.at(-2)!.pos);
   });
 
-  test("final leads on the headline flow; RAM-regressed cards rank after RAM-clean ones", () => {
+  test("final2 carries WASM numbers on the headline flow", () => {
+    const x = score(submissions.find((s) => s.id === "final2")!);
+    expect(x.headlineTime!).toBeCloseTo(4.25 / 6.14, 3);
+    expect(x.headlineWasmTime!).toBeCloseTo(13.43 / 14.99, 3);
+    expect(x.headlineWasmRam!).toBeCloseTo(576.2 / 579.2, 3);
+    expect(x.timeRatio!).toBeCloseTo(85.84 / 122.79, 3);
+  });
+
+  test("final2 leads on the headline flow; RAM-regressed cards rank after RAM-clean ones", () => {
     const series = submissions.filter((s) => s.kind === "series").map(score);
     const ranked = rank(series, "time", "headline");
-    expect(ranked[0]?.s.id).toBe("final");
+    expect(ranked[0]?.s.id).toBe("final2");
     // integ4 grew peak RAM, so it ranks below every RAM-clean card even though it beats integ5 on time.
     const integ4 = ranked.findIndex((x) => x.s.id === "integ4");
     expect(series.find((x) => x.s.id === "integ4")!.headlineTime!).toBeLessThan(
@@ -44,7 +58,16 @@ describe("seed data", () => {
   });
 
   test("every series card is measured on all 14 flows in the common run", () => {
-    for (const id of ["baseline", "integ1", "integ2", "integ3", "integ4", "integ5", "final"]) {
+    for (const id of [
+      "baseline",
+      "integ1",
+      "integ2",
+      "integ3",
+      "integ4",
+      "integ5",
+      "final",
+      "final2",
+    ]) {
       const x = score(submissions.find((s) => s.id === id)!);
       expect(x.timeFlows, id).toBe(14);
       expect(x.ramFlows, id).toBe(14);
@@ -98,10 +121,14 @@ describe("participant prompt", () => {
 describe("wasm metrics", () => {
   const { submissions } = validateSubmissions(files);
 
-  test("no seed card has WASM numbers yet (shown as not measured)", () => {
+  test("only final2 has WASM numbers; the others show as not measured", () => {
     for (const x of submissions.map(score)) {
-      expect(x.headlineWasmTime).toBeNull();
-      expect(x.wasmTime).toBeNull();
+      if (x.s.id === "final2") {
+        expect(x.wasmTime!).toBeCloseTo(75.96 / 90.89, 3); // 5-flow total
+        continue;
+      }
+      expect(x.headlineWasmTime, x.s.id).toBeNull();
+      expect(x.wasmTime, x.s.id).toBeNull();
     }
   });
 
@@ -141,7 +168,7 @@ describe("progress chart", () => {
   const { submissions } = validateSubmissions(files);
   const pts = progressPoints(submissions.map(score), "headline");
 
-  test("par first, then integ1-5 and final, all from the shared run", () => {
+  test("par first, then integ1-5 and final2 (final is invalid and off the chart)", () => {
     expect(pts.map((p) => p.id)).toEqual([
       "baseline",
       "integ1",
@@ -149,12 +176,12 @@ describe("progress chart", () => {
       "integ3",
       "integ4",
       "integ5",
-      "final",
+      "final2",
     ]);
     expect(pts[0]!.time).toBe(1);
     const fin = pts.at(-1)!;
-    expect(fin.time!).toBeCloseTo(4.323 / 6.376, 3); // no-IFMA shared run
-    expect(fin.alt?.time).toBe(0.488); // its own headline run on the IFMA VM
+    expect(fin.time!).toBeCloseTo(4.25 / 6.14, 3);
+    expect(fin.alt).toBeNull();
   });
 });
 

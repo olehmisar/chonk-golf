@@ -1,0 +1,120 @@
+From eb32a38722fd977c382d2e22c3e7d6d42e9d4aed Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:22:15 +0000
+Subject: [PATCH 70/75] perf(chonk): release the circuit-construction data once
+ the prover instance is built
+
+Chonk freed only the trace blocks of an accumulated circuit; its witness values, copy cycles, lookup
+tables with their gate records, ROM/RAM transcripts and range lists stayed alive through the sumcheck,
+which is where proving memory peaks. UltraCircuitBuilder_::free_construction_data releases them too.
+---
+ barretenberg/cpp/src/barretenberg/chonk/chonk.cpp | 13 +++++--------
+ .../circuit_builder_base.hpp                      | 14 ++++++++++++++
+ .../ultra_circuit_builder.cpp                     | 15 +++++++++++++++
+ .../ultra_circuit_builder.hpp                     |  8 ++++++++
+ 4 files changed, 42 insertions(+), 8 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+index f50ec08eb..2ee704710 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+@@ -499,10 +499,8 @@ void Chonk::accumulate_hiding_kernel(ClientCircuit& circuit,
+     vinfo("Constructing hiding kernel instance (proving deferred to prove())");
+     hiding_prover_inst = std::make_shared<HidingKernelProverInstance>(circuit);
+ 
+-    // Free circuit block memory now that trace data has been copied to prover polynomials
+-    for (auto& block : circuit.blocks.get()) {
+-        block.free_data();
+-    }
++    // Free the circuit-construction data now that the circuit has been copied to prover polynomials
++    circuit.free_construction_data();
+ 
+     if (precomputed_vk) {
+ #ifndef NDEBUG
+@@ -531,10 +529,9 @@ HonkProof Chonk::instance_to_accumulator(ClientCircuit& circuit,
+ #ifndef NDEBUG
+     debug_incoming_circuit<InstanceFlavor>(circuit, prover_instance, vk);
+ #endif
+-    // Free circuit block memory (wires and selectors) now that they've been copied to prover polynomials.
+-    for (auto& block : circuit.blocks.get()) {
+-        block.free_data();
+-    }
++    // Free the circuit-construction data (trace blocks, witnesses, lookup and memory records) now that the circuit has
++    // been copied to prover polynomials.
++    circuit.free_construction_data();
+ 
+     // Run sumcheck on the incoming instance; the folding prover caches the resulting claim. The claims of the whole
+     // group are batched together once, when the group's last circuit is accumulated (see prove_multilinear_batching).
+diff --git a/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/circuit_builder_base.hpp b/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/circuit_builder_base.hpp
+index a2b9ca13a..cfc284d67 100644
+--- a/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/circuit_builder_base.hpp
++++ b/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/circuit_builder_base.hpp
+@@ -162,6 +162,20 @@ template <typename FF_> class CircuitBuilderBase {
+ 
+     const std::vector<FF>& get_variables() const { return variables; }
+ 
++    /**
++     * @brief Release the witness values and the copy-constraint bookkeeping.
++     * @details For a builder whose circuit has been copied into a prover instance; the variables cannot be read
++     * afterwards.
++     */
++    void free_variables()
++    {
++        std::vector<FF>().swap(variables);
++        std::vector<uint32_t>().swap(next_var_index);
++        std::vector<uint32_t>().swap(prev_var_index);
++        std::vector<uint32_t>().swap(real_variable_index);
++        std::vector<uint32_t>().swap(real_variable_tags);
++    }
++
+     /**
+      * @brief Get the value of the variable v_{index}
+      * @param index The index of the variable
+diff --git a/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/ultra_circuit_builder.cpp b/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/ultra_circuit_builder.cpp
+index 5a9ca0c02..4b01ae264 100644
+--- a/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/ultra_circuit_builder.cpp
++++ b/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/ultra_circuit_builder.cpp
+@@ -2034,6 +2034,21 @@ template <typename ExecutionTrace> msgpack::sbuffer UltraCircuitBuilder_<Executi
+     return buffer;
+ }
+ 
++template <typename ExecutionTrace> void UltraCircuitBuilder_<ExecutionTrace>::free_construction_data()
++{
++    for (auto& block : blocks.get()) {
++        block.free_data();
++    }
++    this->free_variables();
++    std::deque<plookup::BasicTable>().swap(lookup_tables);
++    rom_ram_logic = RomRamLogic{};
++    std::vector<uint32_t>().swap(memory_read_records);
++    std::vector<uint32_t>().swap(memory_write_records);
++    std::vector<uint32_t>().swap(rom_logup_records);
++    range_lists.clear();
++    std::vector<cached_partial_non_native_field_multiplication>().swap(cached_partial_non_native_field_multiplications);
++}
++
+ template class UltraCircuitBuilder_<UltraExecutionTraceBlocks>;
+ template class UltraCircuitBuilder_<MegaExecutionTraceBlocks>;
+ 
+diff --git a/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/ultra_circuit_builder.hpp b/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/ultra_circuit_builder.hpp
+index 2fa218988..6ee47aee0 100644
+--- a/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/ultra_circuit_builder.hpp
++++ b/barretenberg/cpp/src/barretenberg/stdlib_circuit_builders/ultra_circuit_builder.hpp
+@@ -220,6 +220,14 @@ class UltraCircuitBuilder_ : public CircuitBuilderBase<typename ExecutionTrace_:
+ 
+     void populate_public_inputs_block();
+ 
++    /**
++     * @brief Release the circuit-construction data once a prover instance has been built from the circuit: trace
++     * blocks (only their sizes are kept), witness values and copy cycles, lookup tables and their gate records,
++     * ROM/RAM transcripts, memory records and range lists.
++     * @details The builder cannot be used to build or check a circuit afterwards.
++     */
++    void free_construction_data();
++
+     void process_non_native_field_multiplications();
+ 
+     UltraCircuitBuilder_(bool is_write_vk_mode = false)
+-- 
+2.43.0
+

@@ -1,0 +1,58 @@
+From 09a3bf52eaa6032d26108eb2fb7421b89c9cb27d Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 03:30:35 +0000
+Subject: [PATCH 40/75] perf(gemini): build A0 = F + G/X in one pass
+
+A0 is written directly from the batched unshifted and to-be-shifted polynomials instead of a
+zero-initialised allocation followed by two add passes.
+---
+ .../commitment_schemes/gemini/gemini.hpp      | 28 ++++++++++++++-----
+ 1 file changed, 21 insertions(+), 7 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/commitment_schemes/gemini/gemini.hpp b/barretenberg/cpp/src/barretenberg/commitment_schemes/gemini/gemini.hpp
+index 0b4568812..e2905fb8f 100644
+--- a/barretenberg/cpp/src/barretenberg/commitment_schemes/gemini/gemini.hpp
++++ b/barretenberg/cpp/src/barretenberg/commitment_schemes/gemini/gemini.hpp
+@@ -183,18 +183,32 @@ template <typename Curve> class GeminiProver_ {
+                     batched, std::span<const PolynomialSpan<const Fr>>(sources), std::span<const Fr>(scalars));
+             };
+ 
+-            Polynomial full_batched(full_batched_size);
+-
+-            if (has_unshifted()) {
++            const bool with_unshifted = has_unshifted();
++            const bool with_shifted = has_to_be_shifted_by_one();
++            if (with_unshifted) {
+                 batch(batched_unshifted, unshifted);
+-                full_batched += batched_unshifted;
+             }
+-
+-            if (has_to_be_shifted_by_one()) {
++            if (with_shifted) {
+                 batch(batched_to_be_shifted_by_one, to_be_shifted_by_one);
+-                full_batched += batched_to_be_shifted_by_one.shifted();
+             }
+ 
++            // A₀[i] = F[i] + G[i + 1], written in one pass; coefficients from actual_data_size_ on are zero
++            Polynomial full_batched(full_batched_size, Polynomial::DontZeroMemory::FLAG);
++            parallel_for_heuristic(
++                full_batched_size,
++                [&](size_t start, size_t end, BB_UNUSED size_t chunk_index) {
++                    for (size_t i = start; i < end; ++i) {
++                        if (i >= actual_data_size_) {
++                            full_batched.at(i) = Fr::zero();
++                            continue;
++                        }
++                        const Fr f = with_unshifted ? batched_unshifted[i] : Fr::zero();
++                        const bool shifted_in_range = with_shifted && (i + 1 < actual_data_size_);
++                        full_batched.at(i) = shifted_in_range ? f + batched_to_be_shifted_by_one[i + 1] : f;
++                    }
++                },
++                thread_heuristics::FF_ADDITION_COST + thread_heuristics::FF_COPY_COST);
++
+             return full_batched;
+         }
+ 
+-- 
+2.43.0
+

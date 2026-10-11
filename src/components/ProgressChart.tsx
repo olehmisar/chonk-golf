@@ -94,9 +94,9 @@ export function ProgressChart() {
             Progress
           </h2>
           <p className="max-w-2xl text-sm text-muted">
-            Each integrated series vs the unmodified prover (par = 100%), all measured in the same
-            run on the same machine. Lower is better: the lines go down as the prover gets faster
-            and leaner.
+            Each integrated series vs the unmodified prover (par = 100%) on the same machine type,
+            each against its own unmodified baseline in the same run. Lower is better: the lines go
+            down as the prover gets faster and leaner.
           </p>
         </div>
         <Segmented<Scope>

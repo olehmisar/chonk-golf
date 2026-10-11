@@ -1,0 +1,50 @@
+From d3fda33d34312e063914e713ab3535d9c9e2a7f2 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:41:07 +0000
+Subject: [PATCH 67/75] perf(transcript): allocate origin tag debug IDs in
+ per-thread blocks
+
+Every OriginTag construction (several per stdlib field_t operation) took its
+debug tag_id with an atomic fetch_add on a shared counter. Each thread now
+reserves IDs from that counter in blocks of 2^16 and hands them out from a
+thread_local range, so IDs stay unique without an atomic read-modify-write
+per tag. tag_id is only used in error messages.
+
+create_circuit on storage_proof_7_layers: ~598 -> ~566 ms (keccak).
+---
+ .../barretenberg/transcript/origin_tag.hpp    | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/transcript/origin_tag.hpp b/barretenberg/cpp/src/barretenberg/transcript/origin_tag.hpp
+index 44873fecf..fcc37dad4 100644
+--- a/barretenberg/cpp/src/barretenberg/transcript/origin_tag.hpp
++++ b/barretenberg/cpp/src/barretenberg/transcript/origin_tag.hpp
+@@ -72,7 +72,24 @@ struct OriginTag {
+     // Unique per-object ID for debugging: when a tag merge fails, the error message includes
+     // the IDs of both tags so you can trace which specific field elements were involved.
+     static inline std::atomic<uint64_t> next_tag_id{ 0 };
+-    uint64_t tag_id = next_tag_id.fetch_add(1, std::memory_order_relaxed);
++    uint64_t tag_id = allocate_tag_id();
++
++    /**
++     * @brief Return an ID that no other tag has been given.
++     * @details Each thread reserves IDs from next_tag_id in blocks, so constructing a tag needs no atomic
++     * read-modify-write (tags are created for every stdlib field operation).
++     */
++    static uint64_t allocate_tag_id()
++    {
++        constexpr uint64_t ID_BLOCK_SIZE = 1ULL << 16;
++        thread_local uint64_t next_id = 0;
++        thread_local uint64_t block_end = 0;
++        if (next_id == block_end) {
++            next_id = next_tag_id.fetch_add(ID_BLOCK_SIZE, std::memory_order_relaxed);
++            block_end = next_id + ID_BLOCK_SIZE;
++        }
++        return next_id++;
++    }
+ 
+     static constexpr size_t CONSTANT = static_cast<size_t>(-1);
+     static constexpr size_t FREE_WITNESS = static_cast<size_t>(-2);
+-- 
+2.43.0
+

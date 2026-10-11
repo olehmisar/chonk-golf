@@ -1,0 +1,186 @@
+From 75b92a9ae2f647865777d89b5ebea5104bd2f374 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:03:04 +0000
+Subject: [PATCH 63/75] perf(polynomials): AVX-512 IFMA Horner chains in
+ polynomial_arithmetic::evaluate
+
+Sixteen interleaved Horner chains (two registers of eight, step z^16) per thread chunk, the remainder by
+scalar Horner. Same value (exact arithmetic), runtime-dispatched.
+---
+ .../barretenberg/ecc/fields/ifma_field.hpp    | 31 ++++++++++++++++
+ .../ecc/fields/ifma_field.test.cpp            | 32 +++++++++++++++++
+ .../polynomials/polynomial_arithmetic.cpp     | 35 +++++++++++++++++++
+ .../polynomial_arithmetic.test.cpp            | 18 ++++++++++
+ 4 files changed, 116 insertions(+)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
+index 629629b25..48bf05f2b 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
+@@ -332,6 +332,37 @@ BB_FIELD_IFMA_TARGET void fold_stride2(const uint64_t* src, uint64_t* dst, size_
+     }
+ }
+ 
++/**
++ * @brief Horner evaluation split over 16 interleaved chains: writes eight elements t_0 .. t_7 (in [0, p), 4-limb
++ *        layout) to `out` whose sum is sum_i coeffs[i] * z^i for i < n. coeffs are raw 4-limb elements in [0, 2p) and
++ *        n must be a multiple of 16; `z_pows` holds z^0 .. z^7, `z8` = z^8 and `z16` = z^16, each below 2p.
++ *
++ * @details Lane j of chain A accumulates sum_m coeffs[16m + j] z^(16m) and chain B sum_m coeffs[16m + 8 + j] z^(16m)
++ *          by Horner's rule from the top, so two independent multiplications are in flight per step. Then
++ *          t_j = z^j (A_j + z^8 B_j).
++ */
++template <typename Params>
++BB_FIELD_IFMA_TARGET void evaluate(
++    const uint64_t* coeffs, size_t n, const uint64_t* z_pows, const uint64_t* z8, const uint64_t* z16, uint64_t* out)
++{
++    const V5 z16v = broadcast(z16);
++    V5 a;
++    V5 b;
++    for (size_t i = 0; i < 5; ++i) {
++        a.l[i] = _mm512_setzero_si512();
++        b.l[i] = _mm512_setzero_si512();
++    }
++    // The accumulators stay below 4.9p (fixed point of x -> 0.19 * 2x + 1 + 2).
++    for (size_t i = n; i != 0;) {
++        i -= 16;
++        a = add(mont_mul<Params>(a, z16v), load8(coeffs + (4 * i)));
++        b = add(mont_mul<Params>(b, z16v), load8(coeffs + (4 * (i + 8))));
++    }
++    // a + z^8 b < 4.9p + 2.9p; reduce before the last multiplication.
++    const V5 lanes = canonical<Params>(add(a, mont_mul<Params>(b, broadcast(z8))));
++    store8(canonical<Params>(mont_mul<Params>(lanes, load8(z_pows))), out);
++}
++
+ /**
+  * @brief One source of `add_scaled_batch_tile`: tile elements [begin, end) gain scalar * src, where `data` points at
+  *        the source element for tile index `begin`. A unit scalar (`unit`) adds src without multiplying.
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
+index 82b955517..763aef431 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
+@@ -99,6 +99,38 @@ TEST_F(FieldIfma, FoldStride2MatchesScalar)
+     }
+ }
+ 
++TEST_F(FieldIfma, EvaluateMatchesHorner)
++{
++    for (const size_t n : { size_t{ 16 }, size_t{ 160 }, size_t{ 1024 } }) {
++        std::vector<fr> coeffs(n);
++        for (size_t i = 0; i < n; ++i) {
++            coeffs[i] = edge_or_random(i);
++        }
++        for (const fr& z : { fr::zero(), fr::one(), -fr::one(), fr::random_element(&engine) }) {
++            fr expected = fr::zero();
++            for (size_t i = n; i > 0; --i) {
++                expected = (expected * z) + coeffs[i - 1];
++            }
++            std::array<fr, 8> z_pows;
++            z_pows[0] = fr::one();
++            for (size_t j = 1; j < 8; ++j) {
++                z_pows[j] = z_pows[j - 1] * z;
++            }
++            const fr z8 = z_pows[7] * z;
++            const fr z16 = z8.sqr();
++            std::array<fr, 8> terms;
++            field_ifma::evaluate<fr::Params>(
++                &coeffs[0].data[0], n, &z_pows[0].data[0], &z8.data[0], &z16.data[0], &terms[0].data[0]);
++            fr sum = fr::zero();
++            for (const fr& t : terms) {
++                EXPECT_LT((uint256_t{ t.data[0], t.data[1], t.data[2], t.data[3] }), fr::modulus);
++                sum += t;
++            }
++            EXPECT_EQ(sum, expected);
++        }
++    }
++}
++
+ TEST_F(FieldIfma, AddScaledBatchTileMatchesScalar)
+ {
+     constexpr size_t TILE = field_ifma::MAX_TILE;
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
+index e2f323c26..62fb46790 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
+@@ -8,10 +8,12 @@
+ #include "barretenberg/common/assert.hpp"
+ #include "barretenberg/common/mem.hpp"
+ #include "barretenberg/common/thread.hpp"
++#include "barretenberg/ecc/fields/ifma_field.hpp"
+ #include "barretenberg/ecc/fields/vectorized_for.hpp"
+ #include "barretenberg/numeric/bitop/get_msb.hpp"
+ #include "barretenberg/polynomials/accumulator.hpp"
+ #include "barretenberg/polynomials/polynomial.hpp"
++#include <array>
+ #include <math.h>
+ #include <memory.h>
+ 
+@@ -173,6 +175,39 @@ template <typename Fr> Fr evaluate(const Fr* coeffs, const Fr& z, const size_t n
+         // interleaved so that their multiplication chains overlap. Accumulate locally and store once so threads
+         // do not write to adjacent elements of `evaluations` on every iteration.
+         const size_t start = *range.begin();
++#ifdef BB_FIELD_IFMA
++        // AVX-512 IFMA: sixteen interleaved Horner chains over the largest multiple of 16 coefficients, the rest by
++        // scalar Horner, then the chunk is placed at z^start as below.
++        if constexpr (field_ifma::Consts<typename Fr::Params>::supported) {
++            if (field_ifma::available()) {
++                const size_t bulk_size = range.size() & ~size_t{ 15 };
++                std::array<Fr, 8> z_pows;
++                z_pows[0] = Fr::one();
++                for (size_t j = 1; j < 8; ++j) {
++                    z_pows[j] = z_pows[j - 1] * z;
++                }
++                const Fr z8 = z_pows[7] * z;
++                const Fr z16 = z8.sqr();
++                std::array<Fr, 8> terms;
++                field_ifma::evaluate<typename Fr::Params>(&coeffs[start].data[0],
++                                                          bulk_size,
++                                                          &z_pows[0].data[0],
++                                                          &z8.data[0],
++                                                          &z16.data[0],
++                                                          &terms[0].data[0]);
++                Fr tail_eval = Fr::zero();
++                for (size_t i = range.size(); i > bulk_size; --i) {
++                    tail_eval = (tail_eval * z) + coeffs[start + i - 1];
++                }
++                Fr chunk_eval = tail_eval * z.pow(static_cast<uint64_t>(bulk_size));
++                for (const Fr& term : terms) {
++                    chunk_eval += term;
++                }
++                evaluations[chunk.thread_index] = chunk_eval * z.pow(static_cast<uint64_t>(start));
++                return;
++            }
++        }
++#endif
+         const size_t low_size = range.size() / 2;
+         const size_t high_size = range.size() - low_size;
+         const Fr* low = coeffs + start;
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.test.cpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.test.cpp
+index 2f097b3e1..05f706da9 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.test.cpp
+@@ -526,3 +526,21 @@ TEST(polynomials, FftInnerParallelInPlaceAsserts)
+         polynomial_arithmetic::fft_inner_parallel(coeffs.data(), coeffs.data(), domain, FF(), domain.get_round_roots()),
+         ".*");
+ }
++
++// evaluate (IFMA chains on capable CPUs, two scalar Horner chains elsewhere) against a single Horner chain, for sizes
++// that leave every possible remainder in the per-thread chunks.
++TEST(polynomials, evaluate_matches_horner)
++{
++    for (const size_t n : { size_t{ 1 }, size_t{ 17 }, size_t{ 64 }, size_t{ 1000 }, size_t{ 5003 } }) {
++        std::vector<fr> coeffs(n);
++        for (auto& c : coeffs) {
++            c = fr::random_element();
++        }
++        const fr z = fr::random_element();
++        fr expected = fr::zero();
++        for (size_t i = n; i > 0; --i) {
++            expected = (expected * z) + coeffs[i - 1];
++        }
++        EXPECT_EQ(polynomial_arithmetic::evaluate(coeffs.data(), z, n), expected) << n;
++    }
++}
+-- 
+2.43.0
+

@@ -1,0 +1,603 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "final2",
+  "title": "final2: final minus the WASM-breaking commit (75 commits)",
+  "author": "bb-chonk-prover-opt coordinator",
+  "track": "integrated",
+  "date": "2026-10-11",
+  "kind": "series",
+  "status": "integrated",
+  "integrated_in": "final2",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "baseline",
+    "description": "Unmodified prover, same 14-flow run."
+  },
+  "patches": [
+    {
+      "name": "0001-harness-deterministic-RNG-env-hook.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0001-harness-deterministic-RNG-env-hook.patch",
+      "summary": "harness: deterministic RNG env hook"
+    },
+    {
+      "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "summary": "harness: sequential random polys in deterministic mode"
+    },
+    {
+      "name": "0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "summary": "perf: single-limb fast path in uint256 divmod; chunked keccak normalize_sparse"
+    },
+    {
+      "name": "0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "summary": "perf(msm): fused scalar batch-affine drain for native Stage 6a"
+    },
+    {
+      "name": "0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "summary": "perf(translator): fetch only grand-product columns per row"
+    },
+    {
+      "name": "0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "summary": "perf(sumcheck): skip fold multiply for bit-identical neighbour pairs"
+    },
+    {
+      "name": "0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "summary": "perf(ecc): batched variable-time divsteps in Bernstein-Yang inverse"
+    },
+    {
+      "name": "0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "summary": "perf(sumcheck): fold subrelation separators into Poseidon2 quad relations on the prover"
+    },
+    {
+      "name": "0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "summary": "perf(sumcheck): skip databus lookup rows of other bus columns"
+    },
+    {
+      "name": "0010-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0010-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
+      "summary": "perf(dsl): move decoded ACIR enum variants instead of copying; string_view field names"
+    },
+    {
+      "name": "0011-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0011-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
+      "summary": "perf(dsl): stream msgpack-compact ACIR program and witness decoding"
+    },
+    {
+      "name": "0012-perf-uintx-skip-multiplications-by-zero-halves.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0012-perf-uintx-skip-multiplications-by-zero-halves.patch",
+      "summary": "perf(uintx): skip multiplications by zero halves"
+    },
+    {
+      "name": "0013-perf-field-compile-time-one-and-neg_one.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0013-perf-field-compile-time-one-and-neg_one.patch",
+      "summary": "perf(field): compile-time one() and neg_one()"
+    },
+    {
+      "name": "0014-perf-chonk-move-step-bytecode-and-witness-into-Chonk.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0014-perf-chonk-move-step-bytecode-and-witness-into-Chonk.patch",
+      "summary": "perf(chonk): move step bytecode and witness into ChonkLoad/ChonkAccumulate; write the hiding-kernel VK from the IVC"
+    },
+    {
+      "name": "0015-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0015-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
+      "summary": "perf(threading): lock-free parallel_for pool with bounded spin before sleeping"
+    },
+    {
+      "name": "0016-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0016-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
+      "summary": "perf(poseidon2): shorter critical path in native permutation rounds"
+    },
+    {
+      "name": "0017-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0017-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
+      "summary": "perf(sha256): x86 SHA extensions and streaming input for native sha256"
+    },
+    {
+      "name": "0018-perf-polynomials-tile-add_scaled_batch-and-skip-zero.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0018-perf-polynomials-tile-add_scaled_batch-and-skip-zero.patch",
+      "summary": "perf(polynomials): tile add_scaled_batch and skip zero source coefficients"
+    },
+    {
+      "name": "0019-perf-oink-parallel-range-limited-log-derivative-inve.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0019-perf-oink-parallel-range-limited-log-derivative-inve.patch",
+      "summary": "perf(oink): parallel, range-limited log-derivative inverse computation"
+    },
+    {
+      "name": "0020-perf-honk-fill-only-the-permutation-columns-of-the-g.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0020-perf-honk-fill-only-the-permutation-columns-of-the-g.patch",
+      "summary": "perf(honk): fill only the permutation columns of the grand-product row"
+    },
+    {
+      "name": "0021-perf-polynomials-Horner-per-thread-chunk-in-polynomi.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0021-perf-polynomials-Horner-per-thread-chunk-in-polynomi.patch",
+      "summary": "perf(polynomials): Horner per thread chunk in polynomial evaluate"
+    },
+    {
+      "name": "0022-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0022-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
+      "summary": "perf(sumcheck): drop memory relation terms of gate types absent from the edge on the prover"
+    },
+    {
+      "name": "0023-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0023-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
+      "summary": "perf(keccak): divide by multi-limb powers of 11 via chained single-limb divisions"
+    },
+    {
+      "name": "0024-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0024-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
+      "summary": "perf(bigfield): compute fixed CRT bounds once; 512-bit borrow factor in subtraction"
+    },
+    {
+      "name": "0025-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0025-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
+      "summary": "perf(keccak): runtime slice loop in normalize_and_rotate"
+    },
+    {
+      "name": "0026-perf-field_t-compile-time-Montgomery-1-and-1.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0026-perf-field_t-compile-time-Montgomery-1-and-1.patch",
+      "summary": "perf(field_t): compile-time Montgomery 1 and -1"
+    },
+    {
+      "name": "0027-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0027-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
+      "summary": "perf(joint): fold both circuits' sumcheck tables in one largest-first parallel region"
+    },
+    {
+      "name": "0028-perf-pcs-parallel-batched-linear-quotients-for-Shplo.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0028-perf-pcs-parallel-batched-linear-quotients-for-Shplo.patch",
+      "summary": "perf(pcs): parallel batched linear quotients for Shplonk and KZG"
+    },
+    {
+      "name": "0029-perf-gemini-single-pass-for-the-partially-evaluated-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0029-perf-gemini-single-pass-for-the-partially-evaluated-.patch",
+      "summary": "perf(gemini): single pass for the partially evaluated batch polynomials"
+    },
+    {
+      "name": "0030-perf-multilinear_batching-batched-merge-in-compute_n.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0030-perf-multilinear_batching-batched-merge-in-compute_n.patch",
+      "summary": "perf(multilinear_batching): batched merge in compute_new_claim"
+    },
+    {
+      "name": "0031-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0031-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
+      "summary": "perf(msm): AVX-512 IFMA batch-affine drain for native Stage 6a"
+    },
+    {
+      "name": "0032-perf-chonk-free-a-step-s-constraint-system-and-witne.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0032-perf-chonk-free-a-step-s-constraint-system-and-witne.patch",
+      "summary": "perf(chonk): free a step's constraint system and witness before accumulating it"
+    },
+    {
+      "name": "0033-perf-poseidon2-interleaved-S-box-layer-and-shorter-i.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0033-perf-poseidon2-interleaved-S-box-layer-and-shorter-i.patch",
+      "summary": "perf(poseidon2): interleaved S-box layer and shorter internal-matrix chain in round helpers"
+    },
+    {
+      "name": "0034-perf-eccvm-narrow-rows-and-zero-tail-extension-for-g.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0034-perf-eccvm-narrow-rows-and-zero-tail-extension-for-g.patch",
+      "summary": "perf(eccvm): narrow rows and zero-tail extension for grand product and log-derivative inverses"
+    },
+    {
+      "name": "0035-perf-eccvm-parallelise-transcript-scalar-muls-and-MS.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0035-perf-eccvm-parallelise-transcript-scalar-muls-and-MS.patch",
+      "summary": "perf(eccvm): parallelise transcript scalar muls and MSM trace construction"
+    },
+    {
+      "name": "0036-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0036-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
+      "summary": "perf(field): lower-latency ADX Montgomery mul and split-reduction squaring"
+    },
+    {
+      "name": "0037-perf-msm-run-native-Stage-6b-batched-adds-on-the-IFM.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0037-perf-msm-run-native-Stage-6b-batched-adds-on-the-IFM.patch",
+      "summary": "perf(msm): run native Stage 6b batched adds on the IFMA drain"
+    },
+    {
+      "name": "0038-test-msm-IFMA-drain-edge-cases.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0038-test-msm-IFMA-drain-edge-cases.patch",
+      "summary": "test(msm): IFMA drain edge cases"
+    },
+    {
+      "name": "0039-perf-pcs-overlap-independent-recurrences-in-batched-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0039-perf-pcs-overlap-independent-recurrences-in-batched-.patch",
+      "summary": "perf(pcs): overlap independent recurrences in batched linear quotients"
+    },
+    {
+      "name": "0040-perf-gemini-build-A0-F-G-X-in-one-pass.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0040-perf-gemini-build-A0-F-G-X-in-one-pass.patch",
+      "summary": "perf(gemini): build A0 = F + G/X in one pass"
+    },
+    {
+      "name": "0041-perf-gemini-skip-zero-initialising-the-fold-polynomi.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0041-perf-gemini-skip-zero-initialising-the-fold-polynomi.patch",
+      "summary": "perf(gemini): skip zero-initialising the fold polynomials"
+    },
+    {
+      "name": "0042-perf-polynomials-work-balanced-thread-split-in-add_s.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0042-perf-polynomials-work-balanced-thread-split-in-add_s.patch",
+      "summary": "perf(polynomials): work-balanced thread split in add_scaled_batch"
+    },
+    {
+      "name": "0043-perf-polynomials-no-multiplication-for-unit-scalars-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0043-perf-polynomials-no-multiplication-for-unit-scalars-.patch",
+      "summary": "perf(polynomials): no multiplication for unit scalars in add_scaled_batch"
+    },
+    {
+      "name": "0044-perf-polynomials-two-interleaved-Horner-chains-in-po.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0044-perf-polynomials-two-interleaved-Horner-chains-in-po.patch",
+      "summary": "perf(polynomials): two interleaved Horner chains in polynomial_arithmetic::evaluate"
+    },
+    {
+      "name": "0045-perf-bigfield-avoid-wide-divisions-on-bounds-and-red.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0045-perf-bigfield-avoid-wide-divisions-on-bounds-and-red.patch",
+      "summary": "perf(bigfield): avoid wide divisions on bounds and reduced values"
+    },
+    {
+      "name": "0046-perf-bigfield-combine-and-split-limbs-with-256-bit-s.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0046-perf-bigfield-combine-and-split-limbs-with-256-bit-s.patch",
+      "summary": "perf(bigfield): combine and split limbs with 256-bit shifts"
+    },
+    {
+      "name": "0047-perf-sumcheck-prover-fast-path-for-arithmetic-gates-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0047-perf-sumcheck-prover-fast-path-for-arithmetic-gates-.patch",
+      "summary": "perf(sumcheck): prover fast path for arithmetic gates with q_arith == 1"
+    },
+    {
+      "name": "0048-perf-sumcheck-drop-absent-read-table-terms-in-the-lo.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0048-perf-sumcheck-drop-absent-read-table-terms-in-the-lo.patch",
+      "summary": "perf(sumcheck): drop absent read/table terms in the log-derivative lookup prover path"
+    },
+    {
+      "name": "0049-perf-sumcheck-batch-the-delta-range-subrelations-on-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0049-perf-sumcheck-batch-the-delta-range-subrelations-on-.patch",
+      "summary": "perf(sumcheck): batch the delta-range subrelations on the prover"
+    },
+    {
+      "name": "0050-test-sumcheck-prover-relation-paths-on-edges-with-ga.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0050-test-sumcheck-prover-relation-paths-on-edges-with-ga.patch",
+      "summary": "test(sumcheck): prover relation paths on edges with gate-like selector values"
+    },
+    {
+      "name": "0051-perf-trace-chunked-gate-tile-storage.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0051-perf-trace-chunked-gate-tile-storage.patch",
+      "summary": "perf(trace): chunked gate tile storage"
+    },
+    {
+      "name": "0052-perf-wasm-build-release-wasm-with-O3-fno-vectorize-i.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0052-perf-wasm-build-release-wasm-with-O3-fno-vectorize-i.patch",
+      "summary": "perf(wasm): build release wasm with -O3 -fno-vectorize instead of -Oz"
+    },
+    {
+      "name": "0053-perf-wasm-skip-packed-fold-for-blocks-of-identical-n.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0053-perf-wasm-skip-packed-fold-for-blocks-of-identical-n.patch",
+      "summary": "perf(wasm): skip packed fold for blocks of identical neighbour pairs"
+    },
+    {
+      "name": "0054-perf-wasm-packed-batch_two_round_fold-IPA-SRS-fold.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0054-perf-wasm-packed-batch_two_round_fold-IPA-SRS-fold.patch",
+      "summary": "perf(wasm): packed batch_two_round_fold (IPA SRS fold)"
+    },
+    {
+      "name": "0055-perf-bbapi-reference-request-blobs-in-place-when-unp.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0055-perf-bbapi-reference-request-blobs-in-place-when-unp.patch",
+      "summary": "perf(bbapi): reference request blobs in place when unpacking msgpack commands"
+    },
+    {
+      "name": "0056-perf-ipc-free-large-socket-receive-buffers-once-thei.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0056-perf-ipc-free-large-socket-receive-buffers-once-thei.patch",
+      "summary": "perf(ipc): free large socket receive buffers once their message is handled"
+    },
+    {
+      "name": "0057-perf-honk-parallel-lookup-read-counts-with-integer-a.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0057-perf-honk-parallel-lookup-read-counts-with-integer-a.patch",
+      "summary": "perf(honk): parallel lookup read counts with integer accumulation"
+    },
+    {
+      "name": "0058-perf-trace-parallel-copy-cycle-counting-and-fill.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0058-perf-trace-parallel-copy-cycle-counting-and-fill.patch",
+      "summary": "perf(trace): parallel copy-cycle counting and fill"
+    },
+    {
+      "name": "0059-perf-databus-compute-log-derivative-inverse-terms-fr.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0059-perf-databus-compute-log-derivative-inverse-terms-fr.patch",
+      "summary": "perf(databus): compute log-derivative inverse terms from the four columns"
+    },
+    {
+      "name": "0060-perf-honk-grand-product-as-a-running-product-of-per-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0060-perf-honk-grand-product-as-a-running-product-of-per-.patch",
+      "summary": "perf(honk): grand product as a running product of per-row ratios"
+    },
+    {
+      "name": "0061-perf-sumcheck-AVX-512-IFMA-kernel-for-the-stride-2-f.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0061-perf-sumcheck-AVX-512-IFMA-kernel-for-the-stride-2-f.patch",
+      "summary": "perf(sumcheck): AVX-512 IFMA kernel for the stride-2 fold"
+    },
+    {
+      "name": "0062-perf-polynomials-AVX-512-IFMA-tiles-in-add_scaled_ba.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0062-perf-polynomials-AVX-512-IFMA-tiles-in-add_scaled_ba.patch",
+      "summary": "perf(polynomials): AVX-512 IFMA tiles in add_scaled_batch"
+    },
+    {
+      "name": "0063-perf-polynomials-AVX-512-IFMA-Horner-chains-in-polyn.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0063-perf-polynomials-AVX-512-IFMA-Horner-chains-in-polyn.patch",
+      "summary": "perf(polynomials): AVX-512 IFMA Horner chains in polynomial_arithmetic::evaluate"
+    },
+    {
+      "name": "0064-perf-ipa-AVX-512-IFMA-replay-of-the-two-round-SRS-fo.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0064-perf-ipa-AVX-512-IFMA-replay-of-the-two-round-SRS-fo.patch",
+      "summary": "perf(ipa): AVX-512 IFMA replay of the two-round SRS fold"
+    },
+    {
+      "name": "0065-perf-sumcheck-AVX-512-IFMA-element-wise-products-of-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0065-perf-sumcheck-AVX-512-IFMA-element-wise-products-of-.patch",
+      "summary": "perf(sumcheck): AVX-512 IFMA element-wise products of short univariates"
+    },
+    {
+      "name": "0066-perf-dsl-decode-common-ACIR-opcodes-straight-from-ms.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0066-perf-dsl-decode-common-ACIR-opcodes-straight-from-ms.patch",
+      "summary": "perf(dsl): decode common ACIR opcodes straight from msgpack-compact bytes"
+    },
+    {
+      "name": "0067-perf-transcript-allocate-origin-tag-debug-IDs-in-per.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0067-perf-transcript-allocate-origin-tag-debug-IDs-in-per.patch",
+      "summary": "perf(transcript): allocate origin tag debug IDs in per-thread blocks"
+    },
+    {
+      "name": "0068-perf-dsl-skip-zero-scaled-terms-in-the-AssertZero-ga.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0068-perf-dsl-skip-zero-scaled-terms-in-the-AssertZero-ga.patch",
+      "summary": "perf(dsl): skip zero-scaled terms in the AssertZero gate satisfiability check"
+    },
+    {
+      "name": "0069-perf-sumcheck-back-partially-evaluated-tables-on-the.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0069-perf-sumcheck-back-partially-evaluated-tables-on-the.patch",
+      "summary": "perf(sumcheck): back partially evaluated tables on the folded support only"
+    },
+    {
+      "name": "0070-perf-chonk-release-the-circuit-construction-data-onc.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0070-perf-chonk-release-the-circuit-construction-data-onc.patch",
+      "summary": "perf(chonk): release the circuit-construction data once the prover instance is built"
+    },
+    {
+      "name": "0071-perf-api-decompress-each-Chonk-step-just-before-it-i.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0071-perf-api-decompress-each-Chonk-step-just-before-it-i.patch",
+      "summary": "perf(api): decompress each Chonk step just before it is loaded"
+    },
+    {
+      "name": "0072-perf-hypernova-move-the-in-place-batched-polynomial-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0072-perf-hypernova-move-the-in-place-batched-polynomial-.patch",
+      "summary": "perf(hypernova): move the in-place batched polynomial out instead of copying it"
+    },
+    {
+      "name": "0073-perf-chonk-release-the-translator-circuit-builder-an.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0073-perf-chonk-release-the-translator-circuit-builder-an.patch",
+      "summary": "perf(chonk): release the translator circuit builder and the final accumulator's polynomials early"
+    },
+    {
+      "name": "0074-perf-sumcheck-materialize-the-partially-evaluated-ta.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0074-perf-sumcheck-materialize-the-partially-evaluated-ta.patch",
+      "summary": "perf(sumcheck): materialize the partially evaluated tables after two rounds"
+    },
+    {
+      "name": "0075-perf-ultra_honk-let-Chonk-s-prover-instances-free-th.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/patches/0075-perf-ultra_honk-let-Chonk-s-prover-instances-free-th.patch",
+      "summary": "perf(ultra_honk): let Chonk's prover instances free the circuit data they have copied"
+    }
+  ],
+  "series_url": "https://github.com/olehmisar/chonk-golf/tree/main/sources/final2/patches",
+  "description": "The final series without final/0047 \"perf(field_t): is_normalized compares raw limbs\": 75 commits (0001-0002 harness, 73 optimisations). That commit assumed field elements are held in [0, 2p), true natively but not in WASM (R = 2^261, 29-bit limbs), so the WASM build emitted 2 extra kernel-circuit rows and its proofs failed verification. First series with WASM numbers.",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/README.md",
+  "machine": {
+    "cpu": "4 vCPU Intel Xeon @ 2.80GHz (cloud VM, AVX-512, no AVX-512 IFMA: IFMA kernels inactive)",
+    "cores": 4,
+    "ram": "15 GiB",
+    "os": null,
+    "compiler": "clang 18 (Release)"
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": "check_identical.txt: 14/14 IDENTICAL; verify_stock_bbjs.txt: stock npm bb.js 7.0.0-nightly.20261009 verifies all 14 flows, tampered rejected, VKs equal; verify_native_unmodified.txt: unmodified native bb verify 14/14, tampered rejected. WASM: all 25 benchmark runs proved by the final2 WASM build verified by bb.js's bundled (unmodified) WASM verifier, tampered proofs rejected. Unit tests: pending."
+  },
+  "summary": {
+    "baseline_wall_s": 122.79,
+    "wall_s": 85.84,
+    "wall_ratio": null,
+    "flows_measured": 14,
+    "reps": 5,
+    "notes": "Separate 14-flow run on the same no-IFMA 4 vCPU VM type: unmodified, integ5 and final2 round-robin, 5 reps; time = min wall, RAM = median peak RSS of bb. integ5 in this run: time 0.708, RSS 0.903."
+  },
+  "flows": [
+    {
+      "flow": "deploy_ecdsar1+sponsored_fpc",
+      "baseline_wall_s": 7.05,
+      "wall_s": 5.01,
+      "baseline_peak_rss_mib": 311.5,
+      "peak_rss_mib": 242.2,
+      "reps": 5
+    },
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": 6.84,
+      "wall_s": 4.71,
+      "baseline_peak_rss_mib": 306.2,
+      "peak_rss_mib": 221.7,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 10.82,
+      "wall_s": 8.4,
+      "baseline_peak_rss_mib": 348.7,
+      "peak_rss_mib": 244.3,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 8.9,
+      "wall_s": 6.19,
+      "baseline_peak_rss_mib": 326.5,
+      "peak_rss_mib": 239.6,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": 22.52,
+      "wall_s": 15.01,
+      "baseline_peak_rss_mib": 848.2,
+      "peak_rss_mib": 625.8,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+      "baseline_wall_s": 7.8,
+      "wall_s": 5.19,
+      "baseline_peak_rss_mib": 313.0,
+      "peak_rss_mib": 222.4,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+      "baseline_wall_s": 9.32,
+      "wall_s": 6.93,
+      "baseline_peak_rss_mib": 329.6,
+      "peak_rss_mib": 243.1,
+      "reps": 5,
+      "wasm": {
+        "baseline_prove_s": 22.74,
+        "prove_s": 18.65,
+        "baseline_peak_rss_mib": 638.1,
+        "peak_rss_mib": 643.2,
+        "reps": 5,
+        "threads": 4,
+        "stock_wasm_verified": true,
+        "tampered_rejected": true
+      }
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": 6.17,
+      "wall_s": 4.41,
+      "baseline_peak_rss_mib": 291.7,
+      "peak_rss_mib": 225.6,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": 9.4,
+      "wall_s": 6.49,
+      "baseline_peak_rss_mib": 338.0,
+      "peak_rss_mib": 243.1,
+      "reps": 5,
+      "wasm": {
+        "baseline_prove_s": 23.56,
+        "prove_s": 19.04,
+        "baseline_peak_rss_mib": 649.0,
+        "peak_rss_mib": 652.8,
+        "reps": 5,
+        "threads": 4,
+        "stock_wasm_verified": true,
+        "tampered_rejected": true
+      }
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 6.94,
+      "wall_s": 4.71,
+      "baseline_peak_rss_mib": 303.4,
+      "peak_rss_mib": 226.3,
+      "reps": 5
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 7.82,
+      "wall_s": 5.57,
+      "baseline_peak_rss_mib": 326.6,
+      "peak_rss_mib": 225.0,
+      "reps": 5
+    }
+  ],
+  "standards": {
+    "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
+    "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final2/README.md",
+    "machine_note": "Same 14-flow run, 5 reps (min wall / median peak RSS); WASM from wasm_bench.md",
+    "flows": [
+      {
+        "flow": "standards_token_transfer_private_to_private",
+        "baseline_wall_s": 6.14,
+        "wall_s": 4.25,
+        "baseline_peak_rss_mib": 305.6,
+        "peak_rss_mib": 223.0,
+        "reps": 5,
+        "wasm": {
+          "baseline_prove_s": 14.99,
+          "prove_s": 13.43,
+          "baseline_peak_rss_mib": 579.2,
+          "peak_rss_mib": 576.2,
+          "reps": 5,
+          "threads": 4,
+          "stock_wasm_verified": true,
+          "tampered_rejected": true
+        }
+      },
+      {
+        "flow": "standards_token_mint_to_private",
+        "baseline_wall_s": 6.92,
+        "wall_s": 4.76,
+        "baseline_peak_rss_mib": 304.7,
+        "peak_rss_mib": 215.4,
+        "reps": 5,
+        "wasm": {
+          "baseline_prove_s": 15.16,
+          "prove_s": 12.79,
+          "baseline_peak_rss_mib": 587.7,
+          "peak_rss_mib": 569.4,
+          "reps": 5,
+          "threads": 4,
+          "stock_wasm_verified": true,
+          "tampered_rejected": true
+        }
+      },
+      {
+        "flow": "standards_token_transfer_private_to_public",
+        "baseline_wall_s": 6.14,
+        "wall_s": 4.2,
+        "baseline_peak_rss_mib": 297.3,
+        "peak_rss_mib": 215.3,
+        "reps": 5,
+        "wasm": {
+          "baseline_prove_s": 14.43,
+          "prove_s": 12.05,
+          "baseline_peak_rss_mib": 588.4,
+          "peak_rss_mib": 567.7,
+          "reps": 5,
+          "threads": 4,
+          "stock_wasm_verified": true,
+          "tampered_rejected": true
+        }
+      }
+    ],
+    "correctness": {
+      "flows_total": 3,
+      "identical_flows": 3,
+      "stock_bbjs_verified_flows": 3,
+      "tampered_rejected": true,
+      "vks_match": true
+    }
+  },
+  "caveats": [
+    "WASM peak RSS is dominated by the linear-memory high-water mark, which never shrinks, so the native RAM savings barely carry over to WASM (headline WASM RAM −0.5%).",
+    "Measured on a 4 vCPU VM without AVX-512 IFMA (IFMA kernels inactive). The IFMA-VM numbers on the final card (headline −51.2% time) were measured on final, not final2; final2 only drops a circuit-construction commit that is IFMA-independent, but a final2 IFMA re-run is pending, so they are not shown here.",
+    "The other milestone cards come from an earlier 14-flow run on the same VM type; final2's run has its own unmodified baseline, so ratios are comparable but seconds are not."
+  ],
+  "milestone": 6
+}

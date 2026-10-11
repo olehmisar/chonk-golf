@@ -1,0 +1,152 @@
+From a227e5f7a30fc3842fe86190bd756871bce77f2e Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:09:31 +0000
+Subject: [PATCH 19/75] perf(oink): parallel, range-limited log-derivative
+ inverse computation
+
+Databus and lookup inverse polynomials are computed and batch-inverted per
+thread over slices of the inverse polynomial's backing range instead of a
+serial whole-polynomial batch_invert after the row loop. The databus pass only
+visits rows inside the q_busread and read_counts backing ranges (both are zero
+elsewhere) and inverts just the non-zero entries of each slice. Inverses are
+unique, so slice-wise inversion yields the same values; masking rows in the
+backing range are still inverted as before.
+---
+ .../relations/databus_lookup_relation.hpp     | 54 ++++++++++++++++---
+ .../relations/logderiv_lookup_relation.hpp    | 23 +++++---
+ 2 files changed, 63 insertions(+), 14 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/relations/databus_lookup_relation.hpp b/barretenberg/cpp/src/barretenberg/relations/databus_lookup_relation.hpp
+index 6d6ba198e..415ef5982 100644
+--- a/barretenberg/cpp/src/barretenberg/relations/databus_lookup_relation.hpp
++++ b/barretenberg/cpp/src/barretenberg/relations/databus_lookup_relation.hpp
+@@ -7,6 +7,7 @@
+ #pragma once
+ #include <array>
+ #include <tuple>
++#include <vector>
+ 
+ #include "barretenberg/common/thread.hpp"
+ #include "barretenberg/polynomials/univariate.hpp"
+@@ -127,15 +128,30 @@ class SingleBusLookupRelationImpl {
+         const auto& column_selector = polynomials[SelectorId];
+         const auto& read_counts = polynomials[ReadCountsId];
+ 
+-        const size_t num_rows = circuit_size - start_index;
++        const auto& q_busread = polynomials.q_busread();
++
++        // A row needs an inverse only if it is a read gate (q_busread != 0) or has a non-zero read count, so only
++        // rows inside the backing ranges of q_busread and read_counts are visited; both are zero elsewhere. Each
++        // thread handles a slice of the inverse polynomial's backing range (which covers both) and then inverts the
++        // non-zero entries of its slice; inverses are unique, so this matches a whole-polynomial batch inversion.
++        const size_t backing_start = inverse_polynomial.start_index();
++        const size_t backing_size = inverse_polynomial.size();
+         size_t min_iterations_per_thread = 1 << 6;
+-        size_t num_threads = bb::calculate_num_threads(num_rows, min_iterations_per_thread);
++        size_t num_threads = bb::calculate_num_threads(backing_size, min_iterations_per_thread);
+ 
+         parallel_for(num_threads, [&](ThreadChunk chunk) {
+             BB_BENCH_TRACY_NAME("Databus::compute_inverses/chunk");
+-            for (size_t j : chunk.range(num_rows)) {
+-                size_t i = j + start_index;
+-                const bool is_read = polynomials.q_busread()[i] == 1 && column_selector[i] == 1;
++            auto range = chunk.range(backing_size, backing_start);
++            if (range.empty()) {
++                return;
++            }
++            const size_t chunk_begin = *range.begin();
++            const size_t chunk_end = chunk_begin + range.size();
++            const size_t row_begin = std::max(chunk_begin, start_index);
++            const size_t row_end = std::min(chunk_end, circuit_size);
++
++            const auto compute_row = [&](size_t i) {
++                const bool is_read = q_busread[i] == 1 && column_selector[i] == 1;
+                 const bool nonzero_read_count = read_counts[i] > 0;
+                 if (is_read || nonzero_read_count) {
+                     // TODO(https://github.com/AztecProtocol/barretenberg/issues/940): avoid get_row if possible.
+@@ -144,10 +160,34 @@ class SingleBusLookupRelationImpl {
+                                  compute_table_term<FF>(row, relation_parameters);
+                     inverse_polynomial.at(i) = value;
+                 }
++            };
++            const size_t read_begin = std::max(row_begin, q_busread.start_index());
++            const size_t read_end = std::min(row_end, q_busread.end_index());
++            for (size_t i = read_begin; i < read_end; ++i) {
++                compute_row(i);
++            }
++            const size_t count_begin = std::max(row_begin, read_counts.start_index());
++            const size_t count_end = std::min(row_end, read_counts.end_index());
++            for (size_t i = count_begin; i < count_end; ++i) {
++                if (i < read_begin || i >= read_end) {
++                    compute_row(i);
++                }
+             }
+-        });
+ 
+-        FF::batch_invert(inverse_polynomial.coeffs());
++            // Invert the non-zero entries of the slice in place (zeroes are left as they are).
++            std::vector<size_t> nonzero_indices;
++            std::vector<FF> nonzero_values;
++            for (size_t i = chunk_begin; i < chunk_end; ++i) {
++                if (!inverse_polynomial[i].is_zero()) {
++                    nonzero_indices.push_back(i);
++                    nonzero_values.push_back(inverse_polynomial[i]);
++                }
++            }
++            FF::batch_invert(nonzero_values);
++            for (size_t k = 0; k < nonzero_indices.size(); ++k) {
++                inverse_polynomial.at(nonzero_indices[k]) = nonzero_values[k];
++            }
++        });
+     };
+ 
+     /**
+diff --git a/barretenberg/cpp/src/barretenberg/relations/logderiv_lookup_relation.hpp b/barretenberg/cpp/src/barretenberg/relations/logderiv_lookup_relation.hpp
+index db168f6ab..790078e92 100644
+--- a/barretenberg/cpp/src/barretenberg/relations/logderiv_lookup_relation.hpp
++++ b/barretenberg/cpp/src/barretenberg/relations/logderiv_lookup_relation.hpp
+@@ -284,14 +284,24 @@ template <typename FF_> class LogDerivLookupRelationImpl {
+         BB_BENCH_NAME("Lookup::compute_logderivative_inverse");
+         auto& inverse_polynomial = get_inverse_polynomial(polynomials);
+ 
+-        const size_t num_rows = circuit_size - start_index;
++        // Lookup gates and read tags only occur inside the inverse polynomial's backing range (it is allocated to
++        // cover both the lookup block and the table data). Each thread fills a slice of that range and then inverts
++        // it in place; inverses are unique, so slice-wise batch inversion matches a whole-polynomial one.
++        const size_t backing_start = inverse_polynomial.start_index();
++        const size_t backing_size = inverse_polynomial.size();
+         size_t min_iterations_per_thread = 1 << 6; // min number of iterations for which we'll spin up a unique thread
+-        size_t num_threads = bb::calculate_num_threads(num_rows, min_iterations_per_thread);
++        size_t num_threads = bb::calculate_num_threads(backing_size, min_iterations_per_thread);
+ 
+         parallel_for(num_threads, [&](ThreadChunk chunk) {
+             BB_BENCH_TRACY_NAME("Lookup::compute_inverses/chunk");
+-            for (size_t j : chunk.range(num_rows)) {
+-                size_t i = j + start_index;
++            auto range = chunk.range(backing_size, backing_start);
++            if (range.empty()) {
++                return;
++            }
++            const size_t chunk_begin = *range.begin();
++            const size_t row_begin = std::max(chunk_begin, start_index);
++            const size_t row_end = std::min(chunk_begin + range.size(), circuit_size);
++            for (size_t i = row_begin; i < row_end; ++i) {
+                 // We only compute the inverse if this row contains a lookup gate or data that has been looked up
+                 if (polynomials.q_lookup().get(i) == 1 || polynomials.lookup_read_tags().get(i) == 1) {
+                     // TODO(https://github.com/AztecProtocol/barretenberg/issues/940): avoid get_row if possible.
+@@ -301,10 +311,9 @@ template <typename FF_> class LogDerivLookupRelationImpl {
+                     inverse_polynomial.at(i) = value;
+                 }
+             }
++            // Compute the inverse polynomial I in place on this slice by inverting the product at each row
++            FF::batch_invert(std::span<FF>(&inverse_polynomial.at(chunk_begin), range.size()));
+         });
+-
+-        // Compute inverse polynomial I in place by inverting the product at each row
+-        FF::batch_invert(inverse_polynomial.coeffs());
+     };
+ 
+     /**
+-- 
+2.43.0
+

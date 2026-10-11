@@ -194,6 +194,11 @@ export const submission = z
     standards: standardsSchema.optional(),
     /** Position on the progress chart (0 = par, then each integrated series in order). */
     milestone: z.number().int().min(0).optional(),
+    /**
+     * Set when the card is invalid, e.g. its proofs fail verification on some target. The card stays for the record
+     * with this reason shown, its verdict is "failed", and it is never ranked or picked as the leader.
+     */
+    invalid: z.string().min(1).optional(),
     /** Caveats readers must see next to the numbers (e.g. hardware features inactive in the run). */
     caveats: z.array(z.string().min(1)).optional(),
     /** Other measurements of the same card: earlier ones, or alternate runs (other hardware, kernels forced off). */

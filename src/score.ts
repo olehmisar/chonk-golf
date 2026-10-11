@@ -10,7 +10,7 @@ import {
 
 type Metrics = Pick<
   FlowMetrics,
-  "wall_s" | "baseline_wall_s" | "wall_ratio" | "peak_rss_mib" | "baseline_peak_rss_mib"
+  "wall_s" | "baseline_wall_s" | "wall_ratio" | "peak_rss_mib" | "baseline_peak_rss_mib" | "wasm"
 >;
 
 export type Verdict = "verified" | "identical" | "unverified" | "failed";
@@ -68,7 +68,9 @@ export function wasmRamRatio(w: WasmMetrics | null | undefined): number | null {
 }
 
 function wasmAggregate(s: Submission) {
-  const w = s.flows.map((f) => f.wasm).filter((x): x is WasmMetrics => !!x);
+  const w = allFlows(s)
+    .map((f) => f.wasm)
+    .filter((x): x is WasmMetrics => !!x);
   const sum = (xs: WasmMetrics[], k: keyof WasmMetrics) =>
     xs.reduce((t, x) => t + Number(x[k] ?? 0), 0);
   const timed = w.filter((x) => has(x.prove_s) && has(x.baseline_prove_s));
@@ -109,6 +111,7 @@ export function ramRatio(s: Submission): { ratio: number | null; flows: number }
 export function verdict(s: Submission): Verdict {
   const c = s.correctness;
   const fail =
+    s.invalid !== undefined ||
     c.tampered_rejected === false ||
     c.vks_match === false ||
     (c.identical_flows !== null && c.identical_flows < FLOW_COUNT) ||
@@ -188,9 +191,15 @@ export function rank(items: Scored[], metric: Metric, scope: Scope = "aggregate"
     return ka - kb;
   };
   // Groups: measured and RAM-clean, then measured but RAM grew (they keep their flag and numbers; RAM must not
-  // grow), then not measured on this metric.
+  // grow), then not measured on this metric, then invalid cards (kept for the record, never ranked).
   const group = (x: Scored) =>
-    metricValue(x, metric, scope) === null ? 2 : metric === "time" && ramRegressed(x) ? 1 : 0;
+    x.s.invalid !== undefined
+      ? 3
+      : metricValue(x, metric, scope) === null
+        ? 2
+        : metric === "time" && ramRegressed(x)
+          ? 1
+          : 0;
   return [...items].sort(
     (a, b) =>
       group(a) - group(b) ||
@@ -200,13 +209,17 @@ export function rank(items: Scored[], metric: Metric, scope: Scope = "aggregate"
   );
 }
 
-/** Attach leaderboard positions; par and cards without the metric get no position. */
+/** Attach leaderboard positions; par, invalid cards and cards without the metric get no position. */
 export function withPositions(ranked: Scored[], metric: Metric, scope: Scope = "aggregate") {
   const out: { x: Scored; ratio: number | null; pos: number }[] = [];
   for (const x of ranked) {
     const ratio = metricValue(x, metric, scope);
     const prev = out.at(-1)?.pos ?? 0;
-    out.push({ x, ratio, pos: ratio !== null && x.s.kind !== "reference" ? prev + 1 : prev });
+    out.push({
+      x,
+      ratio,
+      pos: ratio !== null && x.s.kind !== "reference" && !x.s.invalid ? prev + 1 : prev,
+    });
   }
   return out;
 }

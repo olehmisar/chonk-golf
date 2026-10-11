@@ -1,0 +1,32 @@
+From 392bc651d154faa4b1b78f63d3935a1ff54348b4 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 04:05:22 +0000
+Subject: [PATCH 43/75] perf(polynomials): no multiplication for unit scalars
+ in add_scaled_batch
+
+The first source of a power-of-challenge batch (Gemini, multilinear-batching merge) has scalar 1.
+---
+ .../cpp/src/barretenberg/polynomials/polynomial.cpp        | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
+index 1a0517c7c..5c0487089 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
+@@ -307,6 +307,13 @@ void add_scaled_batch(Polynomial<Fr>& dst,
+                 const size_t idx_start = std::max(tile_start, src.start_index);
+                 const size_t idx_end = std::min(tile_end, src.end_index());
+ 
++                // A unit scalar needs no multiplication
++                if (c == Fr::one()) {
++                    for (size_t i = idx_start; i < idx_end; ++i) {
++                        dst.at(i) += src[i];
++                    }
++                    continue;
++                }
+                 // Zero coefficients (common in selector columns) contribute nothing, so skip their multiply.
+                 for (size_t i = idx_start; i < idx_end; ++i) {
+                     const Fr& value = src[i];
+-- 
+2.43.0
+

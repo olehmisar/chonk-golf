@@ -671,9 +671,9 @@
     }
   ],
   "caveats": [
-    "Headline numbers are from an AVX-512 IFMA VM (Granite Rapids), the hardware the IFMA kernels target. The other cards were measured on a VM without IFMA; final on that VM (same run as the others) is under \"Also measured\": headline −32.2% time, −27.0% RAM.",
-    "WASM proving numbers are still to come."
+    "Headline numbers are from an AVX-512 IFMA VM (Granite Rapids), the hardware the IFMA kernels target. The other cards were measured on a VM without IFMA; final on that VM (same run as the others) is under \"Also measured\": headline −32.2% time, −27.0% RAM."
   ],
+  "invalid": "WASM proofs fail verification; superseded by final2. Commit 0047 (\"perf(field_t): is_normalized compares raw limbs\") assumes field elements are held in [0, 2p), which holds natively but not in WASM, so the WASM build emits 2 extra kernel-circuit rows and bb.js's verification fails. Native proofs are fine. See sources/final2/README.md.",
   "standards": {
     "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
     "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/final-ifma-vm.md",
@@ -712,6 +712,5 @@
       "tampered_rejected": true,
       "vks_match": true
     }
-  },
-  "milestone": 6
+  }
 }

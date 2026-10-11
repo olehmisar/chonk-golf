@@ -1,0 +1,404 @@
+From abb67e8a15419ef46484306885e26baae8634568 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 07:55:06 +0000
+Subject: [PATCH 74/75] perf(sumcheck): materialize the partially evaluated
+ tables after two rounds
+
+The round-0 book-keeping table holds every prover polynomial at half the trace size next to the full
+polynomials. For native Ultra/Mega flavors (HyperNova's instance sumcheck) and for the joint MegaZK +
+translator sumcheck, the second round now reads the full polynomials folded at u_0 on access
+(FoldedPolynomialView) and the tables are first built after it, at a quarter of the trace size, straight
+from the full polynomials (fold_stride4_backed). Every table entry and round univariate is computed
+exactly as before.
+---
+ .../batched_honk_translator_prover.cpp        | 65 +++++++++-----
+ .../partially_evaluated_multivariates.hpp     | 36 ++++++--
+ .../barretenberg/polynomials/fold_stride2.hpp | 85 ++++++++++++++++---
+ .../src/barretenberg/sumcheck/sumcheck.hpp    | 56 +++++++++++-
+ 4 files changed, 204 insertions(+), 38 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp b/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
+index 5f9c13a53..4b97eb311 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
+@@ -10,6 +10,7 @@
+ #include "barretenberg/translator_vm/translator_prover.hpp"
+ 
+ #include <algorithm>
++#include <optional>
+ #include <vector>
+ 
+ // Short-monomial translator relation definitions: the joint sumcheck round (TransProverRound) is templated on
+@@ -27,18 +28,20 @@ namespace bb {
+ namespace {
+ 
+ /**
+- * @brief Partially evaluate the MegaZK and translator tables at the same round challenge in one parallel region.
+- * @details Equivalent to SumcheckProver::partially_evaluate on each circuit's tables, but the polynomials of both
+- * circuits form a single work list scheduled largest-first, so the smaller circuit's folds fill the tail of the larger
+- * one's instead of each circuit paying its own load-imbalance tail and parallel_for dispatch. Source and destination
+- * may alias (in-place rounds).
++ * @brief Partially evaluate the MegaZK and translator tables in one parallel region: at one round challenge, or (with
++ * `second_challenge`) at the first two round challenges straight from the full polynomials.
++ * @details Equivalent to SumcheckProver::partially_evaluate (respectively partially_evaluate_first_two_rounds) on each
++ * circuit's tables, but the polynomials of both circuits form a single work list scheduled largest-first, so the
++ * smaller circuit's folds fill the tail of the larger one's instead of each circuit paying its own load-imbalance tail
++ * and parallel_for dispatch. Source and destination may alias for a single fold (in-place rounds).
+  */
+ template <typename FF, typename MegaZKSource, typename MegaZKDest, typename TranslatorSource, typename TranslatorDest>
+ void joint_partially_evaluate(MegaZKSource& mega_zk_source,
+                               MegaZKDest& mega_zk_dest,
+                               TranslatorSource& translator_source,
+                               TranslatorDest& translator_dest,
+-                              const FF& round_challenge)
++                              const FF& round_challenge,
++                              const std::optional<FF>& second_challenge = std::nullopt)
+ {
+     struct FoldJob {
+         const Polynomial<FF>* source;
+@@ -48,7 +51,8 @@ void joint_partially_evaluate(MegaZKSource& mega_zk_source,
+     std::vector<FoldJob> jobs;
+     auto add_jobs = [&](auto& source, auto& dest) {
+         for (auto [source_poly, dest_poly] : zip_view(source.get_all(), dest.get_all())) {
+-            const auto [begin, end] = folded_backed_range(source_poly);
++            const auto [begin, end] = second_challenge.has_value() ? twice_folded_backed_range(source_poly)
++                                                                   : folded_backed_range(source_poly);
+             jobs.push_back({ &source_poly, &dest_poly, end - begin });
+         }
+     };
+@@ -59,7 +63,11 @@ void joint_partially_evaluate(MegaZKSource& mega_zk_source,
+ 
+     parallel_for(jobs.size(), [&](size_t j) {
+         const FoldJob& job = jobs[j];
+-        fold_stride2_backed(*job.source, *job.dest, round_challenge);
++        if (second_challenge.has_value()) {
++            fold_stride4_backed(*job.source, *job.dest, round_challenge, *second_challenge);
++        } else {
++            fold_stride2_backed(*job.source, *job.dest, round_challenge);
++        }
+     });
+ 
+     // Halve the active-row prefix to track the folded trace (only tables that carry it).
+@@ -180,9 +188,11 @@ void BatchedHonkTranslatorProver::execute_joint_sumcheck_rounds()
+     auto& mega_zk_params = mega_zk_inst->relation_parameters;
+     auto& translator_polys = translator_key->proving_key->polynomials;
+ 
+-    // Allocate partially evaluated polynomial tables (populated by the first partially_evaluate call).
+-    MegaZKPartialEvals mega_zk_partial(mega_zk_polys, static_cast<size_t>(1) << mega_zk_log_n);
+-    TransPartialEvals translator_partial(translator_polys, static_cast<size_t>(1) << JOINT_LOG_N);
++    // Allocate partially evaluated polynomial tables, sized for the state after two rounds: round 1 reads the full
++    // polynomials folded on access, and the tables are populated after it.
++    BB_ASSERT(mega_zk_log_n >= 2);
++    MegaZKPartialEvals mega_zk_partial(mega_zk_polys, static_cast<size_t>(1) << mega_zk_log_n, /*num_folds=*/2);
++    TransPartialEvals translator_partial(translator_polys, static_cast<size_t>(1) << JOINT_LOG_N, /*num_folds=*/2);
+ 
+     // Type aliases for static partial-evaluation helpers from SumcheckProver.
+     using MegaZKSumcheck = SumcheckProver<MegaZKFlavor>;
+@@ -254,22 +264,37 @@ void BatchedHonkTranslatorProver::execute_joint_sumcheck_rounds()
+         return send_round(round_idx);
+     };
+ 
+-    // ==================== Round 0: bootstraps mega_zk_partial and translator_partial ====================
+-    // PartiallyEvaluatedMultivariates only allocates output buffers; values are populated here.
++    // ============ Rounds 0 and 1: bootstrap mega_zk_partial and translator_partial ============
++    // Round 0 reads the full polynomials and round 1 reads them folded at u_0 on access; the tables are populated
++    // after round 1 from the full polynomials (PartiallyEvaluatedMultivariates only allocates output buffers).
+     {
+-        const FF u = do_round(mega_zk_polys, translator_polys, 0);
++        const FF u_0 = do_round(mega_zk_polys, translator_polys, 0);
++        rdp.update_evaluations(u_0, 0);
++        mega_zk_round.advance_round();
++        mega_zk_round.excluded_head_size = 2; // After round 0, disabled zone collapses to 1 edge pair
++        update_round_state(0, u_0);
++
++        using MegaZKFolded = FoldedMultivariatesBase<MegaZKFlavor::AllEntities<FoldedPolynomialView<FF>>,
++                                                     MegaZKFlavor::ProverPolynomials,
++                                                     FF>;
++        using TransFolded = FoldedMultivariatesBase<TranslatorFlavor::AllEntities<FoldedPolynomialView<FF>>,
++                                                    TranslatorFlavor::ProverPolynomials,
++                                                    FF>;
++        const MegaZKFolded mega_zk_folded(mega_zk_polys, u_0);
++        const TransFolded translator_folded(translator_polys, u_0);
++        const FF u_1 = do_round(mega_zk_folded, translator_folded, 1);
+         {
+             BB_BENCH_NAME("joint_sumcheck/partially_evaluate");
+-            joint_partially_evaluate(mega_zk_polys, mega_zk_partial, translator_polys, translator_partial, u);
++            joint_partially_evaluate(
++                mega_zk_polys, mega_zk_partial, translator_polys, translator_partial, u_0, std::optional<FF>(u_1));
+         }
+-        rdp.update_evaluations(u, 0);
++        rdp.update_evaluations(u_1, 1);
+         mega_zk_round.advance_round();
+-        mega_zk_round.excluded_head_size = 2; // After round 0, disabled zone collapses to 1 edge pair
+-        update_round_state(0, u);
++        update_round_state(1, u_1);
+     }
+ 
+-    // ==================== Real rounds 1..mega_zk_log_n-1 ====================
+-    for (size_t round_idx = 1; round_idx < mega_zk_log_n; round_idx++) {
++    // ==================== Real rounds 2..mega_zk_log_n-1 ====================
++    for (size_t round_idx = 2; round_idx < mega_zk_log_n; round_idx++) {
+         const FF u = do_round(mega_zk_partial, translator_partial, round_idx);
+         {
+             BB_BENCH_NAME("joint_sumcheck/partially_evaluate_in_place");
+diff --git a/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp b/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
+index a829c7b1d..9696cb369 100644
+--- a/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
++++ b/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
+@@ -32,19 +32,43 @@ class PartiallyEvaluatedMultivariatesBase : public AllEntitiesBase {
+ 
+     /**
+      * @brief Construct from full polynomials, allocating based on their actual backed ranges.
+-     * @details After the initial sumcheck round, a polynomial backed on [start, end) is backed on
+-     * [FLOOR(start/2), CEIL(end/2)).
++     * @details After `num_folds` (1 or 2) sumcheck rounds, a polynomial backed on [start, end) is backed on
++     * [FLOOR(start/2^num_folds), CEIL(end/2^num_folds)).
+      */
+-    PartiallyEvaluatedMultivariatesBase(const ProverPolynomialsType& full_polynomials, size_t circuit_size)
++    PartiallyEvaluatedMultivariatesBase(const ProverPolynomialsType& full_polynomials,
++                                        size_t circuit_size,
++                                        size_t num_folds = 1)
+     {
++        BB_ASSERT(num_folds == 1 || num_folds == 2);
+         for (auto [poly, full_poly] : zip_view(this->get_all(), full_polynomials.get_all())) {
+-            const auto [start, end] = folded_backed_range(full_poly);
++            const auto [start, end] =
++                num_folds == 1 ? folded_backed_range(full_poly) : twice_folded_backed_range(full_poly);
+             // partially_evaluate writes to [start, end) before any read; backing memory can be left uninitialized.
+             poly = Polynomial(end - start, circuit_size / 2, start, Polynomial::DontZeroMemory::FLAG);
+         }
+         if constexpr (requires { full_polynomials.row_skip_active_prefix_end; }) {
+-            row_skip_active_prefix_end =
+-                (full_polynomials.row_skip_active_prefix_end / 2) + (full_polynomials.row_skip_active_prefix_end % 2);
++            row_skip_active_prefix_end = full_polynomials.row_skip_active_prefix_end;
++            for (size_t fold = 0; fold < num_folds; fold++) {
++                row_skip_active_prefix_end = (row_skip_active_prefix_end / 2) + (row_skip_active_prefix_end % 2);
++            }
++        }
++    }
++};
++
++/**
++ * @brief The prover polynomials folded at the first sumcheck challenge, as `FoldedPolynomialView`s computed on access.
++ * @details Lets the second sumcheck round read the first round's partial evaluations without materializing them; the
++ * tables are then built directly after two folds (see SumcheckProver::partially_evaluate_first_two_rounds).
++ *
++ * @tparam AllViewsBase The AllEntities<FoldedPolynomialView<FF>> type from the flavor
++ */
++template <typename AllViewsBase, typename ProverPolynomialsType, typename FF>
++class FoldedMultivariatesBase : public AllViewsBase {
++  public:
++    FoldedMultivariatesBase(const ProverPolynomialsType& full_polynomials, const FF& challenge)
++    {
++        for (auto [view, full_poly] : zip_view(this->get_all(), full_polynomials.get_all())) {
++            view = FoldedPolynomialView<FF>(full_poly, challenge);
+         }
+     }
+ };
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+index 1ed4ba0f2..cd7a3769a 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+@@ -13,6 +13,20 @@
+ 
+ namespace bb {
+ 
++/**
++ * @brief One output of the fold: `even + challenge * (odd - even)`. Equal neighbours (constant selector runs, zero
++ * padding inside the active extent) fold to themselves, so the multiplication is skipped; only bit-identical
++ * representations are short-cut.
++ */
++template <typename Fr> inline Fr fold_pair(const Fr& even, const Fr& odd, const Fr& challenge)
++{
++    if (even.data[0] == odd.data[0] && even.data[1] == odd.data[1] && even.data[2] == odd.data[2] &&
++        even.data[3] == odd.data[3]) {
++        return even;
++    }
++    return even + challenge * (odd - even);
++}
++
+ /**
+  * @brief Stride-2 linear-interpolation fold: `dst[k] = src[2k] + challenge * (src[2k+1] - src[2k])`
+  *        for every output index `k` in `[begin, end)`.
+@@ -81,16 +95,7 @@ void fold_stride2(
+ #endif
+     const auto fold_scalar = [&](const size_t from, const size_t to) {
+         for (size_t i = from; i < to; ++i) {
+-            const Fr even = src[2 * i];
+-            const Fr odd = src[2 * i + 1];
+-            // Equal neighbours (constant selector runs, zero padding inside the active extent) fold to themselves, so
+-            // skip the multiplication. Only bit-identical representations are short-cut.
+-            if (even.data[0] == odd.data[0] && even.data[1] == odd.data[1] && even.data[2] == odd.data[2] &&
+-                even.data[3] == odd.data[3]) {
+-                dst[ScalarIndex{ i }] = even;
+-            } else {
+-                dst[ScalarIndex{ i }] = even + challenge * (odd - even);
+-            }
++            dst[ScalarIndex{ i }] = fold_pair(src[2 * i], src[(2 * i) + 1], challenge);
+         }
+     };
+ #ifdef BB_FIELD_IFMA
+@@ -127,6 +132,66 @@ template <typename Fr> std::pair<size_t, size_t> folded_backed_range(const Polyn
+     return { src.start_index() / 2, (src.end_index() / 2) + (src.end_index() % 2) };
+ }
+ 
++/**
++ * @brief Backed range [⌊start/4⌋, ⌈end/4⌉) of two successive folds of a polynomial backed on [start, end).
++ */
++template <typename Fr> std::pair<size_t, size_t> twice_folded_backed_range(const Polynomial<Fr>& src)
++{
++    if (src.size() == 0) {
++        return { 0, 0 };
++    }
++    return { src.start_index() / 4, (src.end_index() / 4) + (src.end_index() % 4 != 0 ? 1 : 0) };
++}
++
++/**
++ * @brief Fold `src` at `first_challenge` and the result at `second_challenge` in one pass, without materializing the
++ * intermediate fold: `dst[k] = fold(fold(src[4k], src[4k+1]), fold(src[4k+2], src[4k+3]))` for k in
++ * `twice_folded_backed_range(src)`. Every output is computed exactly as two `fold_stride2_backed` calls would.
++ * @details `dst` is a distinct polynomial backed on a range that starts at the twice-folded start and covers the
++ * twice-folded end; its end index is shrunk to the latter.
++ */
++template <typename Fr>
++void fold_stride4_backed(const Polynomial<Fr>& src,
++                         Polynomial<Fr>& dst,
++                         const Fr& first_challenge,
++                         const Fr& second_challenge)
++{
++    const auto [begin, end] = twice_folded_backed_range(src);
++    if (begin == end) {
++        return;
++    }
++    for (size_t k = begin; k < end; ++k) {
++        const Fr even = fold_pair(src[4 * k], src[(4 * k) + 1], first_challenge);
++        const Fr odd = fold_pair(src[(4 * k) + 2], src[(4 * k) + 3], first_challenge);
++        dst[ScalarIndex{ k }] = fold_pair(even, odd, second_challenge);
++    }
++    dst.shrink_end_index(end);
++}
++
++/**
++ * @brief Read-only view of a polynomial folded at a challenge, `view[k] = fold(src[2k], src[2k+1])`, computed on
++ * access. Stands in for a partially evaluated table that is never materialized.
++ */
++template <typename Fr> class FoldedPolynomialView {
++  public:
++    FoldedPolynomialView() = default;
++    FoldedPolynomialView(const Polynomial<Fr>& source, const Fr& challenge)
++        : source(&source)
++        , challenge(challenge)
++        , range(folded_backed_range(source))
++    {}
++
++    Fr operator[](const size_t k) const { return fold_pair((*source)[2 * k], (*source)[(2 * k) + 1], challenge); }
++    size_t start_index() const { return range.first; }
++    size_t end_index() const { return range.second; }
++    size_t size() const { return range.second - range.first; }
++
++  private:
++    const Polynomial<Fr>* source = nullptr;
++    Fr challenge{};
++    std::pair<size_t, size_t> range{ 0, 0 };
++};
++
+ /**
+  * @brief Fold `src` at `challenge` over its whole support: writes `dst[k]` for k in `folded_backed_range(src)`.
+  * @details `dst` is either a distinct polynomial backed on a range that starts at the folded start and covers the
+diff --git a/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck.hpp b/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck.hpp
+index 678db7cf5..f71662f7e 100644
+--- a/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck.hpp
++++ b/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck.hpp
+@@ -308,6 +308,9 @@ template <typename Flavor> class SumcheckProver {
+     // both inherit from AllEntities
+     using ProverPolynomials = typename Flavor::ProverPolynomials;
+     using PartiallyEvaluatedMultivariates = typename Flavor::PartiallyEvaluatedMultivariates;
++    // Native Ultra/Mega flavors run the second round on the full polynomials folded on access, so their partially
++    // evaluated tables are first built after two rounds, at a quarter of the trace size instead of half.
++    static constexpr bool DEFERS_FIRST_FOLD = HasLazyShortEdges<Flavor> && !Flavor::HasZK;
+     using ClaimedEvaluations = typename Flavor::AllValues;
+     using ZKData = ZKSumcheckData<Flavor>;
+     using Transcript = typename Flavor::Transcript;
+@@ -407,7 +410,10 @@ template <typename Flavor> class SumcheckProver {
+ 
+         multivariate_challenge.reserve(virtual_log_n);
+         // In the first round, we compute the first univariate polynomial and populate the book-keeping table of
+-        // #partially_evaluated_polynomials, which has \f$ n/2 \f$ rows and \f$ N \f$ columns.
++        // #partially_evaluated_polynomials, which has \f$ n/2 \f$ rows and \f$ N \f$ columns. Flavors that defer the
++        // first fold also run the second round here, on the full polynomials folded on access, and populate the table
++        // after it with \f$ n/4 \f$ rows.
++        size_t first_table_round = 1;
+         PartiallyEvaluatedMultivariates partially_evaluated_polynomials = [&] {
+             BB_BENCH_NAME("sumcheck loop 0");
+             auto round_univariate =
+@@ -418,13 +424,39 @@ template <typename Flavor> class SumcheckProver {
+             FF round_challenge = transcript->template get_challenge<FF>("Sumcheck:u_0");
+             multivariate_challenge.emplace_back(round_challenge);
+ 
++            if constexpr (DEFERS_FIRST_FOLD) {
++                if (multivariate_d > 1) {
++                    gate_separators.partially_evaluate(round_challenge);
++                    round.advance_round();
++
++                    using FoldedMultivariates =
++                        FoldedMultivariatesBase<typename Flavor::template AllEntities<FoldedPolynomialView<FF>>,
++                                                ProverPolynomials,
++                                                FF>;
++                    const FoldedMultivariates folded_polynomials(full_polynomials, round_challenge);
++                    round_univariate =
++                        round.compute_univariate(folded_polynomials, relation_parameters, gate_separators, alphas);
++                    transcript->send_to_verifier("Sumcheck:univariate_1", round_univariate);
++                    const FF second_challenge = transcript->template get_challenge<FF>("Sumcheck:u_1");
++                    multivariate_challenge.emplace_back(second_challenge);
++
++                    // Populate the book-keeping table
++                    auto result =
++                        partially_evaluate_first_two_rounds(full_polynomials, round_challenge, second_challenge);
++                    gate_separators.partially_evaluate(second_challenge);
++                    round.advance_round();
++                    first_table_round = 2;
++                    return result;
++                }
++            }
++
+             // Populate the book-keeping table
+             auto result = partially_evaluate_first_round(full_polynomials, round_challenge);
+             gate_separators.partially_evaluate(round_challenge);
+             round.advance_round();
+             return result;
+         }();
+-        for (size_t round_idx = 1; round_idx < multivariate_d; round_idx++) {
++        for (size_t round_idx = first_table_round; round_idx < multivariate_d; round_idx++) {
+             BB_BENCH_NAME("sumcheck loop");
+ 
+             // Write the round univariate to the transcript
+@@ -694,6 +726,26 @@ template <typename Flavor> class SumcheckProver {
+         return partially_evaluated_polynomials;
+     }
+ 
++    /**
++     * @brief Build the book-keeping table after the first two rounds directly from the full polynomials.
++     * @details Each entry equals what partially_evaluate_first_round followed by partially_evaluate_in_place would
++     * store (see `bb::fold_stride4_backed`), without materializing the table of the first round.
++     */
++    PartiallyEvaluatedMultivariates partially_evaluate_first_two_rounds(ProverPolynomials& full_polynomials,
++                                                                        const FF& first_challenge,
++                                                                        const FF& second_challenge)
++    {
++        PartiallyEvaluatedMultivariates partially_evaluated_polynomials(
++            full_polynomials, multivariate_n, /*num_folds=*/2);
++        auto source_view = full_polynomials.get_all();
++        auto dest_view = partially_evaluated_polynomials.get_all();
++        parallel_for(source_view.size(), [&](size_t j) {
++            BB_BENCH_TRACY_NAME("Sumcheck::partially_evaluate");
++            fold_stride4_backed(source_view[j], dest_view[j], first_challenge, second_challenge);
++        });
++        return partially_evaluated_polynomials;
++    }
++
+     /**
+      * @brief Evaluate at the round challenge in-place.
+      */
+-- 
+2.43.0
+

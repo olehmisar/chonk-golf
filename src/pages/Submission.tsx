@@ -413,6 +413,13 @@ export function SubmissionPage({ id }: { id: string }) {
         <p className="mt-4 max-w-3xl text-ink-2">{s.description}</p>
       </div>
 
+      {s.invalid ? (
+        <aside className="rounded-xl border-2 border-flag/60 bg-bad-bg px-4 py-3 text-sm text-ink">
+          <p className="font-semibold text-flag">✕ Invalid: not ranked</p>
+          <p className="mt-1 text-ink-2">{s.invalid}</p>
+        </aside>
+      ) : null}
+
       {s.caveats?.length ? (
         <aside className="rounded-xl border border-warn/50 bg-sand/40 px-4 py-3 text-sm text-ink">
           <p className="font-semibold">⚠ Caveats</p>

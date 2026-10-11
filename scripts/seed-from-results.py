@@ -2,7 +2,7 @@
 # bb-chonk-prover-opt results snapshot in sources/ (integrated/STATUS.md, contrib/<track>/RESULTS.md) and
 # reference/; patch names and subjects are read from the patch files in sources/.
 #   python3 scripts/seed-from-results.py
-import json, os, re
+import csv, json, os, re, statistics
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SRC = os.path.join(ROOT, "sources")
 OUT = os.path.join(ROOT, "data", "submissions")
@@ -472,8 +472,11 @@ S[-1]["caveats"] = [
     "Headline numbers are from an AVX-512 IFMA VM (Granite Rapids), the hardware the IFMA kernels target. The other "
     "cards were measured on a VM without IFMA; final on that VM (same run as the others) is under \"Also measured\": "
     "headline −32.2% time, −27.0% RAM.",
-    "WASM proving numbers are still to come.",
 ]
+S[-1]["invalid"] = ("WASM proofs fail verification; superseded by final2. Commit 0047 (\"perf(field_t): is_normalized "
+                    "compares raw limbs\") assumes field elements are held in [0, 2p), which holds natively but not in "
+                    "WASM, so the WASM build emits 2 extra kernel-circuit rows and bb.js's verification fails. Native "
+                    "proofs are fine. See sources/final2/README.md.")
 S[-1]["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": IFMA_URL,
                       "machine_note": "AVX-512 IFMA VM: headline min of 7 (time min, peak RSS max); other token flows "
                                       "from the 14-flow x 3-rep run",
@@ -481,8 +484,83 @@ S[-1]["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": IFMA_URL,
                       "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": 3,
                                       "tampered_rejected": True, "vks_match": True}}
 
-# Progress chart order: par, then each integrated series.
-for i, cid in enumerate(["baseline", "integ1", "integ2", "integ3", "integ4", "integ5", "final"]):
+# ---------- final2: final minus the WASM-breaking commit (sources/final2/README.md) ----------
+F2 = os.path.join(SRC, "final2")
+F2_URL = f"{GH}/sources/final2/README.md"
+WASM_URL = f"{GH}/sources/final2/wasm_bench.md"
+
+def runs(path, key, bins):
+    """{flow: {bin: [(time, rss_mib), ...]}} from a runs CSV, failed runs rejected."""
+    out = {}
+    for r in csv.DictReader(open(path)):
+        assert r["rc"] == "0", r
+        if r["bin"] in bins:
+            out.setdefault(r["flow"], {}).setdefault(r["bin"], []).append(key(r))
+    return out
+
+# Native: 5 reps round-robin vs unmodified (and integ5) on the no-IFMA 4 vCPU VM; time = min wall, RAM = median RSS.
+N2 = runs(os.path.join(F2, "bench_14flows_4vcpu_runs.csv"),
+          lambda r: (float(r["wall_s"]), int(r["peak_rss_kib"]) / 1024), {"00-baseline", "07-final2"})
+# WASM: stock bb.js, 4 threads, 5 reps; A = unmodified WASM, B = final2 WASM; time = min prove, RAM = median Node RSS.
+W2 = runs(os.path.join(F2, "wasm_bench_runs.csv"),
+          lambda r: (int(r["prove_ms"]) / 1000, float(r["peak_rss_mib"]), r["verified"] == r["stock_verified"] ==
+                     r["tampered_rejected"] == "True"), {"A", "B"})
+assert all(x[2] for f in W2.values() for b in f.values() for x in b), "every WASM run verified, tampered rejected"
+
+def wasm(f):
+    if f not in W2: return None
+    a, b = W2[f]["A"], W2[f]["B"]
+    return {"baseline_prove_s": round(min(x[0] for x in a), 2), "prove_s": round(min(x[0] for x in b), 2),
+            "baseline_peak_rss_mib": round(statistics.median(x[1] for x in a), 1),
+            "peak_rss_mib": round(statistics.median(x[1] for x in b), 1), "reps": len(b), "threads": 4,
+            "stock_wasm_verified": True, "tampered_rejected": True}
+
+def row2(f):
+    a, b = N2[f]["00-baseline"], N2[f]["07-final2"]
+    d = fm(f, round(min(x[0] for x in a), 2), round(min(x[0] for x in b), 2),
+           round(statistics.median(x[1] for x in a), 1), round(statistics.median(x[1] for x in b), 1), len(b))
+    w = wasm(f)
+    if w: d["wasm"] = w
+    return d
+
+f2_pinned, f2_std = [row2(f) for f in FLOWS], [row2(f) for f in STD_NAMES]
+add(id="final2", title="final2: final minus the WASM-breaking commit (75 commits)",
+    author="bb-chonk-prover-opt coordinator", track="integrated", kind="series", status="integrated",
+    integrated_in="final2", against={"id": "baseline", "description": "Unmodified prover, same 14-flow run."},
+    patches=patches("final2/patches"),
+    series_url="https://github.com/olehmisar/chonk-golf/tree/main/sources/final2/patches",
+    description="The final series without final/0047 \"perf(field_t): is_normalized compares raw limbs\": 75 commits "
+                "(0001-0002 harness, 73 optimisations). That commit assumed field elements are held in [0, 2p), "
+                "true natively but not in WASM (R = 2^261, 29-bit limbs), so the WASM build emitted 2 extra "
+                "kernel-circuit rows and its proofs failed verification. First series with WASM numbers.",
+    source_url=F2_URL, machine=MACHINE14,
+    correctness=corr(11, 11, True, True, "check_identical.txt: 14/14 IDENTICAL; verify_stock_bbjs.txt: stock npm "
+                     "bb.js 7.0.0-nightly.20261009 verifies all 14 flows, tampered rejected, VKs equal; "
+                     "verify_native_unmodified.txt: unmodified native bb verify 14/14, tampered rejected. WASM: all 25 "
+                     "benchmark runs proved by the final2 WASM build verified by bb.js's bundled (unmodified) WASM "
+                     "verifier, tampered proofs rejected. Unit tests: pending."),
+    summary=summ(round(sum(min(x[0] for x in N2[f]["00-baseline"]) for f in N2), 2),
+                 round(sum(min(x[0] for x in N2[f]["07-final2"]) for f in N2), 2), None, 14, 5,
+                 "Separate 14-flow run on the same no-IFMA 4 vCPU VM type: unmodified, integ5 and final2 round-robin, "
+                 "5 reps; time = min wall, RAM = median peak RSS of bb. integ5 in this run: time 0.708, RSS 0.903."),
+    flows=f2_pinned)
+S[-1]["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": F2_URL,
+                      "machine_note": "Same 14-flow run, 5 reps (min wall / median peak RSS); WASM from wasm_bench.md",
+                      "flows": f2_std,
+                      "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": 3,
+                                      "tampered_rejected": True, "vks_match": True}}
+S[-1]["caveats"] = [
+    "WASM peak RSS is dominated by the linear-memory high-water mark, which never shrinks, so the native RAM savings "
+    "barely carry over to WASM (headline WASM RAM −0.5%).",
+    "Measured on a 4 vCPU VM without AVX-512 IFMA (IFMA kernels inactive). The IFMA-VM numbers on the final card "
+    "(headline −51.2% time) were measured on final, not final2; final2 only drops a circuit-construction commit that "
+    "is IFMA-independent, but a final2 IFMA re-run is pending, so they are not shown here.",
+    "The other milestone cards come from an earlier 14-flow run on the same VM type; final2's run has its own "
+    "unmodified baseline, so ratios are comparable but seconds are not.",
+]
+
+# Progress chart order: par, then each integrated series (final is invalid: WASM proofs fail; final2 replaces it).
+for i, cid in enumerate(["baseline", "integ1", "integ2", "integ3", "integ4", "integ5", "final2"]):
     BY.setdefault(cid, next(x for x in S if x["id"] == cid))["milestone"] = i
 
 os.makedirs(OUT, exist_ok=True)

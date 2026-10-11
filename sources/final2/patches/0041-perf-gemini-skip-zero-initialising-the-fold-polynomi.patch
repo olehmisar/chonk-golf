@@ -1,0 +1,40 @@
+From ad8b7aad5489313cb8de61f0774b246125f7a3ae Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 03:35:38 +0000
+Subject: [PATCH 41/75] perf(gemini): skip zero-initialising the fold
+ polynomials
+
+Every coefficient of each fold polynomial is written by the fold (when A0 covers the disabled
+head region, which it always does in practice), so the allocation need not be zeroed.
+---
+ .../barretenberg/commitment_schemes/gemini/gemini_impl.hpp | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/commitment_schemes/gemini/gemini_impl.hpp b/barretenberg/cpp/src/barretenberg/commitment_schemes/gemini/gemini_impl.hpp
+index 4ab6fe9db..21d02143d 100644
+--- a/barretenberg/cpp/src/barretenberg/commitment_schemes/gemini/gemini_impl.hpp
++++ b/barretenberg/cpp/src/barretenberg/commitment_schemes/gemini/gemini_impl.hpp
+@@ -125,6 +125,7 @@ std::vector<typename GeminiProver_<Curve>::Polynomial> GeminiProver_<Curve>::com
+     // beyond this extent, all values are zero and contribute nothing.
+     // At minimum, the disabled head region must be covered (masking values live at rows 1..3).
+     size_t actual_size = std::max(A_0.end_index(), static_cast<size_t>(NUM_DISABLED_ROWS_IN_SUMCHECK));
++    const bool fold_writes_all = A_0.end_index() >= static_cast<size_t>(NUM_DISABLED_ROWS_IN_SUMCHECK);
+ 
+     // Reserve space for the virtual_log_n - 1 Fold polynomials, the foldings of the full batched polynomial A₀
+     std::vector<Polynomial> fold_polynomials;
+@@ -132,8 +133,10 @@ std::vector<typename GeminiProver_<Curve>::Polynomial> GeminiProver_<Curve>::com
+     for (size_t l = 0; l < log_n - 1; ++l) {
+         const size_t fold_size = (actual_size + 1) / 2;
+ 
+-        // A_l_fold = Aₗ₊₁(X) = (1-uₗ)⋅even(Aₗ)(X) + uₗ⋅odd(Aₗ)(X)
+-        fold_polynomials.emplace_back(Polynomial(fold_size));
++        // A_l_fold = Aₗ₊₁(X) = (1-uₗ)⋅even(Aₗ)(X) + uₗ⋅odd(Aₗ)(X); unless A₀ is shorter than the disabled head
++        // region, every coefficient is written by the fold below
++        fold_polynomials.emplace_back(fold_writes_all ? Polynomial(fold_size, Polynomial::DontZeroMemory::FLAG)
++                                                      : Polynomial(fold_size));
+         actual_size = fold_size;
+     }
+ 
+-- 
+2.43.0
+

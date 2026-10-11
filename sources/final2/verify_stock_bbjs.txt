@@ -1,0 +1,16 @@
+stock @aztec-foundation/bb.js 7.0.0-nightly.20261009; prover bb: /home/user/work/bin/bb-final2
+PASS deploy_ecdsar1+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 5483 ms)
+PASS deploy_schnorr+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 4742 ms)
+PASS ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 7955 ms)
+PASS ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 5931 ms)
+PASS ecdsar1+storage_proof_7_layers+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 15155 ms)
+PASS ecdsar1+token_bridge_claim_private+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 5461 ms)
+PASS ecdsar1+transfer_0_recursions+private_fpc: verify=true tampered=false vk_matches_ref=true (prove 6758 ms)
+PASS ecdsar1+transfer_0_recursions+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 4162 ms)
+PASS ecdsar1+transfer_1_recursions+private_fpc: verify=true tampered=false vk_matches_ref=true (prove 7136 ms)
+PASS ecdsar1+transfer_1_recursions+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 4648 ms)
+PASS schnorr+deploy_tokenContract_with_registration+sponsored_fpc: verify=true tampered=false vk_matches_ref=true (prove 5205 ms)
+PASS standards_token_mint_to_private: verify=true tampered=false vk_matches_ref=true (prove 4325 ms)
+PASS standards_token_transfer_private_to_private: verify=true tampered=false vk_matches_ref=true (prove 4400 ms)
+PASS standards_token_transfer_private_to_public: verify=true tampered=false vk_matches_ref=true (prove 4091 ms)
+ALL 14 FLOWS VERIFIED

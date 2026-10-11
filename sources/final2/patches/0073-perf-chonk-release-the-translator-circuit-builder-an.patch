@@ -1,0 +1,49 @@
+From 7889fbd6d2e04a9e71e522e39a286cd360357524 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 07:04:49 +0000
+Subject: [PATCH 73/75] perf(chonk): release the translator circuit builder and
+ the final accumulator's polynomials early
+
+Chonk::prove kept the translator circuit builder alive through translator and joint proving, after the
+proving key had copied it into polynomials, and the final HyperNova accumulator kept its two batched
+polynomials after the decider proof, their last use. Both were resident at the joint sumcheck, where the
+final proving stage peaks.
+---
+ barretenberg/cpp/src/barretenberg/chonk/chonk.cpp | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+index 2ee704710..2349289ac 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+@@ -659,6 +659,9 @@ void Chonk::accumulate(ClientCircuit& circuit, const CircuitVerificationKey& vk)
+ #ifndef NDEBUG
+             verify_decider_natively();
+ #endif
++            // The decider proof is the last use of the final accumulator's polynomials.
++            prover_accumulator.non_shifted_polynomial = ProverAccumulator::Polynomial{};
++            prover_accumulator.shifted_polynomial = ProverAccumulator::Polynomial{};
+             goblin.prove_batch_merge();
+         }
+         break;
+@@ -746,10 +749,13 @@ ChonkProof Chonk::prove()
+     goblin.prove_eccvm();
+     vinfo("finished eccvm proving.");
+ 
+-    // Phase 4: Build translator proving key from ECCVM-derived challenges.
+-    TranslatorCircuitBuilder translator_builder(
+-        goblin.translation_batching_challenge_v, goblin.evaluation_challenge_x, goblin.op_queue);
+-    auto translator_key = std::make_shared<TranslatorProvingKey>(translator_builder);
++    // Phase 4: Build translator proving key from ECCVM-derived challenges. The key copies the circuit into its
++    // polynomials, so the circuit builder is released before proving.
++    auto translator_key = [&] {
++        TranslatorCircuitBuilder translator_builder(
++            goblin.translation_batching_challenge_v, goblin.evaluation_challenge_x, goblin.op_queue);
++        return std::make_shared<TranslatorProvingKey>(translator_builder);
++    }();
+ 
+     // Phase 5: Translator Oink + Joint Sumcheck + Joint PCS on the shared transcript.
+     vinfo("prove translator and joint...");
+-- 
+2.43.0
+

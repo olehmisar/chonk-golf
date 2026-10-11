@@ -1,0 +1,391 @@
+From ddaaf200d06bf79cf3f18a477c3543f590326e73 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 07:55:06 +0000
+Subject: [PATCH 75/75] perf(ultra_honk): let Chonk's prover instances free the
+ circuit data they have copied
+
+ProverInstance_ takes CopiedCircuitData; with RELEASE (Chonk in release builds) the lookup polynomials
+are built before the trace and the lookup tables with their gate records are freed right after, and
+populate fills the selectors first so that the parallel wire pass frees each trace block once its last row
+chunk has been copied; the copy-cycle phases after it read only the recorded cells and the blocks' sizes
+and offsets. The default (KEEP) leaves the circuit intact for checks and VK recomputation.
+---
+ .../cpp/src/barretenberg/chonk/chonk.cpp      |   7 +-
+ .../execution_trace/execution_trace_block.hpp |   3 +
+ .../copied_circuit_data.hpp                   |  12 ++
+ .../trace_to_polynomials.cpp                  | 135 ++++++++++--------
+ .../trace_to_polynomials.hpp                  |  10 +-
+ .../ultra_honk/prover_instance.cpp            |  18 ++-
+ .../ultra_honk/prover_instance.hpp            |   8 +-
+ 7 files changed, 122 insertions(+), 71 deletions(-)
+ create mode 100644 barretenberg/cpp/src/barretenberg/trace_to_polynomials/copied_circuit_data.hpp
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+index 2349289ac..1a7cf4592 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+@@ -497,7 +497,7 @@ void Chonk::accumulate_hiding_kernel(ClientCircuit& circuit,
+     }
+ 
+     vinfo("Constructing hiding kernel instance (proving deferred to prove())");
+-    hiding_prover_inst = std::make_shared<HidingKernelProverInstance>(circuit);
++    hiding_prover_inst = std::make_shared<HidingKernelProverInstance>(circuit, CopiedCircuitData::RELEASE);
+ 
+     // Free the circuit-construction data now that the circuit has been copied to prover polynomials
+     circuit.free_construction_data();
+@@ -525,9 +525,12 @@ HonkProof Chonk::instance_to_accumulator(ClientCircuit& circuit,
+     using PI = ProverInstance_<InstanceFlavor>;
+     BB_ASSERT(vk != nullptr, "Chonk::accumulate_and_fold - VK expected for the provided circuit");
+ 
+-    auto prover_instance = std::make_shared<PI>(circuit);
+ #ifndef NDEBUG
++    // The debug checks below read the circuit after the instance is built.
++    auto prover_instance = std::make_shared<PI>(circuit, CopiedCircuitData::KEEP);
+     debug_incoming_circuit<InstanceFlavor>(circuit, prover_instance, vk);
++#else
++    auto prover_instance = std::make_shared<PI>(circuit, CopiedCircuitData::RELEASE);
+ #endif
+     // Free the circuit-construction data (trace blocks, witnesses, lookup and memory records) now that the circuit has
+     // been copied to prover polynomials.
+diff --git a/barretenberg/cpp/src/barretenberg/honk/execution_trace/execution_trace_block.hpp b/barretenberg/cpp/src/barretenberg/honk/execution_trace/execution_trace_block.hpp
+index b43aafe89..960081bd8 100644
+--- a/barretenberg/cpp/src/barretenberg/honk/execution_trace/execution_trace_block.hpp
++++ b/barretenberg/cpp/src/barretenberg/honk/execution_trace/execution_trace_block.hpp
+@@ -714,6 +714,9 @@ template <typename FF, size_t NUM_WIRES_> class ExecutionTraceBlock {
+      */
+     void free_data()
+     {
++        if (data_freed_) {
++            return;
++        }
+         cached_size_ = num_rows_;
+         data_freed_ = true;
+         tiles.clear();
+diff --git a/barretenberg/cpp/src/barretenberg/trace_to_polynomials/copied_circuit_data.hpp b/barretenberg/cpp/src/barretenberg/trace_to_polynomials/copied_circuit_data.hpp
+new file mode 100644
+index 000000000..fa771001c
+--- /dev/null
++++ b/barretenberg/cpp/src/barretenberg/trace_to_polynomials/copied_circuit_data.hpp
+@@ -0,0 +1,12 @@
++#pragma once
++
++namespace bb {
++
++/**
++ * @brief Whether building a prover instance may free circuit data as soon as it has been copied into the polynomials:
++ * each trace block's gate data (wires and selectors) and the lookup tables with their gate records. With RELEASE the
++ * builder keeps only the blocks' sizes and offsets, so it cannot be checked or turned into another instance afterwards.
++ */
++enum class CopiedCircuitData { KEEP, RELEASE };
++
++} // namespace bb
+diff --git a/barretenberg/cpp/src/barretenberg/trace_to_polynomials/trace_to_polynomials.cpp b/barretenberg/cpp/src/barretenberg/trace_to_polynomials/trace_to_polynomials.cpp
+index c3bf476d0..54b485bbc 100644
+--- a/barretenberg/cpp/src/barretenberg/trace_to_polynomials/trace_to_polynomials.cpp
++++ b/barretenberg/cpp/src/barretenberg/trace_to_polynomials/trace_to_polynomials.cpp
+@@ -19,15 +19,19 @@
+ #include "barretenberg/flavor/ultra_keccak_flavor.hpp"
+ #include "barretenberg/flavor/ultra_keccak_zk_flavor.hpp"
+ #include "barretenberg/flavor/ultra_zk_flavor.hpp"
++#include <atomic>
++
+ namespace bb {
+ 
+ template <class Flavor>
+-void TraceToPolynomials<Flavor>::populate(Builder& builder, typename Flavor::ProverPolynomials& polynomials)
++void TraceToPolynomials<Flavor>::populate(Builder& builder,
++                                          typename Flavor::ProverPolynomials& polynomials,
++                                          CopiedCircuitData copied_circuit_data)
+ {
+ 
+     BB_BENCH_NAME("trace populate");
+ 
+-    auto copy_cycles = populate_wires_and_selectors_and_compute_copy_cycles(builder, polynomials);
++    auto copy_cycles = populate_wires_and_selectors_and_compute_copy_cycles(builder, polynomials, copied_circuit_data);
+ 
+     if constexpr (Flavor::HasEccOpQueue) {
+         BB_BENCH_NAME("add_ecc_op_wires_to_prover_instance");
+@@ -45,7 +49,7 @@ void TraceToPolynomials<Flavor>::populate(Builder& builder, typename Flavor::Pro
+ 
+ template <class Flavor>
+ CopyCycles TraceToPolynomials<Flavor>::populate_wires_and_selectors_and_compute_copy_cycles(
+-    Builder& builder, ProverPolynomials& polynomials)
++    Builder& builder, ProverPolynomials& polynomials, CopiedCircuitData copied_circuit_data)
+ {
+ 
+     BB_BENCH_NAME("construct_trace_data");
+@@ -55,11 +59,64 @@ CopyCycles TraceToPolynomials<Flavor>::populate_wires_and_selectors_and_compute_
+     RefArray<Polynomial, NUM_WIRES> wires = polynomials.get_wires();
+     auto selectors = polynomials.get_selectors();
+ 
+-    // Two-phase parallelisation. Phase 1 fans out over blocks to populate wires and emit copy-cycle
+-    // nodes; phase 2 fans out over a flattened (block, selector) task list to fill selectors.
++    // Two-phase parallelisation. Phase 1 fans out over a flattened (block, selector) task list to fill selectors;
++    // phase 2 fans out over row chunks of all blocks to populate wires and record copy-cycle cells.
+     auto blocks_array = builder.blocks.get();
+     const size_t num_blocks = blocks_array.size();
+ 
++    // Phase 1: parallel selector filling across a flattened task list. It runs before the wire pass so that the wire
++    // pass can release each block's gate data once it is done with it.
++    // Non-gate selectors (q_m/q_c/q_l/q_r/q_o/q_4/q_5) come from every block via codegen-emitted
++    // `get_block_non_gate_selectors(block)`. Gate selectors come from the codegen's
++    // `get_gate_blocks(blocks)` × `GATE_KINDS` parallel arrays — one task per flavor gate
++    // selector, sourced from the unique block that owns the matching `GateKind`.
++    {
++        BB_BENCH_NAME("populate_selectors");
++        struct SelectorTask {
++            Selector<FF>* source;
++            size_t target_poly_idx;
++            uint32_t trace_offset;
++            uint32_t block_size;
++        };
++
++        const auto& polynomials_ref = polynomials;
++        const size_t num_non_gate = polynomials_ref.get_non_gate_selectors().size();
++
++        std::vector<SelectorTask> selector_tasks;
++        for (auto& block : blocks_array) {
++            const uint32_t offset = block.trace_offset();
++            const uint32_t block_size = static_cast<uint32_t>(block.size());
++            auto non_gate = Flavor::Generated::get_block_non_gate_selectors(block);
++            for (size_t i = 0; i < non_gate.size(); ++i) {
++                selector_tasks.emplace_back(SelectorTask{ &non_gate[i], i, offset, block_size });
++            }
++        }
++
++        auto gate_blocks = Flavor::Generated::get_gate_blocks(builder.blocks);
++        constexpr auto& gate_kinds = Flavor::Generated::GATE_KINDS;
++        for (size_t i = 0; i < gate_kinds.size(); ++i) {
++            auto& block = gate_blocks[i];
++            selector_tasks.emplace_back(SelectorTask{ &block.gate_selector_for(gate_kinds[i]),
++                                                      num_non_gate + i,
++                                                      block.trace_offset(),
++                                                      static_cast<uint32_t>(block.size()) });
++        }
++
++        parallel_for(selector_tasks.size(), [&](size_t task_idx) {
++            const auto& task = selector_tasks[task_idx];
++            const auto& source = *task.source;
++            auto& poly = selectors[task.target_poly_idx];
++            // Bulk-copy the range that lands inside the polynomial's backing store (tile-wise, no
++            // per-element virtual call); rows clamped off by the store bounds would previously have
++            // been dropped by set_if_valid_index and must be zero.
++            const size_t dst_begin = std::max<size_t>(task.trace_offset, poly.start_index());
++            const size_t dst_end = std::min<size_t>(task.trace_offset + task.block_size, poly.end_index());
++            if (dst_begin < dst_end) {
++                source.copy_into(&poly.at(dst_begin), dst_begin - task.trace_offset, dst_end - dst_begin);
++            }
++        });
++    }
++
+     // Wire cells are laid out flat in (block, row, wire) order; cell_offsets[b] is the first cell of block b. This is
+     // the order in which nodes are appended to each variable's copy cycle.
+     const size_t num_cycles = builder.get_num_variables();
+@@ -70,8 +127,10 @@ CopyCycles TraceToPolynomials<Flavor>::populate_wires_and_selectors_and_compute_
+     // The real variable index of every wire cell.
+     std::vector<uint32_t> cell_real_var_idx(cell_offsets[num_blocks]);
+ 
+-    // Phase 1: populate the wires and record each cell's real variable index, in parallel over row chunks of all
+-    // blocks (the blocks differ greatly in size).
++    // Phase 2: populate the wires and record each cell's real variable index, in parallel over row chunks of all
++    // blocks (the blocks differ greatly in size). With CopiedCircuitData::RELEASE, the task that finishes a block's
++    // last chunk frees the block's gate data: the copy-cycle phases below read only the recorded cells and the blocks'
++    // offsets and sizes.
+     {
+         BB_BENCH_NAME("populate_wires_and_emit_cycles");
+         constexpr uint32_t ROWS_PER_TASK = 1 << 12;
+@@ -87,6 +146,10 @@ CopyCycles TraceToPolynomials<Flavor>::populate_wires_and_selectors_and_compute_
+                 row_tasks.push_back({ block_idx, row_begin, std::min(row_begin + ROWS_PER_TASK, block_size) });
+             }
+         }
++        std::vector<std::atomic<uint32_t>> chunks_left(num_blocks);
++        for (const RowTask& task : row_tasks) {
++            chunks_left[task.block_idx].fetch_add(1, std::memory_order_relaxed);
++        }
+         parallel_for(row_tasks.size(), [&](size_t task_idx) {
+             const RowTask& task = row_tasks[task_idx];
+             auto& block = blocks_array[task.block_idx];
+@@ -107,10 +170,14 @@ CopyCycles TraceToPolynomials<Flavor>::populate_wires_and_selectors_and_compute_
+                     *cell++ = real_var_idx;
+                 }
+             }
++            if (copied_circuit_data == CopiedCircuitData::RELEASE &&
++                chunks_left[task.block_idx].fetch_sub(1, std::memory_order_acq_rel) == 1) {
++                block.free_data();
++            }
+         });
+     }
+ 
+-    // Phases 1.5 and 1.6 split the variables into one contiguous range per thread. Each thread scans all cells in
++    // Phases 2.5 and 2.6 split the variables into one contiguous range per thread. Each thread scans all cells in
+     // order and handles only its own variables, so every copy cycle is counted and filled by one thread, in cell order.
+     {
+         BB_BENCH_NAME("counting copy_cycles");
+@@ -166,58 +233,6 @@ CopyCycles TraceToPolynomials<Flavor>::populate_wires_and_selectors_and_compute_
+         });
+     }
+ 
+-    // Phase 2: parallel selector filling across a flattened task list.
+-    // Non-gate selectors (q_m/q_c/q_l/q_r/q_o/q_4/q_5) come from every block via codegen-emitted
+-    // `get_block_non_gate_selectors(block)`. Gate selectors come from the codegen's
+-    // `get_gate_blocks(blocks)` × `GATE_KINDS` parallel arrays — one task per flavor gate
+-    // selector, sourced from the unique block that owns the matching `GateKind`.
+-    {
+-        BB_BENCH_NAME("populate_selectors");
+-        struct SelectorTask {
+-            Selector<FF>* source;
+-            size_t target_poly_idx;
+-            uint32_t trace_offset;
+-            uint32_t block_size;
+-        };
+-
+-        const auto& polynomials_ref = polynomials;
+-        const size_t num_non_gate = polynomials_ref.get_non_gate_selectors().size();
+-
+-        std::vector<SelectorTask> selector_tasks;
+-        for (auto& block : blocks_array) {
+-            const uint32_t offset = block.trace_offset();
+-            const uint32_t block_size = static_cast<uint32_t>(block.size());
+-            auto non_gate = Flavor::Generated::get_block_non_gate_selectors(block);
+-            for (size_t i = 0; i < non_gate.size(); ++i) {
+-                selector_tasks.emplace_back(SelectorTask{ &non_gate[i], i, offset, block_size });
+-            }
+-        }
+-
+-        auto gate_blocks = Flavor::Generated::get_gate_blocks(builder.blocks);
+-        constexpr auto& gate_kinds = Flavor::Generated::GATE_KINDS;
+-        for (size_t i = 0; i < gate_kinds.size(); ++i) {
+-            auto& block = gate_blocks[i];
+-            selector_tasks.emplace_back(SelectorTask{ &block.gate_selector_for(gate_kinds[i]),
+-                                                      num_non_gate + i,
+-                                                      block.trace_offset(),
+-                                                      static_cast<uint32_t>(block.size()) });
+-        }
+-
+-        parallel_for(selector_tasks.size(), [&](size_t task_idx) {
+-            const auto& task = selector_tasks[task_idx];
+-            const auto& source = *task.source;
+-            auto& poly = selectors[task.target_poly_idx];
+-            // Bulk-copy the range that lands inside the polynomial's backing store (tile-wise, no
+-            // per-element virtual call); rows clamped off by the store bounds would previously have
+-            // been dropped by set_if_valid_index and must be zero.
+-            const size_t dst_begin = std::max<size_t>(task.trace_offset, poly.start_index());
+-            const size_t dst_end = std::min<size_t>(task.trace_offset + task.block_size, poly.end_index());
+-            if (dst_begin < dst_end) {
+-                source.copy_into(&poly.at(dst_begin), dst_begin - task.trace_offset, dst_end - dst_begin);
+-            }
+-        });
+-    }
+-
+     return copy_cycles;
+ }
+ 
+diff --git a/barretenberg/cpp/src/barretenberg/trace_to_polynomials/trace_to_polynomials.hpp b/barretenberg/cpp/src/barretenberg/trace_to_polynomials/trace_to_polynomials.hpp
+index b5499db1c..1b00b631d 100644
+--- a/barretenberg/cpp/src/barretenberg/trace_to_polynomials/trace_to_polynomials.hpp
++++ b/barretenberg/cpp/src/barretenberg/trace_to_polynomials/trace_to_polynomials.hpp
+@@ -9,6 +9,7 @@
+ #include "barretenberg/flavor/flavor_concepts.hpp"
+ #include "barretenberg/honk/composer/permutation_lib.hpp"
+ #include "barretenberg/srs/global_crs.hpp"
++#include "barretenberg/trace_to_polynomials/copied_circuit_data.hpp"
+ 
+ namespace bb {
+ 
+@@ -28,15 +29,20 @@ template <class Flavor> class TraceToPolynomials {
+      * @note By default, this method constructs an execution trace that is sorted by gate type.
+      *
+      * @param builder
++     * @param copied_circuit_data With RELEASE, each trace block's gate data is freed as soon as it has been copied
+      */
+-    static void populate(Builder& builder, ProverPolynomials&);
++    static void populate(Builder& builder,
++                         ProverPolynomials&,
++                         CopiedCircuitData copied_circuit_data = CopiedCircuitData::KEEP);
+ 
+   private:
+     /**
+      * @brief Populate wire polynomials, selector polynomials and copy cycles from raw circuit data
+      * @return CopyCycles copy cycles (CSR form) describing the copy constraints in the circuit
+      */
+-    static CopyCycles populate_wires_and_selectors_and_compute_copy_cycles(Builder& builder, ProverPolynomials&);
++    static CopyCycles populate_wires_and_selectors_and_compute_copy_cycles(Builder& builder,
++                                                                           ProverPolynomials&,
++                                                                           CopiedCircuitData copied_circuit_data);
+ 
+     /**
+      * @brief Construct and add the goblin ecc op wires to the proving key
+diff --git a/barretenberg/cpp/src/barretenberg/ultra_honk/prover_instance.cpp b/barretenberg/cpp/src/barretenberg/ultra_honk/prover_instance.cpp
+index d0c5f06a3..890b75a08 100644
+--- a/barretenberg/cpp/src/barretenberg/ultra_honk/prover_instance.cpp
++++ b/barretenberg/cpp/src/barretenberg/ultra_honk/prover_instance.cpp
+@@ -22,7 +22,8 @@
+ 
+ namespace bb {
+ 
+-template <typename Flavor> ProverInstance_<Flavor>::ProverInstance_(Circuit& circuit)
++template <typename Flavor>
++ProverInstance_<Flavor>::ProverInstance_(Circuit& circuit, CopiedCircuitData copied_circuit_data)
+ {
+     BB_BENCH_NAME("ProverInstance(Circuit&)");
+     vinfo("Constructing ProverInstance");
+@@ -84,9 +85,18 @@ template <typename Flavor> ProverInstance_<Flavor>::ProverInstance_(Circuit& cir
+         detail::GLOBAL_MEMORY_PROFILE.add_checkpoint("after_alloc");
+     }
+ 
++    if constexpr (Flavor::HasLogDerivLookup) {
++        // Built before the trace so that with CopiedCircuitData::RELEASE the lookup tables and their gate records are
++        // freed before the trace is populated.
++        construct_lookup_polynomials(circuit);
++        if (copied_circuit_data == CopiedCircuitData::RELEASE) {
++            std::deque<plookup::BasicTable>().swap(circuit.get_lookup_tables());
++        }
++    }
++
+     // Construct and add to proving key the wire, selector and copy constraint polynomials
+     vinfo("populating trace...");
+-    TraceToPolynomials<Flavor>::populate(circuit, polynomials);
++    TraceToPolynomials<Flavor>::populate(circuit, polynomials, copied_circuit_data);
+ 
+     if constexpr (Flavor::HasDataBus) {
+         BB_BENCH_NAME("constructing databus polynomials");
+@@ -97,10 +107,6 @@ template <typename Flavor> ProverInstance_<Flavor>::ProverInstance_(Circuit& cir
+     polynomials.lagrange_first().at(TRACE_OFFSET) = 1;
+     polynomials.lagrange_last().at(final_active_wire_idx) = 1;
+ 
+-    if constexpr (Flavor::HasLogDerivLookup) {
+-        construct_lookup_polynomials(circuit);
+-    }
+-
+     // Public inputs
+     metadata.num_public_inputs = circuit.blocks.pub_inputs.size();
+     metadata.pub_inputs_offset = circuit.blocks.pub_inputs.trace_offset();
+diff --git a/barretenberg/cpp/src/barretenberg/ultra_honk/prover_instance.hpp b/barretenberg/cpp/src/barretenberg/ultra_honk/prover_instance.hpp
+index 470440fbd..46e35e2b6 100644
+--- a/barretenberg/cpp/src/barretenberg/ultra_honk/prover_instance.hpp
++++ b/barretenberg/cpp/src/barretenberg/ultra_honk/prover_instance.hpp
+@@ -16,6 +16,7 @@
+ #include "barretenberg/flavor/ultra_zk_flavor.hpp"
+ #include "barretenberg/polynomials/polynomial_stats.hpp"
+ #include "barretenberg/relations/relation_parameters.hpp"
++#include "barretenberg/trace_to_polynomials/copied_circuit_data.hpp"
+ 
+ namespace bb {
+ 
+@@ -75,7 +76,12 @@ template <typename Flavor_> class ProverInstance_ {
+         return typename Flavor::PrecomputedData{ polynomials.get_precomputed(), metadata };
+     }
+ 
+-    ProverInstance_(Circuit& circuit);
++    /**
++     * @param copied_circuit_data With CopiedCircuitData::RELEASE, the circuit's trace blocks and lookup tables are
++     * freed once they have been copied into the polynomials; the circuit can then not be checked or turned into another
++     * instance.
++     */
++    ProverInstance_(Circuit& circuit, CopiedCircuitData copied_circuit_data = CopiedCircuitData::KEEP);
+ 
+     ProverInstance_() = default;
+     ProverInstance_(const ProverInstance_&) = delete;
+-- 
+2.43.0
+

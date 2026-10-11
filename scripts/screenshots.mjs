@@ -14,6 +14,7 @@ const pages = [
   ["leaderboard-range", "", ["Driving range"]],
   ["leaderboard-ram", "", ["Peak RAM"]],
   ["submission-final", "s/final"],
+  ["submission-final2", "s/final2"],
   ["submission-threading", "s/track-threading"],
   ["rules", "rules"],
   ["submit", "submit"],

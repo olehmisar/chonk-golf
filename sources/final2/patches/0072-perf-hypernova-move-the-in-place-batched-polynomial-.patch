@@ -1,0 +1,29 @@
+From 288e6444c9dcbd12a804ee50b49579288a434295 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:33:47 +0000
+Subject: [PATCH 72/75] perf(hypernova): move the in-place batched polynomial
+ out instead of copying it
+
+batch_polynomials accumulates the batch in place in the first polynomial and returned a deep copy of
+it, allocating and copying a full-size polynomial per batch (two per folded instance). Move it out.
+---
+ .../cpp/src/barretenberg/hypernova/hypernova_prover.hpp        | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/hypernova/hypernova_prover.hpp b/barretenberg/cpp/src/barretenberg/hypernova/hypernova_prover.hpp
+index af05c7c05..e65fe2922 100644
+--- a/barretenberg/cpp/src/barretenberg/hypernova/hypernova_prover.hpp
++++ b/barretenberg/cpp/src/barretenberg/hypernova/hypernova_prover.hpp
+@@ -244,7 +244,8 @@ class HypernovaFoldingProver {
+             return result;
+         }
+         add_scaled_batch(polynomials_to_batch[0], sources_span, tail_scalars);
+-        return polynomials_to_batch[0];
++        // The batch is accumulated in place in the first polynomial; hand over its memory instead of copying it.
++        return std::move(polynomials_to_batch[0]);
+     }
+ 
+     /**
+-- 
+2.43.0
+

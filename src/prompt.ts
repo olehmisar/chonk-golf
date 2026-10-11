@@ -7,7 +7,7 @@ import { isRamRegression, rank, type Scored } from "./score.ts";
  */
 export function pickLeader(items: Scored[]): Scored | undefined {
   const pool = items.filter(
-    (x) => x.s.kind === "series" && !isRamRegression(x.headlineRam ?? x.ramRatio),
+    (x) => x.s.kind === "series" && !x.s.invalid && !isRamRegression(x.headlineRam ?? x.ramRatio),
   );
   return rank(
     pool,
