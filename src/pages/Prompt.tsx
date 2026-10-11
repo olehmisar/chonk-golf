@@ -33,10 +33,10 @@ export function PromptPage() {
           .
         </p>
         <RuleOne />
-        <CopyPromptButton />
+        <CopyPromptButton label="Copy prompt for your agent" />
       </header>
       <PromptBlock tall />
-      <CopyPromptButton />
+      <CopyPromptButton label="Copy prompt for your agent" />
     </article>
   );
 }

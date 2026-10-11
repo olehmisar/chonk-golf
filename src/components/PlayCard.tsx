@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PROMPT, PROMPT_LEADER } from "../prompt-text.ts";
+import { PROMPT } from "../prompt-text.ts";
 import { href } from "../router.ts";
 
 async function copyText(text: string): Promise<boolean> {
@@ -21,7 +21,13 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function CopyPromptButton({ className = "" }: { className?: string }) {
+export function CopyPromptButton({
+  className = "",
+  label = "Copy prompt",
+}: {
+  className?: string;
+  label?: string;
+}) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   return (
     <button
@@ -29,18 +35,18 @@ export function CopyPromptButton({ className = "" }: { className?: string }) {
       onClick={() => {
         void copyText(PROMPT).then((ok) => {
           setState(ok ? "copied" : "failed");
-          setTimeout(() => setState("idle"), 2000);
+          setTimeout(() => setState("idle"), 4000);
         });
       }}
-      className={`inline-flex items-center justify-center gap-2 rounded-full bg-fairway px-6 py-3 text-base font-semibold text-fairway-ink shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full bg-fairway px-6 py-3 text-base font-semibold whitespace-nowrap text-fairway-ink shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0 ${className}`}
       aria-live="polite"
     >
       <span aria-hidden>{state === "copied" ? "✓" : state === "failed" ? "!" : "⧉"}</span>
       {state === "copied"
-        ? "Copied!"
+        ? "Copied — now paste it into your agent"
         : state === "failed"
-          ? "Copy failed — select the text"
-          : "Copy prompt"}
+          ? "Copy failed — open the prompt page"
+          : label}
     </button>
   );
 }
@@ -75,59 +81,47 @@ export function PromptBlock({ tall = false }: { tall?: boolean }) {
   );
 }
 
-/** Top-of-home-page call to action: copy a prompt into your own coding agent and play. */
+/** Top-of-home-page call to action: one button that copies a prompt to paste into your own coding agent. */
 export function PlayCard() {
   return (
     <section
       aria-labelledby="play-title"
-      className="rounded-2xl border-2 border-fairway/50 bg-surface p-4 shadow-sm sm:p-6"
+      className="flex flex-col gap-4 rounded-2xl border-2 border-fairway/50 bg-surface p-4 shadow-sm sm:p-5 lg:flex-row lg:items-center lg:justify-between"
     >
-      <div className="grid gap-5 lg:grid-cols-[1fr_1.35fr] lg:items-start">
-        <div className="space-y-3">
-          <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Tee off</p>
-          <h2
-            id="play-title"
-            className="font-display text-2xl leading-tight font-semibold sm:text-3xl"
-          >
-            Play chonk.golf with your agent
-          </h2>
-          <p className="text-sm text-ink-2 sm:text-base">
-            Paste this prompt into your own coding agent. It starts from the current leader
-            {PROMPT_LEADER ? (
-              <>
-                {" "}
-                (
-                <a
-                  href={href.submission(PROMPT_LEADER.s.id)}
-                  className="font-medium underline underline-offset-2"
-                >
-                  {PROMPT_LEADER.s.id}
-                </a>
-                )
-              </>
-            ) : null}
-            , hunts for speedups on the headline flow and submits a card, using only the public{" "}
-            <a
-              href="https://github.com/olehmisar/chonk-golf"
-              className="font-medium underline underline-offset-2"
-            >
-              chonk-golf
-            </a>{" "}
-            repo.
-          </p>
-          <RuleOne />
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <CopyPromptButton />
-            <a
-              href={href.prompt}
-              className="text-sm font-medium text-ink-2 underline-offset-2 hover:underline"
-            >
-              Open as a page →
-            </a>
-          </div>
-        </div>
-        <PromptBlock />
+      <div className="min-w-0 space-y-1.5">
+        <h2
+          id="play-title"
+          className="font-display text-xl leading-tight font-semibold sm:text-2xl"
+        >
+          🤖 Play chonk.golf with your agent
+        </h2>
+        <ol className="flex flex-col gap-0.5 text-sm text-ink-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2">
+          <li>
+            <span className="font-semibold text-ink">1.</span> Copy the prompt
+          </li>
+          <li aria-hidden className="hidden text-muted sm:list-item">
+            →
+          </li>
+          <li>
+            <span className="font-semibold text-ink">2.</span>{" "}
+            <strong className="text-ink">Paste it into your coding agent</strong>
+          </li>
+          <li aria-hidden className="hidden text-muted sm:list-item">
+            →
+          </li>
+          <li>
+            <span className="font-semibold text-ink">3.</span> It optimises the prover and submits
+          </li>
+        </ol>
+        <p className="text-xs text-muted">
+          <strong className="text-flag">Rule #1: the verifier must match</strong> — proofs must pass
+          the unmodified verifier, byte-identical. ·{" "}
+          <a href={href.prompt} className="underline underline-offset-2 hover:text-ink">
+            Read the prompt
+          </a>
+        </p>
       </div>
+      <CopyPromptButton label="Copy prompt for your agent" className="w-full shrink-0 lg:w-auto" />
     </section>
   );
 }
