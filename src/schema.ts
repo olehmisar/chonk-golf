@@ -192,6 +192,8 @@ export const submission = z
     flows: z.array(flowMetrics),
     /** Results on the aztec-standards Token flows (the headline benchmark). Absent = not measured. */
     standards: standardsSchema.optional(),
+    /** Position on the progress chart (0 = par, then each integrated series in order). */
+    milestone: z.number().int().min(0).optional(),
     /** Caveats readers must see next to the numbers (e.g. hardware features inactive in the run). */
     caveats: z.array(z.string().min(1)).optional(),
     /** Other measurements of the same card: earlier ones, or alternate runs (other hardware, kernels forced off). */
@@ -202,6 +204,8 @@ export const submission = z
             label: z.string().min(1),
             /** `superseded`: an earlier measurement (default). `alternate`: another current run, e.g. other hardware. */
             kind: z.enum(["superseded", "alternate"]).optional(),
+            /** This entry is the shared run the other milestone cards were measured in (used by the progress chart). */
+            common_run: z.boolean().optional(),
             source_url: z.url().nullable(),
             machine: z.string().nullable(),
             summary: summarySchema,

@@ -5,6 +5,7 @@ import { describe, expect, test } from "vite-plus/test";
 import { FLOW_COUNT } from "./schema.ts";
 import { pctDelta, rank, score } from "./score.ts";
 import { submissionJsonSchema, validateSubmissions } from "./validate.ts";
+import { progressPoints } from "./progress.ts";
 
 const root = join(import.meta.dirname, "..");
 const dir = join(root, "data", "submissions");
@@ -133,6 +134,27 @@ describe("wasm metrics", () => {
     expect(x.headlineWasmTime).toBeCloseTo(0.8);
     expect(x.headlineWasmRam).toBeCloseTo(0.9);
     expect(x.wasmTime).toBeCloseTo(0.8);
+  });
+});
+
+describe("progress chart", () => {
+  const { submissions } = validateSubmissions(files);
+  const pts = progressPoints(submissions.map(score), "headline");
+
+  test("par first, then integ1-5 and final, all from the shared run", () => {
+    expect(pts.map((p) => p.id)).toEqual([
+      "baseline",
+      "integ1",
+      "integ2",
+      "integ3",
+      "integ4",
+      "integ5",
+      "final",
+    ]);
+    expect(pts[0]!.time).toBe(1);
+    const fin = pts.at(-1)!;
+    expect(fin.time!).toBeCloseTo(4.323 / 6.376, 3); // no-IFMA shared run
+    expect(fin.alt?.time).toBe(0.488); // its own headline run on the IFMA VM
   });
 });
 

@@ -23,6 +23,8 @@
   --warn: #9a6a00;
   --stripe-a: #2b8a52;
   --stripe-b: #247a48;
+  --chart-time: #1f7a45;
+  --chart-ram: #2a78d6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -47,6 +49,8 @@
     --warn: #e2b04a;
     --stripe-a: #14402a;
     --stripe-b: #113823;
+    --chart-time: #199e70;
+    --chart-ram: #3987e5;
   }
 }
 
@@ -71,6 +75,8 @@
   --warn: #e2b04a;
   --stripe-a: #14402a;
   --stripe-b: #113823;
+  --chart-time: #199e70;
+  --chart-ram: #3987e5;
 }
 
 @theme inline {

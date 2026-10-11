@@ -445,7 +445,7 @@ IFMA14 = {  # flow: (unmodified min s, final min s, unmodified peak RSS, final p
 IFMA_HEAD = ("standards_token_transfer_private_to_private", 3.76, 1.83, 307.1, 225.3, 0.488)
 fin = S[-1]
 no_ifma = {"label": "No-IFMA VM: common 14-flow run (4 vCPU Xeon @ 2.80GHz without IFMA, IFMA kernels inactive)",
-           "kind": "alternate", "source_url": FINAL_URL, "machine": MACHINE14["cpu"],
+           "kind": "alternate", "common_run": True, "source_url": FINAL_URL, "machine": MACHINE14["cpu"],
            "summary": fin["summary"], "flows": fin["flows"], "standards_flows": std}
 ifma_off = {"label": "IFMA VM with IFMA forced off (BB_FIELD_NO_IFMA=1 BB_MSM_NO_IFMA=1): headline, min of 7",
             "kind": "alternate", "source_url": IFMA_URL,
@@ -480,6 +480,10 @@ S[-1]["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": IFMA_URL,
                       "flows": S[-1].pop("_ifma_std"),
                       "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": 3,
                                       "tampered_rejected": True, "vks_match": True}}
+
+# Progress chart order: par, then each integrated series.
+for i, cid in enumerate(["baseline", "integ1", "integ2", "integ3", "integ4", "integ5", "final"]):
+    BY.setdefault(cid, next(x for x in S if x["id"] == cid))["milestone"] = i
 
 os.makedirs(OUT, exist_ok=True)
 for s in S:

@@ -515,6 +515,7 @@
     {
       "label": "No-IFMA VM: common 14-flow run (4 vCPU Xeon @ 2.80GHz without IFMA, IFMA kernels inactive)",
       "kind": "alternate",
+      "common_run": true,
       "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/README.md",
       "machine": "4 vCPU Intel Xeon @ 2.80GHz (cloud VM, AVX-512, no AVX-512 IFMA: IFMA kernels inactive)",
       "summary": {
@@ -711,5 +712,6 @@
       "tampered_rejected": true,
       "vks_match": true
     }
-  }
+  },
+  "milestone": 6
 }
