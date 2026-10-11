@@ -1,0 +1,33 @@
+From d8a2ec4c97ff38c64be25852779ad79e4b13e65b Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 03:57:31 +0000
+Subject: [PATCH 34/58] perf(chonk): free a step's constraint system and
+ witness before accumulating it
+
+ChonkStepProcessor::process_step kept the step's AcirProgram (parsed
+constraint system and witness vector) alive until the step was accumulated,
+although the constructed circuit holds everything accumulation needs. It is now
+released right after circuit construction, before accumulation, which is when
+memory use peaks. Applies to the bbapi path (ChonkAccumulate, bb.js) and the
+CLI alike. Proving is unchanged.
+---
+ .../cpp/src/barretenberg/chonk/chonk_step_processor.cpp        | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/chonk_step_processor.cpp b/barretenberg/cpp/src/barretenberg/chonk/chonk_step_processor.cpp
+index 195c1e7..a122b8a 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/chonk_step_processor.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/chonk_step_processor.cpp
+@@ -91,6 +91,9 @@ void ChonkStepProcessor::process_step(ChonkExecutionStep&& step, ChonkPrecompute
+ {
+     const acir_format::ProgramMetadata metadata{ .ivc = ivc };
+     auto circuit = acir_format::create_circuit<Chonk::ClientCircuit>(step.program, metadata);
++    // The circuit holds everything accumulation needs: free the constraint system and witness before accumulating,
++    // which is when memory use peaks.
++    step.program = acir_format::AcirProgram{};
+ 
+     info("Chonk: accumulating ", step.name);
+     if (detail::use_memory_profile) {
+-- 
+2.43.0
+

@@ -187,6 +187,27 @@ S[-1]["rss_bisect"] = {
     "note": "+37 MiB at patch 15: the background parser runs ahead over all steps.",
 }
 
+# integ5: current 58-patch series, sources/integ5/STATUS.md ("integ5 (current series)": seconds and MiB per flow).
+I5 = [  # flow, par s, integ5 s, par RSS, integ5 RSS
+  (FLOWS[1], 6.21, 4.34, 305.9, 277.5), (FLOWS[2], 9.80, 7.39, 350.4, 314.3), (FLOWS[4], 20.31, 13.10, 853.4, 848.8),
+  (FLOWS[5], 6.60, 4.68, 316.8, 283.6), (FLOWS[8], 8.81, 6.30, 343.4, 304.4)]
+add(id="integ5", title="integ5: current series, pipeline RAM fix + round-2 tracks",
+    author="bb-chonk-prover-opt coordinator", track="integrated", kind="series", status="integrated",
+    integrated_in="integ5", against={"id": "baseline", "description": "Unmodified prover, interleaved on the same VM."},
+    patches=patches("integ5"), series_url="https://github.com/olehmisar/chonk-golf/tree/main/sources/integ5",
+    description="Current `git am` series 0001-0058 on bb15fcb. Includes: integ3 + pipeline RAM fix (bounded lookahead, "
+                "free each step), transcript Poseidon2 delta, eccvm (rebased), fields2, msm2/0002, msm/0002 (tests), pcs "
+                "on-integ3 (6), stdlib 0005-0007, sumcheck2 on-integ3 (4), circuit/0005 (revised), wasm build flags, "
+                "wasm-poly 0003-0004. Fixes integ4's RAM regression: peak RSS is now 6.5% below par. Not included: "
+                "wasm-poly/0001-0002 (conflict with newer native polynomial changes), joint2 (no reproducible gain), "
+                "pcs/0002-0003 originals (superseded), wasm-threads (diagnostic only).",
+    source_url=f"{GH}/sources/integ5/STATUS.md", machine=machine(),
+    correctness=corr(11, 11, None, None, "STATUS.md: 11/11 identical, 11/11 stock bb.js verify; tampered/VK checks "
+                     "not itemised."),
+    summary=summ(51.72, 35.82, round(35.82 / 51.72, 4), 5, 3, "End-to-end vs unmodified, min of 3, 5 flows; per-flow "
+                 "seconds and peak RSS from the same A/B."),
+    flows=[fm(f, a, b, ra, rb, 3) for f, a, b, ra, rb in I5])
+
 # ---------- track deltas (practice range) ----------
 START = {"id": "own-0003-0006", "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."}
 def track(t, title, desc, status, integ, corr_, summ_, flows=None, against=START, mach=None, only=None,

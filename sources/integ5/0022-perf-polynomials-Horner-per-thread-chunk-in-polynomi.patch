@@ -1,0 +1,45 @@
+From 4d8da99d07f9c1461c95674ccba25d1c5441fa05 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:42:42 +0000
+Subject: [PATCH 22/58] perf(polynomials): Horner per thread chunk in
+ polynomial evaluate
+
+Each thread evaluates its chunk with Horner's rule (one multiplication per
+coefficient instead of two), scales by z^start once, and stores its partial
+sum once at the end instead of accumulating into adjacent elements of a
+shared vector on every iteration (false sharing). Same value: field
+arithmetic is exact.
+---
+ .../polynomials/polynomial_arithmetic.cpp         | 15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
+index 30722b7..05ecdfd 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
+@@ -168,13 +168,16 @@ template <typename Fr> Fr evaluate(const Fr* coeffs, const Fr& z, const size_t n
+         if (range.empty()) {
+             return;
+         }
+-        size_t start = *range.begin();
+-        Fr z_acc = z.pow(static_cast<uint64_t>(start));
+-        for (size_t i : range) {
+-            Fr work_var = z_acc * coeffs[i];
+-            evaluations[chunk.thread_index] += work_var;
+-            z_acc *= z;
++        // Horner's rule over the chunk gives sum_i coeffs[start + i] * z^i with one multiplication per
++        // coefficient; scaling by z^start then places the chunk. Accumulate locally and store once so threads
++        // do not write to adjacent elements of `evaluations` on every iteration.
++        const size_t start = *range.begin();
++        Fr chunk_eval = Fr::zero();
++        for (size_t i = start + range.size(); i > start; --i) {
++            chunk_eval *= z;
++            chunk_eval += coeffs[i - 1];
+         }
++        evaluations[chunk.thread_index] = chunk_eval * z.pow(static_cast<uint64_t>(start));
+     });
+ 
+     Fr r = Fr::zero();
+-- 
+2.43.0
+

@@ -1,0 +1,114 @@
+From 05b94c41fce8a0f9831bf430482399b5ef9194ff Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:16:03 +0000
+Subject: [PATCH 15/58] perf(chonk): write the IVC's hiding-kernel VK in prove
+ --write_vk
+
+ChonkAPI::prove --write_vk rebuilt the hiding kernel circuit from bytecode with
+a mock IVC and recomputed its VK (ChonkComputeVk: circuit construction, prover
+instance, precomputed-polynomial commitments), ~200 ms on a typical flow.
+
+The IVC already holds the hiding kernel's MegaZK VK (precomputed, checked or
+recomputed per --vk_policy), and ChonkProve verifies the proof against exactly
+that VK before returning, throwing on failure. The CLI now serialises that VK
+(same type, same to_buffer / to_field_elements encoding) instead of rebuilding
+it. Proving is untouched; the VK bytes are unchanged on all pinned flows.
+---
+ .../cpp/src/barretenberg/api/api_chonk.cpp    | 41 +++++++++++--------
+ 1 file changed, 24 insertions(+), 17 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/api/api_chonk.cpp b/barretenberg/cpp/src/barretenberg/api/api_chonk.cpp
+index 380b859..24f1483 100644
+--- a/barretenberg/cpp/src/barretenberg/api/api_chonk.cpp
++++ b/barretenberg/cpp/src/barretenberg/api/api_chonk.cpp
+@@ -4,6 +4,7 @@
+ #include "barretenberg/api/log.hpp"
+ #include "barretenberg/bbapi/bbapi.hpp"
+ #include "barretenberg/chonk/chonk.hpp"
++#include "barretenberg/chonk/chonk_step_processor.hpp"
+ #include "barretenberg/chonk/chonk_verifier.hpp"
+ #include "barretenberg/chonk/mock_circuit_producer.hpp"
+ #include "barretenberg/chonk/private_execution_steps.hpp"
+@@ -41,28 +42,36 @@ CircuitKind parse_circuit_kind(const std::string& s)
+ }
+ 
+ /**
+- * @brief Compute and write a Chonk VK in the per-kind flavor selected by `flags.circuit_kind`
+- * (app → MegaApp, kernel → MegaKernel, hiding → MegaZK). Delegates to ChonkComputeVk; the dummy
+- * IVC inputs that make a kernel's recursion constraints satisfiable are handled in the ACIR layer.
++ * @brief Write a Chonk VK (raw bytes, or JSON fields when `flags.output_format == "json"`) to `output_path`.
+  */
+-void write_chonk_vk(std::vector<uint8_t> bytecode, const std::filesystem::path& output_path, const API::Flags& flags)
++void write_chonk_vk_data(const ChonkVkData& vk, const std::filesystem::path& output_path, const API::Flags& flags)
+ {
+-    const CircuitKind kind = parse_circuit_kind(flags.circuit_kind);
+-    auto response = bbapi::ChonkComputeVk{ .circuit = { .bytecode = std::move(bytecode) }, .kind = kind }.execute();
+-
+     const bool is_stdout = output_path == "-";
+     if (is_stdout) {
+-        write_bytes_to_stdout(response.bytes);
++        write_bytes_to_stdout(vk.bytes);
+     } else if (flags.output_format == "json") {
+         // Note: Chonk VK doesn't have a hash, so we pass an empty string
+-        std::string json_content = VkJson::build(response.fields, "", flags.scheme);
++        std::string json_content = VkJson::build(vk.fields, "", flags.scheme);
+         write_file(output_path / "vk.json", std::vector<uint8_t>(json_content.begin(), json_content.end()));
+         info("VK (JSON) saved to ", output_path / "vk.json");
+     } else {
+-        write_file(output_path / "vk", response.bytes);
++        write_file(output_path / "vk", vk.bytes);
+     }
+ }
+ 
++/**
++ * @brief Compute and write a Chonk VK in the per-kind flavor selected by `flags.circuit_kind`
++ * (app → MegaApp, kernel → MegaKernel, hiding → MegaZK). Delegates to ChonkComputeVk; the dummy
++ * IVC inputs that make a kernel's recursion constraints satisfiable are handled in the ACIR layer.
++ */
++void write_chonk_vk(std::vector<uint8_t> bytecode, const std::filesystem::path& output_path, const API::Flags& flags)
++{
++    const CircuitKind kind = parse_circuit_kind(flags.circuit_kind);
++    auto response = bbapi::ChonkComputeVk{ .circuit = { .bytecode = std::move(bytecode) }, .kind = kind }.execute();
++    write_chonk_vk_data(
++        { .bytes = std::move(response.bytes), .fields = std::move(response.fields) }, output_path, flags);
++}
++
+ /**
+  * @brief Parses the bytecode of every step in order on a background thread, so that parsing the upcoming circuits
+  * overlaps accumulation (proving) of the current one.
+@@ -146,10 +155,6 @@ void ChonkAPI::prove(const Flags& flags,
+     bbapi::ChonkStart{ .kinds = std::move(kinds) }.execute(request);
+     info("Chonk: starting with ", raw_steps.size(), " circuits");
+ 
+-    // The hiding kernel bytecode is needed again to derive its VK below.
+-    const std::vector<uint8_t> hiding_kernel_bytecode =
+-        flags.write_vk ? raw_steps.back().bytecode : std::vector<uint8_t>{};
+-
+     // Bytecode parsing draws no randomness, so parsing ahead on a background thread leaves the order of RNG draws
+     // (witness gap filling, circuit construction, proving) unchanged; the witnesses are still parsed in order, step
+     // by step, by ChonkAccumulate.
+@@ -162,6 +167,9 @@ void ChonkAPI::prove(const Flags& flags,
+         bbapi::ChonkAccumulate{ .witness = std::move(step.witness) }.execute(request);
+     }
+ 
++    // The hiding kernel VK the IVC proves against. ChonkProve verifies the proof against this VK and throws if it does
++    // not verify, so once the proof is out the VK is the one of the hiding kernel circuit that was proven.
++    const auto hiding_vk = request.ivc_in_progress->get_hiding_kernel_vk_and_hash()->vk;
+     auto proof = bbapi::ChonkProve{}.execute(request).proof;
+ 
+     const bool output_to_stdout = output_dir == "-";
+@@ -188,9 +196,8 @@ void ChonkAPI::prove(const Flags& flags,
+     if (flags.write_vk) {
+         vinfo("writing Chonk vk in directory ", output_dir);
+         // Write CHONK vk for the hiding kernel (last step) — proven as MegaZK.
+-        Flags hiding_flags = flags;
+-        hiding_flags.circuit_kind = "hiding";
+-        write_chonk_vk(hiding_kernel_bytecode, output_dir, hiding_flags);
++        write_chonk_vk_data(
++            { .bytes = to_buffer(*hiding_vk), .fields = hiding_vk->to_field_elements() }, output_dir, flags);
+     }
+ }
+ 
+-- 
+2.43.0
+

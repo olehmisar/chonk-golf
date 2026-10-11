@@ -108,6 +108,7 @@ All numbers are transcribed from the published results; anything not reported is
 | `integ2`                                            | championship      | `integrated/STATUS.md`                          | −23.7% (5 flows, ratios)       | 2 flows (+4.6%)                                       |
 | `integ3`                                            | championship      | `integrated/STATUS.md`                          | −24.2% (5 flows, ratios)       | 2 flows (+5.0%)                                       |
 | `integ4`                                            | championship      | `sources/integ4/STATUS.md`                      | **−30.6%** (5 flows, ratios)   | 5 flows (**+12.3%**, flagged; RSS bisect on the card) |
+| `integ5`                                            | championship      | `sources/integ5/STATUS.md`                      | **−30.7%** (5 flows, seconds)  | 5 flows (**−6.5%**)                                   |
 | `track-msm2`                                        | range             | `contrib/msm2/RESULTS.md`                       | −16.4% (11 flows, IFMA VM)     | —                                                     |
 | `track-circuit`                                     | range             | `contrib/circuit/RESULTS.md`                    | −4.4% (11 flows, seconds)      | —                                                     |
 | `track-threading`                                   | range             | `contrib/threading/RESULTS.md`                  | −3.7% (11 flows, seconds)      | —                                                     |
@@ -137,7 +138,7 @@ Taken with Playwright/Chromium against `vp preview` (`docs/screenshots/`; deskto
 | Leaderboard                 | ![](docs/screenshots/leaderboard.desktop.png)          | ![](docs/screenshots/leaderboard.desktop-dark.png)          | ![](docs/screenshots/leaderboard.mobile.png)          |
 | Leaderboard · driving range | ![](docs/screenshots/leaderboard-range.desktop.png)    | ![](docs/screenshots/leaderboard-range.desktop-dark.png)    | ![](docs/screenshots/leaderboard-range.mobile.png)    |
 | Leaderboard · peak RAM      | ![](docs/screenshots/leaderboard-ram.desktop.png)      | ![](docs/screenshots/leaderboard-ram.desktop-dark.png)      | ![](docs/screenshots/leaderboard-ram.mobile.png)      |
-| Submission: integ4          | ![](docs/screenshots/submission-integ4.desktop.png)    | ![](docs/screenshots/submission-integ4.desktop-dark.png)    | ![](docs/screenshots/submission-integ4.mobile.png)    |
+| Submission: integ5          | ![](docs/screenshots/submission-integ5.desktop.png)    | ![](docs/screenshots/submission-integ5.desktop-dark.png)    | ![](docs/screenshots/submission-integ5.mobile.png)    |
 | Submission: threading       | ![](docs/screenshots/submission-threading.desktop.png) | ![](docs/screenshots/submission-threading.desktop-dark.png) | ![](docs/screenshots/submission-threading.mobile.png) |
 | Rules                       | ![](docs/screenshots/rules.desktop.png)                | ![](docs/screenshots/rules.desktop-dark.png)                | ![](docs/screenshots/rules.mobile.png)                |
 | How to submit               | ![](docs/screenshots/submit.desktop.png)               | ![](docs/screenshots/submit.desktop-dark.png)               | ![](docs/screenshots/submit.mobile.png)               |
