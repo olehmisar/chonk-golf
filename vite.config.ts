@@ -1,3 +1,4 @@
+import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
@@ -30,7 +31,7 @@ export default defineConfig({
       "app:build": {
         command: "tsc && vp build",
         dependsOn: ["data:validate"],
-        cache: { output: ["dist/**"] },
+        cache: { output: [".cloudflare/output/**"] },
       },
     },
   },
@@ -42,7 +43,7 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist", "node_modules"],
+    ignorePatterns: ["dist", "node_modules", ".cloudflare"],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],
@@ -71,5 +72,5 @@ export default defineConfig({
       "vite-plus/prefer-vite-plus-imports": "error",
     },
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), cloudflare()],
 });

@@ -9,59 +9,60 @@ Golf mapping: the 11 pinned Chonk flows are the **holes**, the unmodified prover
 contributions measured against their own start point are marginal gains on the **Driving range**.
 
 Static site: React 19 + TypeScript + Tailwind 4 on **Vite+** (`vp`). Data is bundled JSON, validated with zod at
-build time. No server. Ready to deploy on Cloudflare (Workers static assets) — see [Deploy](#deploy-cloudflare).
+build time. No server. Deploys to Cloudflare with the `cf` CLI — see [Deploy](#deploy-cloudflare-cf-cli).
 
 ## Run
 
 ```bash
-cd chonk-golf
 pnpm install
 vp dev                 # http://localhost:5173
-pnpm run build         # vp run app:build -> data:validate, tsc, vp build -> dist/
-vp preview             # http://localhost:4173
+pnpm run build         # vp run app:build -> data:validate, tsc, vp build -> .cloudflare/output/
+vp preview             # built site in the local Workers runtime (workerd), http://localhost:4173
 vp check               # format + lint + typecheck
 vp test                # schema/data/scoring tests
 pnpm run screenshots   # needs a running preview; CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome
 harness/selftest.sh    # harness end-to-end with a mock bb
 ```
 
-## Deploy (Cloudflare)
+## Deploy (Cloudflare, `cf` CLI)
 
-The site is fully static, so it is served by **Cloudflare Workers static assets** (no Worker script).
-Config lives in `wrangler.jsonc`; `public/_headers` sets security headers (strict CSP: no inline scripts, no
-third-party origins), `immutable` caching for hashed `/assets/*`, and revalidation for `index.html`.
+The site is fully static and deploys as a **Workers static-assets** project (no Worker script) with the
+[`cf` CLI](https://blog.cloudflare.com/cloudflare-cf-cli-launch/) (`cf@1.0.0-beta.14`, a devDependency):
+
+- `cloudflare.config.ts` — Worker config (`defineConfig` from `cf/config`): name, compatibility date, SPA
+  fallback, observability, commented-out custom domain.
+- `@cloudflare/vite-plugin` in `vite.config.ts` — makes `vp build` emit the
+  [Build Output](https://developers.cloudflare.com/workers/) in `.cloudflare/output/`, and makes `vp preview` /
+  `vp dev` run in workerd so `_headers` and routing behave as in production.
+- `public/_headers` — strict CSP (no inline scripts, no third-party origins), `immutable` caching for hashed
+  `/assets/*`, revalidation for `index.html`.
+
 Routing is hash-based (`#/s/<id>`), so no rewrite rules are needed.
 
-**From your machine**
-
 ```bash
-cd chonk-golf
 pnpm install
-npx wrangler login         # once
-pnpm run cf:preview        # build + serve dist/ in the local Workers runtime (http://localhost:8787)
-pnpm run deploy            # build + wrangler deploy  ->  https://chonk-golf.<account>.workers.dev
-pnpm run deploy:preview    # upload a version with a preview URL, without promoting it
+npx cf auth login          # once (CI: set CLOUDFLARE_API_TOKEN instead)
+pnpm run deploy:check      # build + validate + `cf deploy --prebuilt --dry-run`
+pnpm run deploy            # build + `cf deploy --prebuilt`  ->  https://chonk-golf.<account>.workers.dev
 ```
 
-**From Git (Workers Builds)**: Cloudflare dashboard → Workers & Pages → Create → Import a repository →
-`olehmisar/playground`, then:
+`--prebuilt` deploys the output of `vp run app:build`, which validates every card in `data/submissions/` and
+typechecks first, so invalid data never ships.
 
-| Setting                       | Value                                                                                               |
-| ----------------------------- | --------------------------------------------------------------------------------------------------- |
-| Root directory                | `chonk-golf`                                                                                        |
-| Build command                 | `pnpm install --frozen-lockfile && pnpm run build`                                                  |
-| Deploy command                | `npx wrangler deploy`                                                                               |
-| Non-production deploy command | `npx wrangler versions upload`                                                                      |
-| Production branch             | `main`                                                                                              |
-| Build env vars                | optional `VITE_GITHUB_REF` (git ref that "Submission JSON" / schema links point at; default `main`) |
+**From Git (Workers Builds)**: Cloudflare dashboard → Workers & Pages → Create → Import a repository →
+`olehmisar/chonk-golf`, then:
+
+| Setting           | Value                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| Build command     | `pnpm install --frozen-lockfile && pnpm run build`                                                  |
+| Deploy command    | `npx cf deploy --prebuilt`                                                                          |
+| Production branch | `main`                                                                                              |
+| Build env vars    | optional `VITE_GITHUB_REF` (git ref that "Submission JSON" / schema links point at; default `main`) |
 
 Node is pinned with `.node-version` (22.22.0; the data validator needs ≥ 22.18 for TypeScript type stripping).
-The build fails if any card in `data/submissions/` is invalid.
 
-**Custom domain**: once the `chonk.golf` zone is on Cloudflare, uncomment the `routes` entry in `wrangler.jsonc`
-(`{ "pattern": "chonk.golf", "custom_domain": true }`) and redeploy.
-
-Pages works too if preferred: `npx wrangler pages deploy dist --project-name chonk-golf` (same `_headers` file).
+**Custom domain**: once the `chonk.golf` zone is on Cloudflare, uncomment `routes` in `cloudflare.config.ts` and
+redeploy.
 
 ## Rules (shown on the site)
 
@@ -79,16 +80,20 @@ _Verified_ = 11/11 identical and 11/11 stock bb.js; _Identical_ = 11/11 identica
 
 ## Layout
 
-| Path                           | What                                                                                             |
-| ------------------------------ | ------------------------------------------------------------------------------------------------ |
-| `src/schema.ts`                | zod schema of a submission (single source of truth)                                              |
-| `data/submission.schema.json`  | generated JSON Schema (rewritten by `pnpm run validate`)                                         |
-| `data/submissions/*.json`      | one card per file; file name = `id`                                                              |
-| `scripts/validate-data.ts`     | build-time validation (task `data:validate`, a dependency of `app:build`)                        |
-| `scripts/seed-from-results.py` | how the seed cards were transcribed (re-run after `git fetch` of the track branches)             |
-| `scripts/screenshots.mjs`      | Playwright screenshots of every page                                                             |
-| `harness/`                     | correctness + benchmark harness that emits a card — see [`harness/README.md`](harness/README.md) |
-| `src/pages/`                   | Leaderboard, Submission detail, Rules, Submit                                                    |
+| Path                                                       | What                                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `src/schema.ts`                                            | zod schema of a submission (single source of truth)                                                     |
+| `data/submission.schema.json`                              | generated JSON Schema (rewritten by `pnpm run validate`)                                                |
+| `data/submissions/*.json`                                  | one card per file; file name = `id`                                                                     |
+| `scripts/validate-data.ts`                                 | build-time validation (task `data:validate`, a dependency of `app:build`)                               |
+| `scripts/seed-from-results.py`                             | how the seed cards were transcribed (needs a clone of olehmisar/playground, see the script header)      |
+| `scripts/screenshots.mjs`                                  | Playwright screenshots of every page                                                                    |
+| `harness/`                                                 | correctness + benchmark harness that emits a card — see [`harness/README.md`](harness/README.md)        |
+| `src/pages/`                                               | Leaderboard, Submission detail, Rules, Submit                                                           |
+| `reference/`                                               | proof/VK SHA-256 of the unmodified prover for the 11 flows, baseline timings (from bb-chonk-prover-opt) |
+| `harness/patches/`                                         | the two harness patches (seeded RNG) every build applies on bb15fcb                                     |
+| `harness/build-bb.sh`                                      | builds par or a candidate `bb` and downloads the pinned flows                                           |
+| `cloudflare.config.ts`, `public/_headers`, `.node-version` | Cloudflare deployment (`cf` CLI)                                                                        |
 
 ## Seed data
 

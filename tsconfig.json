@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "data", "scripts", "vite.config.ts"]
+  "include": ["src", "data", "scripts", "vite.config.ts", "cloudflare.config.ts"]
 }
