@@ -1,0 +1,50 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-msm2",
+  "title": "AVX-512 IFMA batch-affine drain",
+  "author": "msm2 track",
+  "track": "msm2",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "integrated",
+  "integrated_in": "integ3",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": null,
+    "description": "patches/0001-0006 + msm/0001 (bb-start)."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-msm2/bb-chonk-prover-opt/contrib/msm2/0001-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
+      "summary": "perf msm AVX 512 IFMA batch affine drain for native "
+    }
+  ],
+  "series_url": null,
+  "description": "Runtime-dispatched native kernel: 8 Montgomery prefix chains in 5×52-bit IFMA lanes, one inversion per drain. Only runs on CPUs with AVX-512 IFMA (inactive on the coordinator VM). Patches 0002-0004 are follow-ups not yet measured in RESULTS.md.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-msm2/bb-chonk-prover-opt/contrib/msm2/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU Intel Xeon (family 6 model 173), AVX-512 IFMA",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": "Verified by the msm track on an IFMA machine, with IFMA on and with BB_MSM_NO_IFMA=1 (both 11/11 identical)."
+  },
+  "summary": {
+    "baseline_wall_s": 52.73,
+    "wall_s": 44.07,
+    "wall_ratio": 0.8358,
+    "flows_measured": 11,
+    "reps": 3,
+    "notes": "Every flow 0.80-0.88; per-flow seconds not published."
+  },
+  "flows": []
+}

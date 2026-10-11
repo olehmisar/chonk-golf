@@ -1,0 +1,59 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-wasm",
+  "title": "WASM batched divstep matrix",
+  "author": "wasm track",
+  "track": "wasm",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "candidate",
+  "integrated_in": null,
+  "target": "wasm",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "own-0003-0006",
+    "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-wasm-batched-divstep-matrix-in-Bernstein-Yang-W.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-wasm/bb-chonk-prover-opt/contrib/wasm/0001-perf-wasm-batched-divstep-matrix-in-Bernstein-Yang-W.patch",
+      "summary": "perf wasm batched divstep matrix in Bernstein Yang W"
+    }
+  ],
+  "series_url": null,
+  "description": "Batched divsteps in the Wasm9x29 Bernstein-Yang kernel (353 → 115 ns per 58-step matrix in V8). Scored on bb.js WASM proving, one flow.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-wasm/bb-chonk-prover-opt/contrib/wasm/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": null,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": "WASM proofs verified by the unmodified native bb through bb.js (not the stock npm package); VK sha256 equals the native reference on 11/11 flows."
+  },
+  "summary": {
+    "baseline_wall_s": 11.026,
+    "wall_s": 10.789,
+    "wall_ratio": 0.9785,
+    "flows_measured": 1,
+    "reps": 8,
+    "notes": "bb.js BackendType.Wasm, threads 4, Node 22; 4 processes × 2 proves."
+  },
+  "flows": [
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": 11.026,
+      "wall_s": 10.789,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 8
+    }
+  ]
+}

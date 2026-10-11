@@ -1,0 +1,50 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-sumcheck2",
+  "title": "Memory relation term skipping",
+  "author": "sumcheck2 track",
+  "track": "sumcheck2",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "integrated",
+  "integrated_in": "integ3",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": null,
+    "description": "patches/0001-0006 + sumcheck/0001-0002."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck2/bb-chonk-prover-opt/contrib/sumcheck2/0001-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
+      "summary": "perf sumcheck drop memory relation terms of gate typ"
+    }
+  ],
+  "series_url": null,
+  "description": "Memory relation prover path skips terms of gate types whose selector product is identically zero on the edge. HypernovaFoldingProver::sumcheck 2060 → 1790 ms on storage_proof.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck2/bb-chonk-prover-opt/contrib/sumcheck2/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": null,
+    "tampered_rejected": null,
+    "vks_match": null,
+    "notes": "Preliminary."
+  },
+  "summary": {
+    "baseline_wall_s": null,
+    "wall_s": null,
+    "wall_ratio": null,
+    "flows_measured": null,
+    "reps": null,
+    "notes": "End-to-end not yet reported."
+  },
+  "flows": []
+}

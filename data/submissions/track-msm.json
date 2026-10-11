@@ -1,0 +1,83 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-msm",
+  "title": "Batched variable-time divsteps",
+  "author": "msm track",
+  "track": "msm",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "integrated",
+  "integrated_in": "integ1",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "own-0003-0006",
+    "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-msm/bb-chonk-prover-opt/contrib/msm/0001-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "summary": "perf ecc batched variable time divsteps in Bernstein"
+    }
+  ],
+  "series_url": null,
+  "description": "invert_vartime performs the same 62 divsteps several at a time (libsecp256k1-style ctz + multi-bit cancellation). Fq inversion 2.97 → 1.60 µs.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-msm/bb-chonk-prover-opt/contrib/msm/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": null
+  },
+  "summary": {
+    "baseline_wall_s": 68.84,
+    "wall_s": 68.21,
+    "wall_ratio": 0.9908,
+    "flows_measured": 11,
+    "reps": 3,
+    "notes": "ab.sh, 11 flows, min of 3 (0.974 by summed medians). The per-flow rows are a separate 4-flow run, min of 4 (total 0.954)."
+  },
+  "flows": [
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": 4.64,
+      "wall_s": 4.5,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 4
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": 14.08,
+      "wall_s": 13.39,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 4
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": 6.69,
+      "wall_s": 6.35,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 4
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 5.5,
+      "wall_s": 5.26,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 4
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-stdlib",
+  "title": "Keccak & bigfield in-circuit",
+  "author": "stdlib track",
+  "track": "stdlib",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "integrated",
+  "integrated_in": "integ3",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "own-0003-0006",
+    "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/0001-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
+      "summary": "perf keccak divide by multi limb powers of 11 via ch"
+    },
+    {
+      "name": "0002-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/0002-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
+      "summary": "perf bigfield compute fixed CRT bounds once 512 bit "
+    },
+    {
+      "name": "0003-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/0003-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
+      "summary": "perf keccak runtime slice loop in normalize_and_rota"
+    },
+    {
+      "name": "0004-perf-field_t-compile-time-Montgomery-1-and-1.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/0004-perf-field_t-compile-time-Montgomery-1-and-1.patch",
+      "summary": "perf field_t compile time Montgomery 1 and 1"
+    }
+  ],
+  "series_url": null,
+  "description": "Keccak divides by multi-limb powers of 11 via chained single-limb divisions, runtime slice loop in normalize_and_rotate; bigfield CRT bounds once; field_t compile-time Montgomery ±1. keccak_permutations 555 → 416 ms, create_circuit 906 → 741 ms on storage_proof.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": null,
+    "stock_bbjs_verified_flows": null,
+    "tampered_rejected": null,
+    "vks_match": null,
+    "notes": "\"All tested flows IDENTICAL\" (count not reported)."
+  },
+  "summary": {
+    "baseline_wall_s": null,
+    "wall_s": null,
+    "wall_ratio": null,
+    "flows_measured": null,
+    "reps": null,
+    "notes": "End-to-end not yet reported; phase numbers only."
+  },
+  "flows": []
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "baseline",
+  "title": "Unmodified prover (par)",
+  "author": "aztec-packages bb15fcb + harness",
+  "track": null,
+  "date": "2026-10-11",
+  "kind": "reference",
+  "status": "reference",
+  "integrated_in": null,
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": null,
+    "description": "Itself: this is par for every hole."
+  },
+  "patches": [
+    {
+      "name": "0001-harness-deterministic-RNG-env-hook.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0001-harness-deterministic-RNG-env-hook.patch",
+      "summary": "harness deterministic RNG env hook"
+    },
+    {
+      "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "summary": "harness sequential random polys in deterministic mod"
+    }
+  ],
+  "series_url": null,
+  "description": "aztec-packages at bb15fcb with only the two harness patches (seeded RNG hook, sequential random polynomials under BB_DETERMINISTIC_PROVING). Prover output is the definition of correct: reference/proof_vk_sha256.txt was produced by this build. Wall times are single runs from reference/baseline_times_4core.txt (check_identical.sh timing, not min-of-N), so use them as par context only; submissions are always scored against a baseline measured on their own machine.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/reference/baseline_times_4core.txt",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": null,
+    "tampered_rejected": null,
+    "vks_match": true,
+    "notes": "Reference by definition: its hashes are the reference."
+  },
+  "summary": {
+    "baseline_wall_s": 96.962,
+    "wall_s": 96.962,
+    "wall_ratio": 1.0,
+    "flows_measured": 11,
+    "reps": 1,
+    "notes": "Single run per flow; peak RSS measured on two flows (STATUS.md)."
+  },
+  "flows": [
+    {
+      "flow": "deploy_ecdsar1+sponsored_fpc",
+      "baseline_wall_s": 6.551,
+      "wall_s": 6.551,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    },
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": 6.458,
+      "wall_s": 6.458,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    },
+    {
+      "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 9.826,
+      "wall_s": 9.826,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    },
+    {
+      "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 9.085,
+      "wall_s": 9.085,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": 21.659,
+      "wall_s": 21.659,
+      "baseline_peak_rss_mib": 840.0,
+      "peak_rss_mib": 840.0,
+      "reps": 1
+    },
+    {
+      "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+      "baseline_wall_s": 6.67,
+      "wall_s": 6.67,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+      "baseline_wall_s": 8.461,
+      "wall_s": 8.461,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": 5.964,
+      "wall_s": 5.964,
+      "baseline_peak_rss_mib": 291.5,
+      "peak_rss_mib": 291.5,
+      "reps": 1
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": 8.979,
+      "wall_s": 8.979,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 6.319,
+      "wall_s": 6.319,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 6.99,
+      "wall_s": 6.99,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 1
+    }
+  ]
+}

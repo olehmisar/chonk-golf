@@ -1,0 +1,50 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-fields2",
+  "title": "Lower-latency ADX Montgomery mul",
+  "author": "fields2 track",
+  "track": "fields2",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "candidate",
+  "integrated_in": null,
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "integ2",
+    "description": "integrated/0001-0018 (integ2, tagged start-integ)."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-fields2/bb-chonk-prover-opt/contrib/fields2/0001-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
+      "summary": "perf field lower latency ADX Montgomery mul and spli"
+    }
+  ],
+  "series_url": null,
+  "description": "Lower-latency ADX Montgomery multiplication and split-reduction squaring. All 11 flows faster (0.936-0.983).",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-fields2/bb-chonk-prover-opt/contrib/fields2/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": null,
+    "tampered_rejected": null,
+    "vks_match": null,
+    "notes": "Work in progress; stock bb.js not reported yet."
+  },
+  "summary": {
+    "baseline_wall_s": 46.55,
+    "wall_s": 44.81,
+    "wall_ratio": 0.9626,
+    "flows_measured": 11,
+    "reps": 3,
+    "notes": "Per-flow seconds not published (ratio range 0.936-0.983)."
+  },
+  "flows": []
+}

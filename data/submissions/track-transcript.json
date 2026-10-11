@@ -1,0 +1,144 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-transcript",
+  "title": "Native Poseidon2 & SHA-NI",
+  "author": "transcript track",
+  "track": "transcript",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "integrated",
+  "integrated_in": "integ2",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "own-0003-0006",
+    "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-transcript/bb-chonk-prover-opt/contrib/transcript/0001-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
+      "summary": "perf poseidon2 shorter critical path in native permu"
+    },
+    {
+      "name": "0002-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-transcript/bb-chonk-prover-opt/contrib/transcript/0002-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
+      "summary": "perf sha256 x86 SHA extensions and streaming input f"
+    }
+  ],
+  "series_url": null,
+  "description": "Shorter dependency chain in the native Poseidon2 permutation; x86 SHA-NI block compression with runtime dispatch. ~25 ms per flow on serial paths; most of the 1.6% total is noise.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-transcript/bb-chonk-prover-opt/contrib/transcript/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": null
+  },
+  "summary": {
+    "baseline_wall_s": 53.96,
+    "wall_s": 53.09,
+    "wall_ratio": 0.9839,
+    "flows_measured": 11,
+    "reps": 5,
+    "notes": null
+  },
+  "flows": [
+    {
+      "flow": "deploy_ecdsar1+sponsored_fpc",
+      "baseline_wall_s": 3.82,
+      "wall_s": 3.82,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": 3.52,
+      "wall_s": 3.48,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 5.72,
+      "wall_s": 5.78,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 4.47,
+      "wall_s": 4.41,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": 11.25,
+      "wall_s": 10.8,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+      "baseline_wall_s": 3.83,
+      "wall_s": 3.78,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+      "baseline_wall_s": 4.87,
+      "wall_s": 4.85,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": 3.3,
+      "wall_s": 3.22,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": 5.36,
+      "wall_s": 5.22,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 3.71,
+      "wall_s": 3.59,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 4.1,
+      "wall_s": 4.14,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 5
+    }
+  ]
+}

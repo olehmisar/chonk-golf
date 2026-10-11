@@ -1,0 +1,133 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-fields",
+  "title": "Batched Bernstein-Yang divsteps (withdrawn)",
+  "author": "fields track",
+  "track": "fields",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "withdrawn",
+  "integrated_in": null,
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "own-0003-0006",
+    "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."
+  },
+  "patches": [],
+  "series_url": null,
+  "description": "Same algorithm as msm/0001 (integrated/0007), which landed first; bit-identical matrices on 30M inputs. Withdrawn as a duplicate; measurements kept because they show what integrated/0007 buys.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-fields/bb-chonk-prover-opt/contrib/fields/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": null,
+    "tampered_rejected": null,
+    "vks_match": null,
+    "notes": "ecc_tests 1071 passed."
+  },
+  "summary": {
+    "baseline_wall_s": 52.82,
+    "wall_s": 51.06,
+    "wall_ratio": 0.9667,
+    "flows_measured": 11,
+    "reps": 3,
+    "notes": null
+  },
+  "flows": [
+    {
+      "flow": "deploy_ecdsar1+sponsored_fpc",
+      "baseline_wall_s": 3.78,
+      "wall_s": 3.64,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": 3.45,
+      "wall_s": 3.37,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 5.67,
+      "wall_s": 5.49,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 4.35,
+      "wall_s": 4.25,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": 10.65,
+      "wall_s": 10.35,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+      "baseline_wall_s": 3.86,
+      "wall_s": 3.69,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+      "baseline_wall_s": 4.88,
+      "wall_s": 4.7,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": 3.29,
+      "wall_s": 3.17,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": 5.14,
+      "wall_s": 4.98,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 3.57,
+      "wall_s": 3.44,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 4.18,
+      "wall_s": 3.97,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-eccvm",
+  "title": "ECCVM narrow rows & parallel trace",
+  "author": "eccvm track",
+  "track": "eccvm",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "candidate",
+  "integrated_in": null,
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "own-0003-0006",
+    "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-eccvm-narrow-rows-and-zero-tail-broadcast-for-g.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-eccvm/bb-chonk-prover-opt/contrib/eccvm/0001-perf-eccvm-narrow-rows-and-zero-tail-broadcast-for-g.patch",
+      "summary": "perf eccvm narrow rows and zero tail broadcast for g"
+    },
+    {
+      "name": "0002-perf-eccvm-parallelise-transcript-scalar-muls-and-MS.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-eccvm/bb-chonk-prover-opt/contrib/eccvm/0002-perf-eccvm-parallelise-transcript-scalar-muls-and-MS.patch",
+      "summary": "perf eccvm parallelise transcript scalar muls and MS"
+    }
+  ],
+  "series_url": null,
+  "description": "Narrow-row getters + zero-tail broadcast for the ECCVM grand product and log-derivative inverses (~57 ms off ECCVMProver per proof); parallel transcript scalar muls and MSM trace construction.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-eccvm/bb-chonk-prover-opt/contrib/eccvm/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": null,
+    "tampered_rejected": null,
+    "vks_match": null,
+    "notes": "eccvm_tests 50/50, translator_vm_tests 55/55. Stock bb.js not reported."
+  },
+  "summary": {
+    "baseline_wall_s": 96.47,
+    "wall_s": 94.01,
+    "wall_ratio": 0.9745,
+    "flows_measured": 11,
+    "reps": 3,
+    "notes": "Per-phase saving ~85-90 ms/proof; rest of the 2.5% is VM noise."
+  },
+  "flows": [
+    {
+      "flow": "deploy_ecdsar1+sponsored_fpc",
+      "baseline_wall_s": 6.71,
+      "wall_s": 6.52,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": 6.39,
+      "wall_s": 6.1,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 10.59,
+      "wall_s": 10.39,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 7.76,
+      "wall_s": 7.74,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": 19.85,
+      "wall_s": 19.41,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+      "baseline_wall_s": 7.3,
+      "wall_s": 6.74,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+      "baseline_wall_s": 8.97,
+      "wall_s": 8.89,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": 5.86,
+      "wall_s": 5.73,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": 9.36,
+      "wall_s": 9.06,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 6.59,
+      "wall_s": 6.54,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 7.08,
+      "wall_s": 6.89,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    }
+  ]
+}

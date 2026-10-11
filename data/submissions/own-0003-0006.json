@@ -1,0 +1,92 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "own-0003-0006",
+  "title": "First four optimisations (patches/0003-0006)",
+  "author": "bb-chonk-prover-opt coordinator",
+  "track": "core",
+  "date": "2026-10-11",
+  "kind": "series",
+  "status": "integrated",
+  "integrated_in": "integ1",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "baseline",
+    "description": "Unmodified prover (harness only)."
+  },
+  "patches": [
+    {
+      "name": "0001-harness-deterministic-RNG-env-hook.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0001-harness-deterministic-RNG-env-hook.patch",
+      "summary": "harness deterministic RNG env hook"
+    },
+    {
+      "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "summary": "harness sequential random polys in deterministic mod"
+    },
+    {
+      "name": "0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "summary": "perf single limb fast path in uint256 divmod chunked"
+    },
+    {
+      "name": "0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "summary": "perf msm fused scalar batch affine drain for native "
+    },
+    {
+      "name": "0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "summary": "perf translator fetch only grand product columns per"
+    },
+    {
+      "name": "0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "summary": "perf sumcheck skip fold multiply for bit identical n"
+    }
+  ],
+  "series_url": null,
+  "description": "uint256 single-limb divmod fast path + keccak base-11 chunking, fused native MSM bucket drain, translator grand product fetching only the 12 columns it reads, and fold-multiply skip for bit-identical neighbours. Also the start point of every round-1 track. No end-to-end total vs the unmodified prover was published; only peak RSS on two flows.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/README.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": "README: 11/11 verify, 11/11 tampered rejected, 11/11 VKs identical."
+  },
+  "summary": {
+    "baseline_wall_s": null,
+    "wall_s": null,
+    "wall_ratio": null,
+    "flows_measured": null,
+    "reps": null,
+    "notes": "End-to-end time not reported. MSM −19% at 2^18, translator grand product 194 → 26 ms per proof, keccak circuit construction 3.0 → 0.8 s on storage_proof."
+  },
+  "flows": [
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 291.5,
+      "peak_rss_mib": 290.4,
+      "reps": null
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 840.0,
+      "peak_rss_mib": 842.5,
+      "reps": null
+    }
+  ]
+}

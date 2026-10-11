@@ -1,0 +1,50 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-joint",
+  "title": "Joint sumcheck: one fold region",
+  "author": "joint track",
+  "track": "joint",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "integrated",
+  "integrated_in": "integ3",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "own-0003-0006",
+    "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-joint/bb-chonk-prover-opt/contrib/joint/0001-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
+      "summary": "perf joint fold both circuits sumcheck tables in one"
+    }
+  ],
+  "series_url": null,
+  "description": "BatchedHonkTranslatorProver folds both circuits' sumcheck tables in one parallel region, largest first. ~5 ms per proof at phase level; neutral end to end.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-joint/bb-chonk-prover-opt/contrib/joint/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": "Checked rebased on integ2: 11/11 identical, stock bb.js 11/11."
+  },
+  "summary": {
+    "baseline_wall_s": 54.12,
+    "wall_s": 54.12,
+    "wall_ratio": 1.0,
+    "flows_measured": 11,
+    "reps": 3,
+    "notes": "Within VM noise; partial-evaluation 30.0 → 26.8 ms (min of 8)."
+  },
+  "flows": []
+}

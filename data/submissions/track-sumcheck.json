@@ -1,0 +1,144 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "track-sumcheck",
+  "title": "Poseidon2 separators & databus skips",
+  "author": "sumcheck track",
+  "track": "sumcheck",
+  "date": "2026-10-11",
+  "kind": "delta",
+  "status": "integrated",
+  "integrated_in": "integ1",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "own-0003-0006",
+    "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck/bb-chonk-prover-opt/contrib/sumcheck/0001-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "summary": "perf sumcheck fold subrelation separators into Posei"
+    },
+    {
+      "name": "0002-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck/bb-chonk-prover-opt/contrib/sumcheck/0002-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "summary": "perf sumcheck skip databus lookup rows of other bus "
+    }
+  ],
+  "series_url": null,
+  "description": "Prover-only hook folds subrelation separators into Poseidon2 quad relations (~320 → ~155 muls/row); databus lookup skips rows of other bus columns. Folding sumcheck −9 to −11%.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck/bb-chonk-prover-opt/contrib/sumcheck/RESULTS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": null
+  },
+  "summary": {
+    "baseline_wall_s": 73.94,
+    "wall_s": 72.37,
+    "wall_ratio": 0.9788,
+    "flows_measured": 11,
+    "reps": 3,
+    "notes": null
+  },
+  "flows": [
+    {
+      "flow": "deploy_ecdsar1+sponsored_fpc",
+      "baseline_wall_s": 5.29,
+      "wall_s": 5.04,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": 4.81,
+      "wall_s": 4.83,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 7.92,
+      "wall_s": 7.59,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 6.09,
+      "wall_s": 6.0,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": 15.28,
+      "wall_s": 14.89,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+      "baseline_wall_s": 5.19,
+      "wall_s": 5.26,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+      "baseline_wall_s": 6.79,
+      "wall_s": 6.84,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": 4.72,
+      "wall_s": 4.49,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": 7.07,
+      "wall_s": 6.98,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 4.95,
+      "wall_s": 4.87,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 5.82,
+      "wall_s": 5.61,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "integ1",
+  "title": "integ1: core + msm + sumcheck",
+  "author": "bb-chonk-prover-opt coordinator",
+  "track": "integrated",
+  "date": "2026-10-11",
+  "kind": "series",
+  "status": "integrated",
+  "integrated_in": "integ1",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "baseline",
+    "description": "Unmodified prover, interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-harness-deterministic-RNG-env-hook.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0001-harness-deterministic-RNG-env-hook.patch",
+      "summary": "harness deterministic RNG env hook"
+    },
+    {
+      "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "summary": "harness sequential random polys in deterministic mod"
+    },
+    {
+      "name": "0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "summary": "perf single limb fast path in uint256 divmod chunked"
+    },
+    {
+      "name": "0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "summary": "perf msm fused scalar batch affine drain for native "
+    },
+    {
+      "name": "0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "summary": "perf translator fetch only grand product columns per"
+    },
+    {
+      "name": "0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "summary": "perf sumcheck skip fold multiply for bit identical n"
+    },
+    {
+      "name": "0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "summary": "perf ecc batched variable time divsteps in Bernstein"
+    },
+    {
+      "name": "0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "summary": "perf sumcheck fold subrelation separators into Posei"
+    },
+    {
+      "name": "0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "summary": "perf sumcheck skip databus lookup rows of other bus "
+    }
+  ],
+  "series_url": "https://github.com/olehmisar/playground/tree/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated",
+  "description": "Integrated `git am` series 0001-0009 on bb15fcb. Includes: own 0003-0006, msm/0001, sumcheck/0001-0002.",
+  "source_url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/STATUS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
+    "vks_match": true,
+    "notes": "STATUS.md: 11/11 identical, 11/11 stock bb.js (tampered rejected, VKs identical)."
+  },
+  "summary": {
+    "baseline_wall_s": 51.71,
+    "wall_s": 43.92,
+    "wall_ratio": 0.8494,
+    "flows_measured": 5,
+    "reps": 3,
+    "notes": "End-to-end vs unmodified, min of 3, 5 flows. Per-flow seconds not published (ratios only)."
+  },
+  "flows": [
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3,
+      "wall_ratio": 0.864
+    },
+    {
+      "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3,
+      "wall_ratio": 0.894
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 840.0,
+      "peak_rss_mib": 845.3,
+      "reps": 3,
+      "wall_ratio": 0.807
+    },
+    {
+      "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3,
+      "wall_ratio": 0.873
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 291.5,
+      "peak_rss_mib": 290.4,
+      "reps": null
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": null,
+      "peak_rss_mib": null,
+      "reps": 3,
+      "wall_ratio": 0.869
+    }
+  ]
+}
