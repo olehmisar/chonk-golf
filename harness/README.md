@@ -18,8 +18,9 @@ python3 harness/chonk_golf.py \
   --flows $BASE/flows --reference reference \
   --stock-bbjs ~/stock --reps 5 \
   --id my-card --title "My card" --author "@me" \
-  --patches-dir my-series --patch-url-base https://github.com/<you>/chonk-golf/blob/<branch>/patches/my-card \
-  --out data/submissions/my-card.json
+  --patches-dir sources/my-card --patch-url-base https://github.com/olehmisar/chonk-golf/blob/main/sources/my-card \
+  --standards-flows $BASE/flows-standards \
+  --out sources/my-card/submission.json
 ```
 
 Exit status is 0 only when every check passes. Useful flags: `--flow-regex` (benchmark a subset; correctness always
@@ -31,7 +32,8 @@ caught, and validates the emitted JSON with the site's schema.
 
 ## Submitting
 
-1. Put the patch series in `patches/<id>/` and the emitted JSON in `data/submissions/<id>.json`.
+1. Put your full series (`git format-patch bb15fcb -o sources/<id>`) and the emitted JSON
+   (`--out sources/<id>/submission.json`) in one folder, `sources/<id>/`.
 2. `pnpm install && pnpm run validate && vp test`.
 3. Open a PR against `main`. A maintainer re-runs the harness on the reference machine before merging; fields you did
    not measure must stay `null`.

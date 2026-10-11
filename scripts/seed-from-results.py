@@ -340,9 +340,9 @@ track("wasm", "WASM batched divstep matrix",
       summ(11.026, 10.789, round(10.789/11.026, 4), 1, 8, "bb.js BackendType.Wasm, threads 4, Node 22; 4 processes × 2 proves."),
       [fm(FLOWS[8], 11.026, 10.789, reps=8)], target="wasm")
 
-# ---------- headline: aztec-standards Token flows (sources/flows-standards/README.md, integ5 vs unmodified) ----------
+# ---------- headline: aztec-standards Token flows (flows-standards/README.md, integ5 vs unmodified) ----------
 STD_TOOLCHAIN = "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)"
-STD_URL = f"{GH}/sources/flows-standards/README.md"
+STD_URL = f"{GH}/flows-standards/README.md"
 STD = [  # flow, par s, integ5 s, par RSS, integ5 RSS (min of 7 interleaved), published time ratio
   ("standards_token_transfer_private_to_private", 5.94, 4.04, 307.0, 266.6, 0.681),
   ("standards_token_mint_to_private", 6.14, 4.53, 306.1, 271.9, 0.738),

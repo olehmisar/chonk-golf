@@ -94,7 +94,10 @@ def check_apply(aztec_repo: Path, patches: list[Path]) -> bool:
     try:
         subprocess.run(["git", "-C", str(aztec_repo), "worktree", "add", "-q", "--detach", str(wt), PINNED_COMMIT],
                        check=True)
-        harness = sorted((HERE / "patches").glob("000[12]-*.patch"))
+        harness = sorted((HERE.parent / "patches").glob("000[12]-*.patch"))
+        # A full series from `git format-patch bb15fcb` already starts with the two harness patches.
+        if patches and patches[0].name.startswith("0001-harness-"):
+            harness = []
         r = subprocess.run(["git", "-C", str(wt), "-c", "user.name=golf", "-c", "user.email=golf@local", "am", "-q",
                             *map(str, harness + patches)], capture_output=True, text=True)
         if r.returncode != 0:
@@ -269,6 +272,12 @@ def main() -> None:
     ap.add_argument("--candidate-bb", type=Path, required=True, help="bb built from bb15fcb + harness + your series")
     ap.add_argument("--flows", type=Path, required=True, help="pinned flows dir (<flow>/ivc-inputs.msgpack)")
     ap.add_argument("--reference", type=Path, required=True, help="dir with proof_vk_sha256.txt")
+    ap.add_argument("--standards-flows", type=Path, default=None,
+                    help="unpacked aztec-standards flows ($WORK/flows-standards from flows-standards/unpack.sh): "
+                         "the headline benchmark; also checked, verified and benchmarked")
+    ap.add_argument("--standards-reference", type=Path, default=HERE.parent / "flows-standards",
+                    help="dir with the aztec-standards proof_vk_sha256.txt")
+    ap.add_argument("--standards-reps", type=int, default=7)
     ap.add_argument("--stock-bbjs", type=Path, help="dir with stock @aztec-foundation/bb.js installed")
     ap.add_argument("--reps", type=int, default=5)
     ap.add_argument("--flow-regex", default=".", help="benchmark only matching flows (correctness always uses all)")
@@ -323,6 +332,36 @@ def main() -> None:
         bbjs = check_stock_bbjs(a.stock_bbjs, a.candidate_bb, a.flows, work / "baseline", [f for f, _, _ in reference])
         notes.append(f"Verifier: stock @aztec-foundation/bb.js {bbjs['version']}.")
 
+    standards = None
+    if a.standards_flows:
+        std_ref = read_reference(a.standards_reference)
+        std_flows = [f for f, _, _ in std_ref]
+        log(f"[1-3/3] aztec-standards flows (headline): {len(std_flows)} flows")
+        std_identical, std_different = check_identical(a.baseline_bb, a.candidate_bb, a.standards_flows, std_ref,
+                                                       work / "std")
+        if std_different:
+            notes.append(f"DIFFERENT (aztec-standards): {', '.join(std_different)}")
+        std_bbjs = {"verified": None, "tampered_rejected": None, "vks_match": None}
+        if not (a.skip_bbjs or not a.stock_bbjs):
+            std_bbjs = check_stock_bbjs(a.stock_bbjs, a.candidate_bb, a.standards_flows, work / "std" / "baseline",
+                                        std_flows)
+        std_rows = [] if a.skip_bench else bench(a.baseline_bb, a.candidate_bb, a.standards_flows, std_flows,
+                                                 a.standards_reps, work / "std")
+        standards = {
+            "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
+            "source_url": None,
+            "machine_note": f"chonk.golf harness: interleaved, {a.standards_reps} reps, min wall / max peak RSS",
+            "flows": std_rows,
+            "correctness": {
+                "flows_total": len(std_flows),
+                "identical_flows": std_identical,
+                "stock_bbjs_verified_flows": std_bbjs["verified"],
+                "tampered_rejected": std_bbjs["tampered_rejected"],
+                "vks_match": std_bbjs["vks_match"] if std_bbjs["vks_match"] is not None
+                else (std_identical == len(std_flows) or None),
+            },
+        }
+
     flows = [f for f, _, _ in reference if re.search(a.flow_regex, f)]
     rows: list[dict] = []
     if a.skip_bench:
@@ -334,7 +373,7 @@ def main() -> None:
     base_total = round(sum(r["baseline_wall_s"] for r in rows), 3) if rows else None
     total = round(sum(r["wall_s"] for r in rows), 3) if rows else None
     submission = {
-        "$schema": "../submission.schema.json",
+        "$schema": os.path.relpath(HERE.parent / "data" / "submission.schema.json", a.out.resolve().parent),
         "id": a.id,
         "title": a.title,
         "author": a.author,
@@ -368,6 +407,8 @@ def main() -> None:
         },
         "flows": rows,
     }
+    if standards and standards["flows"]:
+        submission["standards"] = standards
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(submission, indent=2, ensure_ascii=False) + "\n")
     if not a.work:
@@ -375,6 +416,10 @@ def main() -> None:
 
     ok = identical == len(reference) and bbjs["verified"] in (None, len(reference)) \
         and bbjs["tampered_rejected"] is not False and bbjs["vks_match"] is not False
+    if standards:
+        c = standards["correctness"]
+        ok = ok and c["identical_flows"] == c["flows_total"] and c["stock_bbjs_verified_flows"] in (None, c["flows_total"]) \
+            and c["tampered_rejected"] is not False and c["vks_match"] is not False
     log(f"\nidentical {identical}/{len(reference)} | stock bb.js {bbjs['verified']}/{len(reference)} | "
         f"time ratio {submission['summary']['wall_ratio']} | wrote {a.out}")
     sys.exit(0 if ok else 1)

@@ -128,7 +128,7 @@ export function Rules() {
             and results:{" "}
             <a
               className="font-medium text-ink underline underline-offset-2"
-              href={blobUrl("sources/flows-standards/README.md")}
+              href={blobUrl("flows-standards/README.md")}
             >
               flows-standards README
             </a>

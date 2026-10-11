@@ -22,7 +22,7 @@ export const flowName = z.enum(FLOWS);
 
 /**
  * aztec-standards Token flows captured with aztec-standards' own 6.0.0-rc.1 toolchain
- * (sources/flows-standards/README.md). The first is the headline benchmark the leaderboard ranks by.
+ * (flows-standards/README.md). The first is the headline benchmark the leaderboard ranks by.
  */
 export const STANDARDS_FLOWS = [
   "standards_token_transfer_private_to_private",

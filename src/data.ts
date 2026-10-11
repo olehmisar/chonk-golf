@@ -5,10 +5,13 @@ import { validateSubmissions } from "./validate.ts";
 // No `new Function` probing: the production CSP forbids eval.
 z.config({ jitless: true });
 
-const files = import.meta.glob<unknown>("../data/submissions/*.json", {
-  eager: true,
-  import: "default",
-});
+const files = import.meta.glob<unknown>(
+  ["../data/submissions/*.json", "../sources/*/submission.json"],
+  {
+    eager: true,
+    import: "default",
+  },
+);
 const { submissions, errors } = validateSubmissions(files);
 if (errors.length) {
   // The build validates first (task `data:validate`); this only fires in dev while editing data.

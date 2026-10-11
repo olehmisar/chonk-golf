@@ -1,6 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite-plus";
+import { fillPrompt } from "../src/prompt.ts";
+import { validateSubmissions } from "../src/validate.ts";
+import { loadSubmissionFiles } from "./load-submissions.ts";
 
 /**
  * Emits one HTML file per client-side route next to index.html, so real URLs resolve to real files on a static host:
@@ -9,11 +12,10 @@ import type { Plugin } from "vite-plus";
  * genuine 404 instead of an SPA fallback.
  */
 export function routePages(root: string): Plugin {
-  const dir = join(root, "data", "submissions");
-  const cards = readdirSync(dir)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")) as { id: string; title: string });
+  const { submissions: cards } = validateSubmissions(loadSubmissionFiles(root));
+  const prompt = fillPrompt(readFileSync(join(root, "src", "prompt-template.md"), "utf8"), cards);
   const pages: { file: string; title: string }[] = [
+    { file: "prompt.html", title: "Play with your agent · chonk.golf" },
     { file: "rules.html", title: "Rules · chonk.golf" },
     { file: "submit.html", title: "Submit · chonk.golf" },
     { file: "404.html", title: "Out of bounds · chonk.golf" },
@@ -29,6 +31,8 @@ export function routePages(root: string): Plugin {
       const index = bundle["index.html"];
       if (!index || index.type !== "asset") return; // not the client build
       const html = String(index.source);
+      // The filled participant prompt as plain Markdown, for agents: curl https://…/prompt.md
+      this.emitFile({ type: "asset", fileName: "prompt.md", source: prompt });
       for (const p of pages) {
         this.emitFile({
           type: "asset",

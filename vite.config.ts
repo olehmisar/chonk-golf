@@ -15,7 +15,14 @@ export default defineConfig({
     port: 4173,
   },
   fmt: {
-    ignorePatterns: ["dist", "data/**/*.json", "sources/**"],
+    ignorePatterns: [
+      "dist",
+      "data/**/*.json",
+      "sources/**",
+      "flows-standards/**",
+      "ts-verify/**",
+      "src/prompt-template.md",
+    ],
   },
   test: {
     include: ["src/**/*.test.ts", "data/**/*.test.ts"],
@@ -26,7 +33,14 @@ export default defineConfig({
       "data:validate": {
         command: "node scripts/validate-data.ts",
         cache: {
-          input: ["data/**", "src/schema.ts", "src/validate.ts", "scripts/validate-data.ts"],
+          input: [
+            "data/**",
+            "sources/*/submission.json",
+            "src/schema.ts",
+            "src/validate.ts",
+            "scripts/validate-data.ts",
+            "scripts/load-submissions.ts",
+          ],
         },
       },
       "app:build": {
@@ -44,7 +58,14 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist", "node_modules", ".cloudflare", "sources"],
+    ignorePatterns: [
+      "dist",
+      "node_modules",
+      ".cloudflare",
+      "sources",
+      "flows-standards",
+      "ts-verify",
+    ],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],

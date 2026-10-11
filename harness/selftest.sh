@@ -10,7 +10,9 @@ FLOWS=(deploy_ecdsar1+sponsored_fpc deploy_schnorr+sponsored_fpc ecdsar1+amm_add
   ecdsar1+token_bridge_claim_private+sponsored_fpc ecdsar1+transfer_0_recursions+private_fpc
   ecdsar1+transfer_0_recursions+sponsored_fpc ecdsar1+transfer_1_recursions+private_fpc
   ecdsar1+transfer_1_recursions+sponsored_fpc schnorr+deploy_tokenContract_with_registration+sponsored_fpc)
-mkdir -p "$T/flows" "$T/ref"
+STD=(standards_token_transfer_private_to_private standards_token_mint_to_private standards_token_transfer_private_to_public)
+mkdir -p "$T/flows" "$T/ref" "$T/std" "$T/stdref"
+for f in "${STD[@]}"; do mkdir -p "$T/std/$f"; echo "inputs of $f" > "$T/std/$f/ivc-inputs.msgpack"; done
 for f in "${FLOWS[@]}"; do mkdir -p "$T/flows/$f"; echo "inputs of $f" > "$T/flows/$f/ivc-inputs.msgpack"; done
 
 mock() { # mock <path> <sleep-seconds> <alloc-MiB> <corrupt-flow-substring>
@@ -39,9 +41,14 @@ for f in "${FLOWS[@]}"; do
   echo "$(sha256sum "$T/o/$f/proof" | cut -c1-64) $(sha256sum "$T/o/$f/vk" | cut -c1-64) $f" >> "$T/ref/proof_vk_sha256.txt"
 done
 
+for f in "${STD[@]}"; do
+  "$T/bb-base" prove --scheme chonk --ivc_inputs_path "$T/std/$f/ivc-inputs.msgpack" -o "$T/o/$f" --write_vk
+  echo "$(sha256sum "$T/o/$f/proof" | cut -c1-64) $(sha256sum "$T/o/$f/vk" | cut -c1-64) $f" >> "$T/stdref/proof_vk_sha256.txt"
+done
+
 python3 "$HERE/chonk_golf.py" --baseline-bb "$T/bb-base" --candidate-bb "$T/bb-cand" --flows "$T/flows" \
-  --reference "$T/ref" --reps 2 --skip-bbjs --id selftest --title "Self-test" --author harness \
-  --patches-dir "$HERE/patches" --patch-url-base https://example.com/p --out "$T/selftest.json"
+  --reference "$T/ref" --reps 2 --skip-bbjs --standards-flows "$T/std" --standards-reference "$T/stdref" --standards-reps 2 --id selftest --title "Self-test" --author harness \
+  --patches-dir "$HERE/../patches" --patch-url-base https://example.com/p --out "$T/selftest.json"
 
 if python3 "$HERE/chonk_golf.py" --baseline-bb "$T/bb-base" --candidate-bb "$T/bb-bad" --flows "$T/flows" \
   --reference "$T/ref" --reps 1 --skip-bbjs --skip-bench --id bad --title Bad --author harness --out "$T/bad.json" 2>/dev/null; then
@@ -57,7 +64,8 @@ const base = JSON.parse(readFileSync('data/submissions/baseline.json', 'utf8'));
 const card = JSON.parse(readFileSync('$T/selftest.json', 'utf8'));
 const { errors } = validateSubmissions({ 'data/submissions/baseline.json': base, 'x/selftest.json': card });
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
-console.log('selftest.json valid; time ratio', card.summary.wall_ratio, '| identical', card.correctness.identical_flows,
+if (!card.standards || card.standards.correctness.identical_flows !== 3 || card.standards.flows.length !== 3) { console.error('standards block missing'); process.exit(1); }
+console.log('selftest.json valid; headline time ratio', (card.standards.flows[0].wall_s / card.standards.flows[0].baseline_wall_s).toFixed(3), '| pinned time ratio', card.summary.wall_ratio, '| identical', card.correctness.identical_flows,
   '| peak RSS', card.flows[0].baseline_peak_rss_mib, '->', card.flows[0].peak_rss_mib, 'MiB');
 "
 echo "SELFTEST OK"

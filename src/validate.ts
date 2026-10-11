@@ -16,16 +16,20 @@ export function validateSubmissions(files: Record<string, unknown>): ValidationR
       errors.push(`${path}:\n${z.prettifyError(parsed.error)}`);
       continue;
     }
-    const expected = path
-      .split("/")
-      .pop()
-      ?.replace(/\.json$/, "");
+    // data/submissions/<id>.json, or sources/<id>/submission.json
+    const parts = path.split("/");
+    const expected =
+      parts.at(-1) === "submission.json" ? parts.at(-2) : parts.at(-1)?.replace(/\.json$/, "");
     if (expected !== parsed.data.id) {
-      errors.push(`${path}: id "${parsed.data.id}" must match the file name`);
+      errors.push(`${path}: id "${parsed.data.id}" must match its file or folder name`);
     }
     submissions.push(parsed.data);
   }
-  const ids = new Set(submissions.map((s) => s.id));
+  const ids = new Set<string>();
+  for (const s of submissions) {
+    if (ids.has(s.id)) errors.push(`duplicate submission id "${s.id}"`);
+    ids.add(s.id);
+  }
   if (!ids.has("baseline")) errors.push("missing the `baseline` reference submission");
   for (const s of submissions) {
     if (s.against.id && !ids.has(s.against.id)) {

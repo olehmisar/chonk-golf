@@ -3,6 +3,7 @@ import { BY_ID } from "./data.ts";
 import { Layout } from "./components/Layout.tsx";
 import { Leaderboard } from "./pages/Leaderboard.tsx";
 import { NotFound } from "./pages/NotFound.tsx";
+import { PromptPage } from "./pages/Prompt.tsx";
 import { Rules } from "./pages/Rules.tsx";
 import { Submit } from "./pages/Submit.tsx";
 import { SubmissionPage } from "./pages/Submission.tsx";
@@ -18,6 +19,8 @@ function title(route: Route): string {
       return "Rules · chonk.golf";
     case "submit":
       return "Submit · chonk.golf";
+    case "prompt":
+      return "Play with your agent · chonk.golf";
     default:
       return "Out of bounds · chonk.golf";
   }
@@ -34,6 +37,7 @@ export default function App() {
       {route.name === "submission" && <SubmissionPage id={route.id} />}
       {route.name === "rules" && <Rules />}
       {route.name === "submit" && <Submit />}
+      {route.name === "prompt" && <PromptPage />}
       {route.name === "notfound" && <NotFound />}
     </Layout>
   );

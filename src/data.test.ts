@@ -1,19 +1,15 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { loadSubmissionFiles } from "../scripts/load-submissions.ts";
 import { describe, expect, test } from "vite-plus/test";
 import { FLOW_COUNT } from "./schema.ts";
 import { pctDelta, rank, score } from "./score.ts";
 import { submissionJsonSchema, validateSubmissions } from "./validate.ts";
+import { fillPrompt } from "./prompt.ts";
 
-const dir = join(import.meta.dirname, "..", "data", "submissions");
-const files = Object.fromEntries(
-  readdirSync(dir)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => [
-      `data/submissions/${f}`,
-      JSON.parse(readFileSync(join(dir, f), "utf8")) as unknown,
-    ]),
-);
+const root = join(import.meta.dirname, "..");
+const dir = join(root, "data", "submissions");
+const files = loadSubmissionFiles(root);
 
 describe("seed data", () => {
   const { submissions, errors } = validateSubmissions(files);
@@ -48,6 +44,41 @@ describe("seed data", () => {
     expect(b.timeRatio).toBe(1);
     expect(b.ramRatio).toBe(1);
     expect(b.s.correctness.identical_flows).toBe(FLOW_COUNT);
+  });
+});
+
+describe("participant prompt", () => {
+  const { submissions } = validateSubmissions(files);
+  const text = fillPrompt(
+    readFileSync(join(root, "src", "prompt-template.md"), "utf8"),
+    submissions,
+  );
+
+  test("placeholders are filled with the current leader (integ5)", () => {
+    expect(text).not.toMatch(/\{\{/);
+    expect(text).toContain("**integ5**");
+    expect(text).toContain("https://github.com/olehmisar/chonk-golf/tree/main/sources/integ5");
+  });
+
+  test("the verifier rule stays rule 1", () => {
+    expect(text.indexOf("1. **The verifier must match.**")).toBeGreaterThan(0);
+    expect(text.indexOf("1. **The verifier must match.**")).toBeLessThan(
+      text.indexOf("2. **Byte-identical"),
+    );
+  });
+
+  test("every repo path the prompt names exists in this repo", () => {
+    const paths = new Set(
+      [
+        ...text.matchAll(
+          /`((?:scripts|ts-verify|harness|flows-standards|reference|patches|sources)\/[^`\s<]*)`/g,
+        ),
+      ].map((m) => m[1]!.replace(/\/$/, "")),
+    );
+    expect(paths.size).toBeGreaterThan(5);
+    for (const p of paths)
+      expect(existsSync(join(root, p.replace("{{LEADER_ID}}", "integ5"))), p).toBe(true);
+    expect(existsSync(join(root, "sources", "integ5"))).toBe(true);
   });
 });
 

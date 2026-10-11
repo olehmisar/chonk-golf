@@ -5,6 +5,7 @@ export type Route =
   | { name: "submission"; id: string }
   | { name: "rules" }
   | { name: "submit" }
+  | { name: "prompt" }
   | { name: "notfound" };
 
 export function parsePath(pathname: string): Route {
@@ -12,6 +13,7 @@ export function parsePath(pathname: string): Route {
   if (path === "/") return { name: "board" };
   if (path === "/rules") return { name: "rules" };
   if (path === "/submit") return { name: "submit" };
+  if (path === "/prompt") return { name: "prompt" };
   const m = /^\/s\/([a-z0-9-]+)$/.exec(path);
   if (m?.[1]) return { name: "submission", id: m[1] };
   return { name: "notfound" };
@@ -21,6 +23,7 @@ export const href = {
   board: "/",
   rules: "/rules",
   submit: "/submit",
+  prompt: "/prompt",
   submission: (id: string) => `/s/${id}`,
 };
 

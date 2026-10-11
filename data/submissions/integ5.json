@@ -375,7 +375,7 @@
   ],
   "standards": {
     "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
-    "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/flows-standards/README.md",
+    "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/flows-standards/README.md",
     "machine_note": "4-vCPU Xeon without AVX-512 IFMA; ab.sh, 7 interleaved reps, min wall / max peak RSS",
     "flows": [
       {

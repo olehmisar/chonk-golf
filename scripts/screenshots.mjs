@@ -17,6 +17,7 @@ const pages = [
   ["submission-threading", "s/track-threading"],
   ["rules", "rules"],
   ["submit", "submit"],
+  ["prompt", "prompt"],
 ];
 const variants = [
   { name: "desktop", viewport: { width: 1360, height: 900 }, colorScheme: "light" },

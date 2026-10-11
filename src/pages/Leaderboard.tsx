@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { RamRegressionChip, StatusChip, VerdictBadge } from "../components/Badges.tsx";
+import { PlayCard } from "../components/PlayCard.tsx";
 import { Segmented } from "../components/Segmented.tsx";
 import { ALL, BY_ID } from "../data.ts";
 import { href } from "../router.ts";
@@ -231,6 +232,7 @@ export function Leaderboard() {
 
   return (
     <div className="space-y-6">
+      <PlayCard />
       <Hero leader={leader} />
 
       <section aria-labelledby="board-title" className="space-y-3">
