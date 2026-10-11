@@ -1,0 +1,17 @@
+# Cloudflare static-assets headers (copied to dist/ by Vite).
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+
+# Content-hashed bundles: cache forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Entry point: always revalidate so new deploys show up immediately.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

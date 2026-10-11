@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { CorrectnessList, StatusChip, VerdictBadge } from "../components/Badges.tsx";
 import { FlowBars } from "../components/FlowBars.tsx";
+import { blobUrl } from "../config.ts";
 import { BY_ID } from "../data.ts";
 import { href } from "../router.ts";
 import { FLOW_COUNT, FLOWS } from "../schema.ts";
@@ -46,7 +47,7 @@ export function SubmissionPage({ id }: { id: string }) {
   const isPar = s.kind === "reference";
   const against = s.against.id ? BY_ID.get(s.against.id) : undefined;
   const flows = [...s.flows].sort((a, b) => FLOWS.indexOf(a.flow) - FLOWS.indexOf(b.flow));
-  const jsonUrl = `https://github.com/olehmisar/playground/blob/claude/chonk-golf/chonk-golf/data/submissions/${s.id}.json`;
+  const jsonUrl = blobUrl(`data/submissions/${s.id}.json`);
 
   return (
     <article className="space-y-8">

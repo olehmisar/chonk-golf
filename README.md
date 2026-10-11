@@ -9,7 +9,7 @@ Golf mapping: the 11 pinned Chonk flows are the **holes**, the unmodified prover
 contributions measured against their own start point are marginal gains on the **Driving range**.
 
 Static site: React 19 + TypeScript + Tailwind 4 on **Vite+** (`vp`). Data is bundled JSON, validated with zod at
-build time. No server; not deployed anywhere.
+build time. No server. Ready to deploy on Cloudflare (Workers static assets) — see [Deploy](#deploy-cloudflare).
 
 ## Run
 
@@ -24,6 +24,44 @@ vp test                # schema/data/scoring tests
 pnpm run screenshots   # needs a running preview; CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome
 harness/selftest.sh    # harness end-to-end with a mock bb
 ```
+
+## Deploy (Cloudflare)
+
+The site is fully static, so it is served by **Cloudflare Workers static assets** (no Worker script).
+Config lives in `wrangler.jsonc`; `public/_headers` sets security headers (strict CSP: no inline scripts, no
+third-party origins), `immutable` caching for hashed `/assets/*`, and revalidation for `index.html`.
+Routing is hash-based (`#/s/<id>`), so no rewrite rules are needed.
+
+**From your machine**
+
+```bash
+cd chonk-golf
+pnpm install
+npx wrangler login         # once
+pnpm run cf:preview        # build + serve dist/ in the local Workers runtime (http://localhost:8787)
+pnpm run deploy            # build + wrangler deploy  ->  https://chonk-golf.<account>.workers.dev
+pnpm run deploy:preview    # upload a version with a preview URL, without promoting it
+```
+
+**From Git (Workers Builds)**: Cloudflare dashboard → Workers & Pages → Create → Import a repository →
+`olehmisar/playground`, then:
+
+| Setting | Value |
+|---|---|
+| Root directory | `chonk-golf` |
+| Build command | `pnpm install --frozen-lockfile && pnpm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Non-production deploy command | `npx wrangler versions upload` |
+| Production branch | `main` |
+| Build env vars | optional `VITE_GITHUB_REF` (git ref that "Submission JSON" / schema links point at; default `main`) |
+
+Node is pinned with `.node-version` (22.22.0; the data validator needs ≥ 22.18 for TypeScript type stripping).
+The build fails if any card in `data/submissions/` is invalid.
+
+**Custom domain**: once the `chonk.golf` zone is on Cloudflare, uncomment the `routes` entry in `wrangler.jsonc`
+(`{ "pattern": "chonk.golf", "custom_domain": true }`) and redeploy.
+
+Pages works too if preferred: `npx wrangler pages deploy dist --project-name chonk-golf` (same `_headers` file).
 
 ## Rules (shown on the site)
 

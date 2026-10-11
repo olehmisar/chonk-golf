@@ -9,12 +9,7 @@
       content="Leaderboard for proof-preserving Barretenberg Chonk prover optimisations."
     />
     <title>chonk.golf</title>
-    <script>
-      try {
-        const t = localStorage.getItem("chonk-golf-theme");
-        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
-      } catch {}
-    </script>
+    <script src="./theme.js"></script>
   </head>
   <body>
     <div id="root"></div>

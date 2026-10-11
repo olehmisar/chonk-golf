@@ -1,5 +1,9 @@
+import { z } from "zod";
 import { score, type Scored } from "./score.ts";
 import { validateSubmissions } from "./validate.ts";
+
+// No `new Function` probing: the production CSP forbids eval.
+z.config({ jitless: true });
 
 const files = import.meta.glob<unknown>("../data/submissions/*.json", {
   eager: true,

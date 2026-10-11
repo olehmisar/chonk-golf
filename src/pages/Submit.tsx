@@ -1,8 +1,9 @@
 import { Code } from "../components/Code.tsx";
+import { blobUrl, REPO_URL } from "../config.ts";
 import { href } from "../router.ts";
 import { PINNED_BBJS } from "../schema.ts";
 
-const REPO = "https://github.com/olehmisar/playground";
+const REPO = REPO_URL;
 
 const STEPS = [
   {
@@ -91,7 +92,7 @@ export function Submit() {
             Cards are validated with zod at build time; the generated JSON Schema lives at{" "}
             <a
               className="underline underline-offset-2"
-              href={`${REPO}/blob/claude/chonk-golf/chonk-golf/data/submission.schema.json`}
+              href={blobUrl("data/submission.schema.json")}
             >
               data/submission.schema.json
             </a>
