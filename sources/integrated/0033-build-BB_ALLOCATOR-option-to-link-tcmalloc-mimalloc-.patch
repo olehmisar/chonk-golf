@@ -1,0 +1,93 @@
+From 9ca9199dd1a3d4a9a8c1e202683b74b2c159e6f1 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:51:58 +0000
+Subject: [PATCH 33/33] build: BB_ALLOCATOR option to link
+ tcmalloc/mimalloc/jemalloc into bb
+
+Proving allocates and frees many multi-MB polynomials. glibc malloc
+serves those with mmap and returns them to the OS on free, so every
+reallocation refaults fresh zero pages. Linking tcmalloc_minimal
+(statically when the archive is available) keeps freed spans cached:
+minor faults drop ~2x and end-to-end chonk proving is ~5% faster on the
+pinned flows. Default stays 'system'; WASM is unaffected.
+---
+ barretenberg/cpp/CMakeLists.txt               |  1 +
+ barretenberg/cpp/cmake/allocator.cmake        | 33 +++++++++++++++++++
+ .../cpp/src/barretenberg/bb/CMakeLists.txt    |  2 ++
+ 3 files changed, 36 insertions(+)
+ create mode 100644 barretenberg/cpp/cmake/allocator.cmake
+
+diff --git a/barretenberg/cpp/CMakeLists.txt b/barretenberg/cpp/CMakeLists.txt
+index bc71b11..b2c464d 100644
+--- a/barretenberg/cpp/CMakeLists.txt
++++ b/barretenberg/cpp/CMakeLists.txt
+@@ -177,6 +177,7 @@ include(cmake/build.cmake)
+ include(GNUInstallDirs)
+ include(cmake/arch.cmake)
+ include(cmake/threading.cmake)
++include(cmake/allocator.cmake)
+ include(cmake/tracy.cmake)
+ include(cmake/gtest.cmake)
+ include(cmake/benchmark.cmake)
+diff --git a/barretenberg/cpp/cmake/allocator.cmake b/barretenberg/cpp/cmake/allocator.cmake
+new file mode 100644
+index 0000000..9074770
+--- /dev/null
++++ b/barretenberg/cpp/cmake/allocator.cmake
+@@ -0,0 +1,33 @@
++# Heap allocator linked into the native executables (bb, bb-avm).
++#
++#   -DBB_ALLOCATOR=system    glibc / platform malloc (default)
++#   -DBB_ALLOCATOR=tcmalloc  gperftools tcmalloc_minimal (static archive preferred)
++#   -DBB_ALLOCATOR=mimalloc  microsoft mimalloc
++#   -DBB_ALLOCATOR=jemalloc  jemalloc
++#
++# The allocator only changes where heap memory comes from, never what the prover computes, so proofs and VKs are
++# unchanged. Proving allocates and frees many multi-MB polynomials; glibc returns each one to the OS on free (mmap
++# threshold) and refaults it on the next allocation, which tcmalloc avoids by keeping freed spans cached.
++# WASM builds always use the toolchain allocator.
++set(BB_ALLOCATOR "system" CACHE STRING "Heap allocator for native executables: system, tcmalloc, mimalloc or jemalloc")
++set_property(CACHE BB_ALLOCATOR PROPERTY STRINGS system tcmalloc mimalloc jemalloc)
++
++add_library(bb_allocator INTERFACE)
++
++if(NOT WASM AND NOT BB_ALLOCATOR STREQUAL "system")
++    if(BB_ALLOCATOR STREQUAL "tcmalloc")
++        set(_bb_allocator_names libtcmalloc_minimal.a tcmalloc_minimal libtcmalloc.a tcmalloc)
++    elseif(BB_ALLOCATOR STREQUAL "mimalloc")
++        set(_bb_allocator_names libmimalloc.a mimalloc)
++    elseif(BB_ALLOCATOR STREQUAL "jemalloc")
++        set(_bb_allocator_names libjemalloc_pic.a libjemalloc.a jemalloc)
++    else()
++        message(FATAL_ERROR "Unknown BB_ALLOCATOR '${BB_ALLOCATOR}' (expected system, tcmalloc, mimalloc or jemalloc)")
++    endif()
++    find_library(BB_ALLOCATOR_LIBRARY NAMES ${_bb_allocator_names} HINTS ${BB_ALLOCATOR_ROOT} PATH_SUFFIXES lib lib64)
++    if(NOT BB_ALLOCATOR_LIBRARY)
++        message(FATAL_ERROR "BB_ALLOCATOR=${BB_ALLOCATOR} requested but the library was not found (set BB_ALLOCATOR_ROOT)")
++    endif()
++    message(STATUS "Linking ${BB_ALLOCATOR} allocator: ${BB_ALLOCATOR_LIBRARY}")
++    target_link_libraries(bb_allocator INTERFACE ${BB_ALLOCATOR_LIBRARY} ${CMAKE_DL_LIBS})
++endif()
+diff --git a/barretenberg/cpp/src/barretenberg/bb/CMakeLists.txt b/barretenberg/cpp/src/barretenberg/bb/CMakeLists.txt
+index fa6b785..b3fec9e 100644
+--- a/barretenberg/cpp/src/barretenberg/bb/CMakeLists.txt
++++ b/barretenberg/cpp/src/barretenberg/bb/CMakeLists.txt
+@@ -17,6 +17,7 @@ if (NOT(FUZZING))
+         ${TRACY_LIBS}
+         libdeflate::libdeflate_static
+         tracy_mem
++        bb_allocator
+     )
+     # Link avm_transpiler when library is provided
+     if(AVM_TRANSPILER_LIB)
+@@ -57,6 +58,7 @@ if (NOT(FUZZING))
+             ${TRACY_LIBS}
+             libdeflate::libdeflate_static
+             tracy_mem
++            bb_allocator
+         )
+         # Link avm_transpiler when library is provided
+         if(AVM_TRANSPILER_LIB)
+-- 
+2.43.0
+

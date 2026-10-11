@@ -1,0 +1,173 @@
+From 22e77d570bfb153c6a4a89cfab10f6a617675e22 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 03:04:37 +0000
+Subject: [PATCH 4/4] perf(msm): IFMA drain writes coarse outputs via an
+ in-register transpose
+
+The drain's sums only need bb's coarse form [0, 2p), so the final conditional subtraction
+per coordinate goes; x1 - x3 is offset by 2p to match. The 8 lanes' (x, y) results are
+transposed into one 64-byte row per lane in registers (24 shuffles) instead of 64 scalar
+reloads from a limb-major stack buffer. About 6% off the drain kernel at n >= 160 pairs.
+---
+ .../batch_affine_ifma.hpp                     | 78 +++++++++++++++----
+ .../scalar_multiplication.test.cpp            |  8 +-
+ 2 files changed, 65 insertions(+), 21 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/batch_affine_ifma.hpp b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/batch_affine_ifma.hpp
+index fd6892a..f284f00 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/batch_affine_ifma.hpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/batch_affine_ifma.hpp
+@@ -188,12 +188,12 @@ BB_IFMA_INLINE V5 sub2_plus(const V5& a, const V5& b, const V5& c, const std::ar
+ }
+ 
+ /**
+- * @brief Fully reduce v (normalised, v < 2^256 + 2^255 suffices) into [0, p).
++ * @brief Reduce v (normalised, v < 9p) into the coarse range [0, 2p) that bb field elements live in.
+  *
+  * @details q = floor(v4 * QK / 2^52), with v4 = floor(v / 2^208), never exceeds floor(v / p) and falls short of it by
+- * at most one for the inputs used here (v < 9p), so v - q * p lies in [0, 2p); one conditional subtraction finishes.
++ * at most one for v < 9p, so v - q * p lies in [0, 2p).
+  */
+-template <typename Params> BB_IFMA_INLINE V5 canonical(const V5& v)
++template <typename Params> BB_IFMA_INLINE V5 reduce_coarse(const V5& v)
+ {
+     using C = Consts<Params>;
+     const __m512i z = _mm512_setzero_si512();
+@@ -207,6 +207,14 @@ template <typename Params> BB_IFMA_INLINE V5 canonical(const V5& v)
+         carry_hi = _mm512_madd52hi_epu64(z, q, pi);
+     }
+     normalise(r);
++    return r;
++}
++
++// Fully reduce v (normalised, v < 9p) into [0, p).
++template <typename Params> BB_IFMA_INLINE V5 canonical(const V5& v)
++{
++    using C = Consts<Params>;
++    V5 r = reduce_coarse<Params>(v);
+     V5 t;
+     for (size_t i = 0; i < 5; ++i) {
+         t.l[i] = _mm512_sub_epi64(r.l[i], bcast(C::P[i]));
+@@ -245,6 +253,46 @@ BB_IFMA_INLINE void store64(const V5& v, uint64_t* l0, uint64_t* l1, uint64_t* l
+     _mm512_store_si512(l3, _mm512_or_si512(_mm512_srli_epi64(v.l[3], 36), _mm512_slli_epi64(v.l[4], 16)));
+ }
+ 
++// The four 64-bit limbs of a value below 2^256.
++BB_IFMA_INLINE void to64(const V5& v, __m512i* out)
++{
++    out[0] = _mm512_or_si512(v.l[0], _mm512_slli_epi64(v.l[1], 52));
++    out[1] = _mm512_or_si512(_mm512_srli_epi64(v.l[1], 12), _mm512_slli_epi64(v.l[2], 40));
++    out[2] = _mm512_or_si512(_mm512_srli_epi64(v.l[2], 24), _mm512_slli_epi64(v.l[3], 28));
++    out[3] = _mm512_or_si512(_mm512_srli_epi64(v.l[3], 36), _mm512_slli_epi64(v.l[4], 16));
++}
++
++/**
++ * @brief Write the 8 lanes of (x, y) as 8 rows {x.data[0..3], y.data[0..3]}: rows[l] holds lane l's affine point in
++ *        the layout of a bb affine element. An 8x8 transpose of 64-bit words in registers.
++ */
++BB_IFMA_INLINE void store_rows(const V5& x, const V5& y, uint64_t (*rows)[8])
++{
++    __m512i r[8];
++    to64(x, r);
++    to64(y, r + 4);
++    __m512i t[8];
++    for (size_t i = 0; i < 4; ++i) {
++        t[2 * i] = _mm512_unpacklo_epi64(r[2 * i], r[(2 * i) + 1]);       // words 0, 2, 4, 6 of rows 2i, 2i+1
++        t[(2 * i) + 1] = _mm512_unpackhi_epi64(r[2 * i], r[(2 * i) + 1]); // words 1, 3, 5, 7
++    }
++    const __m512i even = _mm512_setr_epi64(0, 1, 8, 9, 4, 5, 12, 13);
++    const __m512i odd = _mm512_setr_epi64(2, 3, 10, 11, 6, 7, 14, 15);
++    __m512i u[8];
++    for (size_t h = 0; h < 2; ++h) { // h = 0: input rows 0-3, h = 1: input rows 4-7
++        const __m512i* th = t + (4 * h);
++        u[(4 * h) + 0] = _mm512_permutex2var_epi64(th[0], even, th[2]); // lanes 0, 4
++        u[(4 * h) + 1] = _mm512_permutex2var_epi64(th[0], odd, th[2]);  // lanes 2, 6
++        u[(4 * h) + 2] = _mm512_permutex2var_epi64(th[1], even, th[3]); // lanes 1, 5
++        u[(4 * h) + 3] = _mm512_permutex2var_epi64(th[1], odd, th[3]);  // lanes 3, 7
++    }
++    constexpr std::array<size_t, 4> low_lane{ 0, 2, 1, 3 };
++    for (size_t j = 0; j < 4; ++j) {
++        _mm512_store_si512(rows[low_lane[j]], _mm512_shuffle_i64x2(u[j], u[4 + j], 0x44));
++        _mm512_store_si512(rows[low_lane[j] + 4], _mm512_shuffle_i64x2(u[j], u[4 + j], 0xEE));
++    }
++}
++
+ BB_IFMA_INLINE V5 load52(const uint64_t* base, size_t stride)
+ {
+     V5 r;
+@@ -297,9 +345,9 @@ template <size_t CAP> struct DrainBuffer {
+  *          at step k / 8. The forward pass forms dx and the running prefix products, the 8 chain products are inverted
+  *          with scalar Montgomery batching around one field inversion, and the backward pass peels off each 1 / dx and
+  *          finishes the affine addition. The backward pass has enough independent work per step to hide the latency
+- *          of its two chained multiplications, so more chains do not pay. Every output coordinate is fully reduced
+- *          into [0, p). The caller guarantees lhs.x != rhs.x for every pair (so no dx is zero), as for the scalar
+- *          drain.
++ *          of its two chained multiplications, so more chains do not pay. Output coordinates are in coarse form
++ *          [0, 2p), like the results of bb's own field arithmetic. The caller guarantees lhs.x != rhs.x for every pair
++ * (so no dx is zero), as for the scalar drain.
+  */
+ template <typename BaseField, size_t CAP, typename Sink>
+ BB_IFMA_TARGET void drain_vector(DrainBuffer<CAP>& buf, size_t n, Sink&& sink)
+@@ -364,9 +412,9 @@ BB_IFMA_TARGET void drain_vector(DrainBuffer<CAP>& buf, size_t n, Sink&& sink)
+     acc = load64(lanes[0], lanes[1], lanes[2], lanes[3]);
+ 
+     // Backward: acc holds 1 / (dx_0 ... dx_s) per chain; times the prefix it gives 1 / dx_s, times dx_s it steps back
+-    // one pair. Bounds (units of p): 1/dx, slope ~4.2; slope^2 ~4.3; x3 before reduction < 8.3; y3 < 5.4.
+-    alignas(64) uint64_t ox[4][8];
+-    alignas(64) uint64_t oy[4][8];
++    // one pair. Bounds (units of p): 1/dx, slope ~4.2; slope^2 ~4.3; x3 before reduction < 8.3, after < 2;
++    // x1 - x3 + 2p < 4; y3 before reduction < 6.2.
++    alignas(64) uint64_t rows[8][8];
+     for (size_t k = padded; k != 0;) {
+         k -= 8;
+         const V5 inv_dx = mont_mul<Params>(acc, load52(&buf.pre[0][k], DrainBuffer<CAP>::STRIDE));
+@@ -376,15 +424,13 @@ BB_IFMA_TARGET void drain_vector(DrainBuffer<CAP>& buf, size_t n, Sink&& sink)
+         const V5 x2 = load64(&buf.rx[0][k], &buf.rx[1][k], &buf.rx[2][k], &buf.rx[3][k]);
+         const V5 y2 = load64(&buf.ry[0][k], &buf.ry[1][k], &buf.ry[2][k], &buf.ry[3][k]);
+         const V5 slope = mont_mul<Params>(sub_plus(y2, y1, C::P2), inv_dx);
+-        const V5 x3 = canonical<Params>(sub2_plus(mont_mul<Params>(slope, slope), x1, x2, C::P4));
+-        const V5 y3 = canonical<Params>(sub_plus(mont_mul<Params>(slope, sub_plus(x1, x3, C::P)), y1, C::P2));
+-        store64(x3, ox[0], ox[1], ox[2], ox[3]);
+-        store64(y3, oy[0], oy[1], oy[2], oy[3]);
++        const V5 x3 = reduce_coarse<Params>(sub2_plus(mont_mul<Params>(slope, slope), x1, x2, C::P4));
++        const V5 y3 = reduce_coarse<Params>(sub_plus(mont_mul<Params>(slope, sub_plus(x1, x3, C::P2)), y1, C::P2));
++        store_rows(x3, y3, rows);
+         const size_t live = std::min<size_t>(8, n - k);
+         for (size_t l = 0; l < live; ++l) {
+-            sink(k + l,
+-                 BaseField{ ox[0][l], ox[1][l], ox[2][l], ox[3][l] },
+-                 BaseField{ oy[0][l], oy[1][l], oy[2][l], oy[3][l] });
++            const uint64_t* row = rows[l];
++            sink(k + l, BaseField{ row[0], row[1], row[2], row[3] }, BaseField{ row[4], row[5], row[6], row[7] });
+         }
+     }
+ }
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
+index 59ec693..472c51f 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
+@@ -2275,7 +2275,7 @@ TEST(ScalarMultiplication, SmallInputsExplicit)
+ }
+ 
+ #ifdef BB_MSM_IFMA
+-// The IFMA drain must produce the affine sums, fully reduced, for every batch size (scalar small-batch path, partial
++// The IFMA drain must produce the affine sums, in coarse form [0, 2p), for every batch size (scalar small-batch path, partial
+ // lane groups, full queue) and for operands in coarse form [p, 2p).
+ template <typename Curve> void ifma_drain_matches_affine_add()
+ {
+@@ -2314,10 +2314,8 @@ template <typename Curve> void ifma_drain_matches_affine_add()
+         for (size_t k = 0; k < n; ++k) {
+             const AffineElement& got = out[(2 * n) - 1 - (2 * k)];
+             EXPECT_EQ(got, AffineElement(Element(lhs[k]) + Element(rhs[k]))) << "n=" << n << " k=" << k;
+-            if (n > scalar_multiplication::ifma::SMALL_DRAIN_MAX_PAIRS) {
+-                EXPECT_LT(uint256_t(got.x.data[0], got.x.data[1], got.x.data[2], got.x.data[3]), modulus);
+-                EXPECT_LT(uint256_t(got.y.data[0], got.y.data[1], got.y.data[2], got.y.data[3]), modulus);
+-            }
++            EXPECT_LT(uint256_t(got.x.data[0], got.x.data[1], got.x.data[2], got.x.data[3]), modulus + modulus);
++            EXPECT_LT(uint256_t(got.y.data[0], got.y.data[1], got.y.data[2], got.y.data[3]), modulus + modulus);
+         }
+     }
+ }
+-- 
+2.43.0
+

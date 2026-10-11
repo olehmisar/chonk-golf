@@ -1,0 +1,113 @@
+From af4de7d5321fd22b1b9ac9bf072e5297c7fb70c4 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:25:05 +0000
+Subject: [PATCH] perf(wasm): batched divstep matrix in Bernstein-Yang Wasm9x29
+ inverse
+
+Compute the 58-divstep transition matrix in blocks (ctz for even-g runs,
+one multiply-add for each run of non-swapping odd steps) instead of one
+data-dependent branch per divstep. The matrix and delta are identical to
+the per-step loop (checked on 5e7 random inputs), so every inverse is
+unchanged. V8: 353 -> 115 ns per matrix.
+---
+ .../fields/bernstein_yang_inverse_wasm.hpp    | 79 +++++++++++++------
+ 1 file changed, 53 insertions(+), 26 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/fields/bernstein_yang_inverse_wasm.hpp b/barretenberg/cpp/src/barretenberg/ecc/fields/bernstein_yang_inverse_wasm.hpp
+index 4d728e3..1cd24bd 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/fields/bernstein_yang_inverse_wasm.hpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/fields/bernstein_yang_inverse_wasm.hpp
+@@ -162,37 +162,64 @@ inline void Wasm9x29::reduce_to_canonical(const Wasm9x29& p) noexcept
+     }
+ }
+ 
++// Same divstep sequence as Native5x64::compute_divstep_matrix, evaluated in
++// blocks instead of one bit per iteration (the variable-time formulation of
++// libsecp256k1's modinv64_divsteps_62_var):
++//  - a run of z even-g steps is one shift by z (ctz), with δ += z;
++//  - an odd-g step is followed by up to `limit` steps that cannot swap (δ ≤ 0
++//    for all of them).  Over such a run each step adds f to g iff g is odd and
++//    halves, so the whole run equals g ← (g + w·f) / 2^limit, q += w·u,
++//    r += w·v, where w = -g·f⁻¹ mod 2^limit; the halvings and δ increments are
++//    then taken by the next ctz.
++// The swap case maps (f, g, u, v, q, r, δ) to (g, -f, q, r, -u, -v, -δ) and
++// continues as a non-swap step.  The returned matrix and δ are identical to
++// the one-step-per-iteration loop; the branches no longer depend on every
++// bit of g, which V8 cannot predict.
+ inline DivstepMatrix Wasm9x29::compute_divstep_matrix(i64& delta, u64 f_lo, u64 g_lo) noexcept
+ {
+-    i64 u = 1, v = 0, q = 0, r = 1;
+-    for (int i = 0; i < BATCH; ++i) {
+-        if (g_lo & 1) {
+-            if (delta > 0) {
+-                u64 nf = g_lo, ng = (g_lo - f_lo) >> 1;
+-                i64 nu = q << 1, nv = r << 1, nq = q - u, nr = r - v;
+-                f_lo = nf;
+-                g_lo = ng;
+-                u = nu;
+-                v = nv;
+-                q = nq;
+-                r = nr;
+-                delta = 1 - delta;
+-            } else {
+-                g_lo = (g_lo + f_lo) >> 1;
+-                q = q + u;
+-                r = r + v;
+-                u <<= 1;
+-                v <<= 1;
+-                delta = delta + 1;
+-            }
++    u64 u = 1, v = 0, q = 0, r = 1;
++    int remaining = BATCH;
++    while (true) {
++        // Steps with g even: shift out the trailing zeros (at most `remaining`).
++        const int zeros = __builtin_ctzll(g_lo | (~0ULL << remaining));
++        g_lo >>= zeros;
++        u <<= zeros;
++        v <<= zeros;
++        delta += zeros;
++        remaining -= zeros;
++        if (remaining == 0) {
++            break;
++        }
++        // g is odd: w makes the low `limit` bits of g + w·f zero, where `limit` counts the following
++        // steps that cannot swap (δ ≤ 0 for each of them), capped to 6 resp. 4 bits by the inverse below.
++        u64 w = 0;
++        if (delta > 0) {
++            const u64 tf = f_lo;
++            f_lo = g_lo;
++            g_lo = 0 - tf;
++            const u64 tu = u;
++            u = q;
++            q = 0 - tu;
++            const u64 tv = v;
++            v = r;
++            r = 0 - tv;
++            delta = -delta;
++            const int limit = (1 - delta) > remaining ? remaining : static_cast<int>(1 - delta);
++            const u64 mask = (~0ULL >> (64 - limit)) & 63U;
++            // f·(f² - 2) = -f⁻¹ mod 2^6 for odd f.
++            w = (f_lo * g_lo * (f_lo * f_lo - 2)) & mask;
+         } else {
+-            g_lo >>= 1;
+-            u <<= 1;
+-            v <<= 1;
+-            delta = delta + 1;
++            const int limit = (1 - delta) > remaining ? remaining : static_cast<int>(1 - delta);
++            const u64 mask = (~0ULL >> (64 - limit)) & 15U;
++            // f + (((f + 1) & 4) << 1) = f⁻¹ mod 2^4 for odd f.
++            w = f_lo + (((f_lo + 1) & 4) << 1);
++            w = ((0 - w) * g_lo) & mask;
+         }
++        g_lo += f_lo * w;
++        q += u * w;
++        r += v * w;
+     }
+-    return { u, v, q, r };
++    return { static_cast<i64>(u), static_cast<i64>(v), static_cast<i64>(q), static_cast<i64>(r) };
+ }
+ 
+ // Streamed schoolbook: for each limb position i compute
+-- 
+2.43.0
+

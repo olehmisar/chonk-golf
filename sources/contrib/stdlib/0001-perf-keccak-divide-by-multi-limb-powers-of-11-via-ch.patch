@@ -1,0 +1,106 @@
+From 1df906ccb2d9c4174532938dbe9dd23d68f7bf4e Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:10:42 +0000
+Subject: [PATCH 1/4] perf(keccak): divide by multi-limb powers of 11 via
+ chained single-limb divisions
+
+normalize_and_rotate splits each lane at 11^right_bits and theta splits D at 11^64. Those divisors span several
+uint256_t limbs, so uint256_t::divmod took the bit-serial shift-subtract loop. divmod_base_power divides by
+11^18 (11^9 on wasm) chunks through the single-limb path instead; floor(floor(x/a)/b) = floor(x/(ab)), so
+quotient and remainder are unchanged.
+---
+ .../stdlib/hash/keccak/keccak.cpp             |  7 +---
+ .../stdlib/hash/keccak/keccak.hpp             | 41 +++++++++++++++----
+ 2 files changed, 35 insertions(+), 13 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/stdlib/hash/keccak/keccak.cpp b/barretenberg/cpp/src/barretenberg/stdlib/hash/keccak/keccak.cpp
+index 50c09ee..934d48c 100644
+--- a/barretenberg/cpp/src/barretenberg/stdlib/hash/keccak/keccak.cpp
++++ b/barretenberg/cpp/src/barretenberg/stdlib/hash/keccak/keccak.cpp
+@@ -52,8 +52,7 @@ field_t<Builder> keccak<Builder>::normalize_and_rotate(const field_ct& limb, fie
+     // get the numerical value of the left and right bit slices
+     // (lookup table input values derived from left / right)
+     uint256_t input = limb.get_value();
+-    constexpr uint256_t slice_divisor = BASE.pow(right_bits);
+-    const auto [left, right] = input.divmod(slice_divisor);
++    const auto [left, right] = divmod_base_power<right_bits>(input);
+ 
+     // compute the normalized values for the left and right bit slices
+     // (lookup table output values derived from left_normalised / right_normalized)
+@@ -298,13 +297,11 @@ template <typename Builder> void keccak<Builder>::theta(keccak_state& internal)
+      * KECCAK_THETA_OUTPUT currently splices its input into 16 4-bit slices (in base 11 i.e. from 0 to 11^4 - 1)
+      * This ensures that sliced_D is correctly range constrained to be < 11^64 = 11^{KECCAK_LANE_SIZE}
+      */
+-    static constexpr uint256_t divisor = BASE.pow(KECCAK_LANE_SIZE);
+     static constexpr uint256_t multiplicand = BASE.pow(KECCAK_LANE_SIZE + 1);
+     for (size_t i = 0; i < 5; ++i) {
+         uint256_t D_native = D[i].get_value();
+         const auto [D_quotient, lo_native] = D_native.divmod(BASE);
+-        const uint256_t hi_native = D_quotient / divisor;
+-        const uint256_t mid_native = D_quotient - hi_native * divisor;
++        const auto [hi_native, mid_native] = divmod_base_power<KECCAK_LANE_SIZE>(D_quotient);
+ 
+         field_ct hi(witness_ct(internal.context, hi_native));
+         field_ct mid(witness_ct(internal.context, mid_native));
+diff --git a/barretenberg/cpp/src/barretenberg/stdlib/hash/keccak/keccak.hpp b/barretenberg/cpp/src/barretenberg/stdlib/hash/keccak/keccak.hpp
+index 2649eeb..4af6638 100644
+--- a/barretenberg/cpp/src/barretenberg/stdlib/hash/keccak/keccak.hpp
++++ b/barretenberg/cpp/src/barretenberg/stdlib/hash/keccak/keccak.hpp
+@@ -80,6 +80,36 @@ template <typename Builder> class keccak {
+         return output;
+     };
+ 
++    // Number of base-11 digits whose place value fits in a single uint256_t limb (in 32 bits on wasm, where only
++    // 64-bit native division is available), so dividing by BASE^BASE_CHUNK_DIGITS takes the single-limb divmod path.
++#if defined(__wasm__)
++    static constexpr size_t BASE_CHUNK_DIGITS = 9;
++#else
++    static constexpr size_t BASE_CHUNK_DIGITS = 18;
++#endif
++
++    /**
++     * @brief Compute input.divmod(BASE^exponent) for a divisor that may span several limbs
++     * @details floor(floor(x / a) / b) = floor(x / (a * b)), so dividing by BASE^exponent in single-limb chunks of
++     * BASE^BASE_CHUNK_DIGITS gives the same quotient as one wide division, without the bitwise shift-subtract loop a
++     * multi-limb divisor needs. The remainder is recovered from the quotient.
++     *
++     * @return {input / BASE^exponent, input % BASE^exponent}
++     */
++    template <size_t exponent>
++    static constexpr std::pair<uint256_t, uint256_t> divmod_base_power(const uint256_t& input)
++    {
++        uint256_t quotient = input;
++        size_t remaining = exponent;
++        while (remaining > 0) {
++            const size_t chunk_digits = remaining < BASE_CHUNK_DIGITS ? remaining : BASE_CHUNK_DIGITS;
++            quotient = quotient.divmod(numeric::pow64(static_cast<uint64_t>(BASE), chunk_digits)).first;
++            remaining -= chunk_digits;
++        }
++        constexpr uint256_t divisor = BASE.pow(exponent);
++        return { quotient, input - quotient * divisor };
++    }
++
+     /**
+      * @brief Normalize a base-11 integer where each base value can be > 1
+      *
+@@ -93,14 +123,9 @@ template <typename Builder> class keccak {
+      */
+     static constexpr uint256_t normalize_sparse(uint256_t input)
+     {
+-        // Peel off the base-11 digits in chunks of NORMALIZE_CHUNK_DIGITS so that only one wide division is needed
+-        // per chunk and the per-digit work is native 64-bit arithmetic. The chunk base fits in a single limb (and in
+-        // 32 bits on wasm, where only 64-bit native division is available).
+-#if defined(__wasm__)
+-        constexpr size_t NORMALIZE_CHUNK_DIGITS = 9;
+-#else
+-        constexpr size_t NORMALIZE_CHUNK_DIGITS = 18;
+-#endif
++        // Peel off the base-11 digits in chunks of BASE_CHUNK_DIGITS so that only one wide division is needed per
++        // chunk and the per-digit work is native 64-bit arithmetic.
++        constexpr size_t NORMALIZE_CHUNK_DIGITS = BASE_CHUNK_DIGITS;
+         constexpr uint64_t chunk_base = numeric::pow64(11, NORMALIZE_CHUNK_DIGITS);
+         uint256_t out = 0;
+         uint256_t chunk_place = 1;
+-- 
+2.43.0
+

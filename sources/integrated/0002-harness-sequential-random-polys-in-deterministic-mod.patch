@@ -1,0 +1,75 @@
+From 8349c69d3ac371832405293520a6b43d283d6b9b Mon Sep 17 00:00:00 2001
+From: harness <a@b>
+Date: Sat, 10 Oct 2026 23:58:37 +0000
+Subject: [PATCH 02/33] harness: sequential random polys in deterministic mode
+
+---
+ .../cpp/src/barretenberg/numeric/random/engine.cpp | 14 ++++++++++++--
+ .../cpp/src/barretenberg/numeric/random/engine.hpp |  2 ++
+ .../src/barretenberg/polynomials/polynomial.hpp    |  6 ++++++
+ 3 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/numeric/random/engine.cpp b/barretenberg/cpp/src/barretenberg/numeric/random/engine.cpp
+index 1a84b43..6620ba3 100644
+--- a/barretenberg/cpp/src/barretenberg/numeric/random/engine.cpp
++++ b/barretenberg/cpp/src/barretenberg/numeric/random/engine.cpp
+@@ -253,6 +253,16 @@ RNG& get_debug_randomness(bool reset, std::uint_fast64_t seed)
+     return debug_engine;
+ }
+ 
++bool deterministic_proving_enabled()
++{
++#ifdef __wasm__
++    return false;
++#else
++    static const bool enabled = std::getenv("BB_DETERMINISTIC_PROVING") != nullptr;
++    return enabled;
++#endif
++}
++
+ /**
+  * Default engine. If wanting consistent proof construction, uncomment the line to return the debug engine.
+  */
+@@ -263,8 +273,8 @@ RNG& get_randomness()
+     return get_debug_randomness();
+ #else
+     // Test harness: BB_DETERMINISTIC_PROVING=<seed> makes proving reproducible so proofs can be compared bytewise.
+-    static const char* deterministic_seed = std::getenv("BB_DETERMINISTIC_PROVING");
+-    if (deterministic_seed != nullptr) {
++    if (deterministic_proving_enabled()) {
++        static const char* deterministic_seed = std::getenv("BB_DETERMINISTIC_PROVING");
+         static RNG& deterministic_engine =
+             get_debug_randomness(/*reset=*/true, static_cast<std::uint_fast64_t>(std::strtoull(deterministic_seed, nullptr, 10)));
+         return deterministic_engine;
+diff --git a/barretenberg/cpp/src/barretenberg/numeric/random/engine.hpp b/barretenberg/cpp/src/barretenberg/numeric/random/engine.hpp
+index 2ef64d5..6f7359f 100644
+--- a/barretenberg/cpp/src/barretenberg/numeric/random/engine.hpp
++++ b/barretenberg/cpp/src/barretenberg/numeric/random/engine.hpp
+@@ -54,5 +54,7 @@ class RNG {
+ 
+ RNG& get_debug_randomness(bool reset = false, std::uint_fast64_t seed = 12345);
+ RNG& get_randomness();
++// Test harness: true when BB_DETERMINISTIC_PROVING is set (reproducible proving for bytewise proof comparison).
++bool deterministic_proving_enabled();
+ 
+ } // namespace bb::numeric
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
+index 5f02e0e..ab11540 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
+@@ -551,6 +551,12 @@ template <typename Fr> class Polynomial {
+     static Polynomial random(size_t size, size_t virtual_size, size_t start_index)
+     {
+         Polynomial p(size, virtual_size, start_index, DontZeroMemory::FLAG);
++        if (numeric::deterministic_proving_enabled()) {
++            for (size_t i = 0; i < size; ++i) {
++                p.coefficients_.data()[i] = Fr::random_element();
++            }
++            return p;
++        }
+         parallel_for_heuristic(
+             size,
+             [&](size_t i) { p.coefficients_.data()[i] = Fr::random_element(); },
+-- 
+2.43.0
+

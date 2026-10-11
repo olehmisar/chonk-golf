@@ -17,18 +17,18 @@
   "patches": [
     {
       "name": "0001-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck/bb-chonk-prover-opt/contrib/sumcheck/0001-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/sumcheck/0001-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
       "summary": "perf(sumcheck): fold subrelation separators into Poseidon2 quad relations on the prover"
     },
     {
       "name": "0002-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck/bb-chonk-prover-opt/contrib/sumcheck/0002-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/sumcheck/0002-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
       "summary": "perf(sumcheck): skip databus lookup rows of other bus columns"
     }
   ],
   "series_url": null,
   "description": "Prover-only hook folds subrelation separators into Poseidon2 quad relations (~320 → ~155 muls/row); databus lookup skips rows of other bus columns. Folding sumcheck −9 to −11%.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck/bb-chonk-prover-opt/contrib/sumcheck/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/sumcheck/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

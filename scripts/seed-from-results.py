@@ -1,14 +1,12 @@
-# Generator for the seed cards in data/submissions/*.json. The numbers below are transcribed by hand from
-# bb-chonk-prover-opt/integrated/STATUS.md, reference/ and each track's contrib/<track>/RESULTS.md on the
-# claude/bbopt-* branches; patch names/subjects are read from git. Needs:
-#   git -C ../playground fetch origin '+refs/heads/claude/bbopt-*:refs/remotes/origin/claude/bbopt-*' claude/nice-sagan-f00j9v
-#   PLAYGROUND_REPO=../playground python3 scripts/seed-from-results.py
-import json, subprocess, os, sys
-# A clone of olehmisar/playground with the branches above fetched (the numbers' source).
-REPO = os.environ.get("PLAYGROUND_REPO", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "playground")))
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "submissions")
-GH = "https://github.com/olehmisar/playground/blob"
-MAIN_BR = "claude/nice-sagan-f00j9v"
+# Generator for the seed cards in data/submissions/*.json. The numbers below are transcribed by hand from the
+# bb-chonk-prover-opt results snapshot in sources/ (integrated/STATUS.md, contrib/<track>/RESULTS.md) and
+# reference/; patch names and subjects are read from the patch files in sources/.
+#   python3 scripts/seed-from-results.py
+import json, os, re
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SRC = os.path.join(ROOT, "sources")
+OUT = os.path.join(ROOT, "data", "submissions")
+GH = "https://github.com/olehmisar/chonk-golf/blob/main"
 COMMIT = "bb15fcbbe969f11a892272715fe59f0976b086ca"
 DATE = "2026-10-11"
 FLOWS = [
@@ -24,31 +22,28 @@ SHORT = {"deploy_schnorr": FLOWS[1], "amm_add_liquidity": FLOWS[2], "storage_pro
          "token_bridge_claim_private": FLOWS[5], "transfer_1_recursions+private_fpc": FLOWS[8]}
 T0S, SP = FLOWS[7], FLOWS[4]
 
-def ls(branch, path):
-    out = subprocess.check_output(["git", "-C", REPO, "ls-tree", "--name-only", f"origin/{branch}", path + "/"], text=True)
-    return sorted(os.path.basename(l) for l in out.split() if l.endswith(".patch"))
+def ls(path):
+    return sorted(n for n in os.listdir(os.path.join(SRC, path)) if n.endswith(".patch"))
 
 def subject(name):
     s = name.split("-", 1)[1].rsplit(".patch", 1)[0]
     return s.replace("-", " ")
 
-def real_subject(branch, path, n):
-    txt = subprocess.check_output(["git", "-C", REPO, "show", f"origin/{branch}:{path}/{n}"], text=True, errors="replace")
-    lines = txt.splitlines()
+def real_subject(path, n):
+    lines = open(os.path.join(SRC, path, n), errors="replace").read().splitlines()
     for i, l in enumerate(lines):
         if l.startswith("Subject: "):
             subj = l[len("Subject: "):]
             j = i + 1
             while j < len(lines) and lines[j].startswith(" "):
                 subj += lines[j]; j += 1
-            import re
             return re.sub(r"^\[PATCH[^\]]*\]\s*", "", subj).strip()
     return subject(n)
 
-def patches(branch, path, only=None):
-    names = ls(branch, path)
+def patches(path, only=None):
+    names = ls(path)
     if only: names = [n for n in names if n[:4] in only]
-    return [{"name": n, "url": f"{GH}/{branch}/{path}/{n}", "summary": real_subject(branch, path, n)} for n in names]
+    return [{"name": n, "url": f"{GH}/sources/{path}/{n}", "summary": real_subject(path, n)} for n in names]
 
 def machine(cpu="4 vCPU cloud VM (x86-64, CPU model not reported)", compiler=None):
     return {"cpu": cpu, "cores": 4, "ram": None, "os": None, "compiler": compiler}
@@ -70,8 +65,8 @@ def zipflows(a, b): return list(zip(FLOWS, a, b))
 def summ(bw, w, ratio, n, reps, notes=None):
     return {"baseline_wall_s": bw, "wall_s": w, "wall_ratio": ratio, "flows_measured": n, "reps": reps, "notes": notes}
 
-def results_url(track, branch=None):
-    return f"{GH}/{branch or 'claude/bbopt-' + track}/bb-chonk-prover-opt/contrib/{track}/RESULTS.md"
+def results_url(track):
+    return f"{GH}/sources/contrib/{track}/RESULTS.md"
 
 S = []
 def add(**kw):
@@ -89,13 +84,13 @@ RSS = {  # STATUS.md peak RSS table: (transfer_0_recursions+sponsored_fpc, stora
 bl = RSS["baseline"]
 add(id="baseline", title="Unmodified prover (par)", author="aztec-packages bb15fcb + harness", kind="reference",
     status="reference", against={"id": None, "description": "Itself: this is par for every hole."},
-    patches=patches(MAIN_BR, "bb-chonk-prover-opt/patches", only={"0001", "0002"}),
+    patches=patches("patches", only={"0001", "0002"}),
     description="aztec-packages at bb15fcb with only the two harness patches (seeded RNG hook, sequential random "
                 "polynomials under BB_DETERMINISTIC_PROVING). Prover output is the definition of correct: "
                 "reference/proof_vk_sha256.txt was produced by this build. Wall times are single runs from "
                 "reference/baseline_times_4core.txt (check_identical.sh timing, not min-of-N), so use them as par "
                 "context only; submissions are always scored against a baseline measured on their own machine.",
-    source_url=f"{GH}/{MAIN_BR}/bb-chonk-prover-opt/reference/baseline_times_4core.txt",
+    source_url=f"{GH}/reference/baseline_times_4core.txt",
     machine=machine(), correctness=corr(11, None, None, True, "Reference by definition: its hashes are the reference."),
     summary=summ(round(sum(base_times), 3), round(sum(base_times), 3), 1.0, 11, 1,
                  "Single run per flow; peak RSS measured on two flows (STATUS.md)."),
@@ -106,12 +101,12 @@ own = RSS["own"]
 add(id="own-0003-0006", title="First four optimisations (patches/0003-0006)", author="bb-chonk-prover-opt coordinator",
     track="core", kind="series", status="integrated", integrated_in="integ1",
     against={"id": "baseline", "description": "Unmodified prover (harness only)."},
-    patches=patches(MAIN_BR, "bb-chonk-prover-opt/patches"),
+    patches=patches("patches"),
     description="uint256 single-limb divmod fast path + keccak base-11 chunking, fused native MSM bucket drain, "
                 "translator grand product fetching only the 12 columns it reads, and fold-multiply skip for "
                 "bit-identical neighbours. Also the start point of every round-1 track. No end-to-end total vs "
                 "the unmodified prover was published; only peak RSS on two flows.",
-    source_url=f"{GH}/{MAIN_BR}/bb-chonk-prover-opt/README.md", machine=machine(),
+    source_url=f"{GH}/sources/README.md", machine=machine(),
     correctness=corr(11, 11, True, True, "README: 11/11 verify, 11/11 tampered rejected, 11/11 VKs identical."),
     summary=summ(None, None, None, None, None, "End-to-end time not reported. MSM −19% at 2^18, translator grand "
                  "product 194 → 26 ms per proof, keccak circuit construction 3.0 → 0.8 s on storage_proof."),
@@ -137,7 +132,6 @@ INTEG = {
          "unchanged); pcs/0002-0003 skipped (overlap instance/0001, 0004)",
      corr=corr(11, 11, None, None, "STATUS.md: 11/11 identical, 11/11 stock bb.js verify; tampered/VK checks not itemised.")),
 }
-allint = ls(MAIN_BR, "bb-chonk-prover-opt/integrated")
 for iid, d in INTEG.items():
     r = RSS[iid]
     flows = []
@@ -147,14 +141,14 @@ for iid, d in INTEG.items():
     flows.append(fm(T0S, None, None, bl[0], r[0]))
     flows.sort(key=lambda x: FLOWS.index(x["flow"]))
     a, b = d["tot"]
-    pl = [p for p in patches(MAIN_BR, "bb-chonk-prover-opt/integrated") if int(p["name"][:4]) <= d["upto"]]
+    pl = [p for p in patches("integrated") if int(p["name"][:4]) <= d["upto"]]
     rss_note = " Peak RSS rose ~5% from integ2 (+16 / +32 MiB), under investigation." if iid != "integ1" else ""
     add(id=iid, title=d["title"], author="bb-chonk-prover-opt coordinator", track="integrated", kind="series",
         status="integrated", integrated_in=iid,
         against={"id": "baseline", "description": "Unmodified prover, interleaved on the same VM."},
-        patches=pl, series_url=f"https://github.com/olehmisar/playground/tree/{MAIN_BR}/bb-chonk-prover-opt/integrated",
+        patches=pl, series_url="https://github.com/olehmisar/chonk-golf/tree/main/sources/integrated",
         description=f"Integrated `git am` series 0001-{d['upto']:04d} on bb15fcb. Includes: {d['inc']}.{rss_note}",
-        source_url=f"{GH}/{MAIN_BR}/bb-chonk-prover-opt/integrated/STATUS.md", machine=machine(),
+        source_url=f"{GH}/sources/integrated/STATUS.md", machine=machine(),
         correctness=d["corr"],
         summary=summ(a, b, round(b / a, 4), 5, 3, "End-to-end vs unmodified, min of 3, 5 flows. Per-flow seconds "
                      "not published (ratios only)."),
@@ -163,11 +157,10 @@ for iid, d in INTEG.items():
 # ---------- track deltas (practice range) ----------
 START = {"id": "own-0003-0006", "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."}
 def track(t, title, desc, status, integ, corr_, summ_, flows=None, against=START, mach=None, only=None,
-          branch=None, path=None, target="native"):
-    br = branch or f"claude/bbopt-{t}"
+          path=None, target="native"):
     add(id=f"track-{t}", title=title, author=f"{t} track", track=t, kind="delta", status=status, integrated_in=integ,
-        target=target, against=against, patches=patches(br, path or f"bb-chonk-prover-opt/contrib/{t}", only),
-        description=desc, source_url=results_url(t, br), machine=mach or machine(), correctness=corr_,
+        target=target, against=against, patches=patches(path or f"contrib/{t}", only),
+        description=desc, source_url=results_url(t), machine=mach or machine(), correctness=corr_,
         summary=summ_, flows=flows or [])
 
 track("circuit", "ACIR decode & circuit construction",

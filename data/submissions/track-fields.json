@@ -17,7 +17,7 @@
   "patches": [],
   "series_url": null,
   "description": "Same algorithm as msm/0001 (integrated/0007), which landed first; bit-identical matrices on 30M inputs. Withdrawn as a duplicate; measurements kept because they show what integrated/0007 buys.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-fields/bb-chonk-prover-opt/contrib/fields/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/fields/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

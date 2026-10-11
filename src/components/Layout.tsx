@@ -96,7 +96,7 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
           </span>
           <a
             className="underline-offset-2 hover:underline"
-            href="https://github.com/olehmisar/playground/tree/claude/nice-sagan-f00j9v/bb-chonk-prover-opt"
+            href="https://github.com/olehmisar/chonk-golf/tree/main/sources"
           >
             bb-chonk-prover-opt
           </a>

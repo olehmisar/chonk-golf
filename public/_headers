@@ -15,3 +15,9 @@
   Cache-Control: public, max-age=0, must-revalidate
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
+/s/*
+  Cache-Control: public, max-age=0, must-revalidate
+/rules
+  Cache-Control: public, max-age=0, must-revalidate
+/submit
+  Cache-Control: public, max-age=0, must-revalidate

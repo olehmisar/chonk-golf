@@ -17,13 +17,13 @@
   "patches": [
     {
       "name": "0001-perf-wasm-batched-divstep-matrix-in-Bernstein-Yang-W.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-wasm/bb-chonk-prover-opt/contrib/wasm/0001-perf-wasm-batched-divstep-matrix-in-Bernstein-Yang-W.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/wasm/0001-perf-wasm-batched-divstep-matrix-in-Bernstein-Yang-W.patch",
       "summary": "perf(wasm): batched divstep matrix in Bernstein-Yang Wasm9x29 inverse"
     }
   ],
   "series_url": null,
   "description": "Batched divsteps in the Wasm9x29 Bernstein-Yang kernel (353 → 115 ns per 58-step matrix in V8). Scored on bb.js WASM proving, one flow.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-wasm/bb-chonk-prover-opt/contrib/wasm/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/wasm/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

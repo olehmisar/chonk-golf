@@ -17,13 +17,13 @@
   "patches": [
     {
       "name": "0001-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-joint/bb-chonk-prover-opt/contrib/joint/0001-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/joint/0001-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
       "summary": "perf(joint): fold both circuits' sumcheck tables in one largest-first parallel region"
     }
   ],
   "series_url": null,
   "description": "BatchedHonkTranslatorProver folds both circuits' sumcheck tables in one parallel region, largest first. ~5 ms per proof at phase level; neutral end to end.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-joint/bb-chonk-prover-opt/contrib/joint/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/joint/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

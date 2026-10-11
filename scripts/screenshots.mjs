@@ -10,13 +10,13 @@ const out = join(import.meta.dirname, "..", "docs", "screenshots");
 mkdirSync(out, { recursive: true });
 
 const pages = [
-  ["leaderboard", "#/"],
-  ["leaderboard-range", "#/", ["Driving range"]],
-  ["leaderboard-ram", "#/", ["Peak RAM"]],
-  ["submission-integ3", "#/s/integ3"],
-  ["submission-threading", "#/s/track-threading"],
-  ["rules", "#/rules"],
-  ["submit", "#/submit"],
+  ["leaderboard", ""],
+  ["leaderboard-range", "", ["Driving range"]],
+  ["leaderboard-ram", "", ["Peak RAM"]],
+  ["submission-integ3", "s/integ3"],
+  ["submission-threading", "s/track-threading"],
+  ["rules", "rules"],
+  ["submit", "submit"],
 ];
 const variants = [
   { name: "desktop", viewport: { width: 1360, height: 900 }, colorScheme: "light" },

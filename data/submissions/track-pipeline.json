@@ -17,18 +17,18 @@
   "patches": [
     {
       "name": "0001-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pipeline/bb-chonk-prover-opt/contrib/pipeline/0001-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/pipeline/0001-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
       "summary": "perf(chonk): parse step bytecode on a background thread during CLI proving"
     },
     {
       "name": "0002-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pipeline/bb-chonk-prover-opt/contrib/pipeline/0002-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/pipeline/0002-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
       "summary": "perf(chonk): write the IVC's hiding-kernel VK in prove --write_vk"
     }
   ],
   "series_url": null,
   "description": "ChonkAPI::prove parses each step's ACIR on a background thread; prove --write_vk reuses the hiding-kernel VK instead of recomputing it.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pipeline/bb-chonk-prover-opt/contrib/pipeline/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/pipeline/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

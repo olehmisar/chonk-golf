@@ -17,18 +17,18 @@
   "patches": [
     {
       "name": "0001-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-transcript/bb-chonk-prover-opt/contrib/transcript/0001-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/transcript/0001-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
       "summary": "perf(poseidon2): shorter critical path in native permutation rounds"
     },
     {
       "name": "0002-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-transcript/bb-chonk-prover-opt/contrib/transcript/0002-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/transcript/0002-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
       "summary": "perf(sha256): x86 SHA extensions and streaming input for native sha256"
     }
   ],
   "series_url": null,
   "description": "Shorter dependency chain in the native Poseidon2 permutation; x86 SHA-NI block compression with runtime dispatch. ~25 ms per flow on serial paths; most of the 1.6% total is noise.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-transcript/bb-chonk-prover-opt/contrib/transcript/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/transcript/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

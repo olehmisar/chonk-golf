@@ -17,13 +17,13 @@
   "patches": [
     {
       "name": "0001-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-msm/bb-chonk-prover-opt/contrib/msm/0001-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/msm/0001-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
       "summary": "perf(ecc): batched variable-time divsteps in Bernstein-Yang inverse"
     }
   ],
   "series_url": null,
   "description": "invert_vartime performs the same 62 divsteps several at a time (libsecp256k1-style ctz + multi-bit cancellation). Fq inversion 2.97 → 1.60 µs.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-msm/bb-chonk-prover-opt/contrib/msm/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/msm/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

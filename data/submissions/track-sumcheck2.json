@@ -17,13 +17,13 @@
   "patches": [
     {
       "name": "0001-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck2/bb-chonk-prover-opt/contrib/sumcheck2/0001-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/sumcheck2/0001-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
       "summary": "perf(sumcheck): drop memory relation terms of gate types absent from the edge on the prover"
     }
   ],
   "series_url": null,
   "description": "Memory relation prover path skips terms of gate types whose selector product is identically zero on the edge. HypernovaFoldingProver::sumcheck 2060 → 1790 ms on storage_proof.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck2/bb-chonk-prover-opt/contrib/sumcheck2/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/sumcheck2/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

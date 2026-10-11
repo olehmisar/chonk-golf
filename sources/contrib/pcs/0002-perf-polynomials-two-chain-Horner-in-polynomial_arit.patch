@@ -1,0 +1,48 @@
+From 932e3b4639b3a71d08680c7da612e21bef4c8ea4 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:46:51 +0000
+Subject: [PATCH 2/5] perf(polynomials): two-chain Horner in
+ polynomial_arithmetic::evaluate
+
+Each thread evaluates its chunk with Horner's rule on the two halves of the chunk, interleaved so
+that the two multiplication chains overlap: one multiplication per coefficient instead of two,
+and the per-thread result is written once instead of accumulating into a shared vector slot
+every iteration (false sharing).
+---
+ .../polynomials/polynomial_arithmetic.cpp     | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
+index 30722b7..7ff15a3 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial_arithmetic.cpp
+@@ -168,13 +168,20 @@ template <typename Fr> Fr evaluate(const Fr* coeffs, const Fr& z, const size_t n
+         if (range.empty()) {
+             return;
+         }
+-        size_t start = *range.begin();
+-        Fr z_acc = z.pow(static_cast<uint64_t>(start));
+-        for (size_t i : range) {
+-            Fr work_var = z_acc * coeffs[i];
+-            evaluations[chunk.thread_index] += work_var;
+-            z_acc *= z;
++        const size_t start = *range.begin();
++        // Horner's rule on the two halves of the chunk, interleaved so that the two multiplication chains overlap
++        const size_t low_size = range.size() / 2;
++        const size_t high_size = range.size() - low_size;
++        const Fr* low = coeffs + start;
++        const Fr* high = low + low_size;
++        Fr low_acc = Fr::zero();
++        Fr high_acc = (high_size > low_size) ? high[low_size] : Fr::zero();
++        for (size_t i = low_size; i > 0; --i) {
++            low_acc = (low_acc * z) + low[i - 1];
++            high_acc = (high_acc * z) + high[i - 1];
+         }
++        evaluations[chunk.thread_index] =
++            (low_acc + high_acc * z.pow(static_cast<uint64_t>(low_size))) * z.pow(static_cast<uint64_t>(start));
+     });
+ 
+     Fr r = Fr::zero();
+-- 
+2.43.0
+

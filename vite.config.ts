@@ -2,10 +2,11 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
+import { routePages } from "./scripts/route-pages.ts";
 
 export default defineConfig({
-  // Relative asset paths so the static build works from any sub-path (or file://).
-  base: "./",
+  // Absolute asset paths: real URLs like /s/<id> must still load /assets/*.
+  base: "/",
   server: {
     host: true,
     port: 5173,
@@ -14,7 +15,7 @@ export default defineConfig({
     port: 4173,
   },
   fmt: {
-    ignorePatterns: ["dist", "data/**/*.json"],
+    ignorePatterns: ["dist", "data/**/*.json", "sources/**"],
   },
   test: {
     include: ["src/**/*.test.ts", "data/**/*.test.ts"],
@@ -43,7 +44,7 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist", "node_modules", ".cloudflare"],
+    ignorePatterns: ["dist", "node_modules", ".cloudflare", "sources"],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],
@@ -72,5 +73,5 @@ export default defineConfig({
       "vite-plus/prefer-vite-plus-imports": "error",
     },
   },
-  plugins: [react(), tailwindcss(), cloudflare()],
+  plugins: [react(), tailwindcss(), routePages(import.meta.dirname), cloudflare()],
 });

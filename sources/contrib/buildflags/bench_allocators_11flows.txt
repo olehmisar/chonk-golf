@@ -1,0 +1,59 @@
+deploy_ecdsar1+sponsored_fpc
+   bb-start         min   3.69 med   3.92  ratio 1.000
+   bb-tcmalloc      min   3.68 med   3.77  ratio 0.998
+   bb-gtun          min   3.75 med   3.81  ratio 1.018
+   bb-mimtun        min   3.64 med   3.90  ratio 0.986
+deploy_schnorr+sponsored_fpc
+   bb-start         min   3.52 med   3.72  ratio 1.000
+   bb-tcmalloc      min   3.37 med   3.65  ratio 0.957
+   bb-gtun          min   3.47 med   3.49  ratio 0.986
+   bb-mimtun        min   3.43 med   3.59  ratio 0.974
+ecdsar1+amm_add_liquidity_1_recursions+sponsored_f
+   bb-start         min   5.67 med   5.85  ratio 1.000
+   bb-tcmalloc      min   5.49 med   5.80  ratio 0.967
+   bb-gtun          min   5.57 med   5.68  ratio 0.982
+   bb-mimtun        min   5.44 med   5.58  ratio 0.959
+ecdsar1+deploy_tokenContract_with_registration+spo
+   bb-start         min   4.31 med   4.50  ratio 1.000
+   bb-tcmalloc      min   4.26 med   4.32  ratio 0.989
+   bb-gtun          min   4.28 med   4.53  ratio 0.993
+   bb-mimtun        min   4.19 med   4.39  ratio 0.973
+ecdsar1+storage_proof_7_layers+sponsored_fpc
+   bb-start         min  11.51 med  12.04  ratio 1.000
+   bb-tcmalloc      min  10.34 med  10.78  ratio 0.898
+   bb-gtun          min  10.70 med  11.26  ratio 0.930
+   bb-mimtun        min  10.97 med  12.54  ratio 0.953
+ecdsar1+token_bridge_claim_private+sponsored_fpc
+   bb-start         min   3.91 med   4.20  ratio 1.000
+   bb-tcmalloc      min   3.77 med   4.07  ratio 0.963
+   bb-gtun          min   3.71 med   3.85  ratio 0.950
+   bb-mimtun        min   3.74 med   3.90  ratio 0.957
+ecdsar1+transfer_0_recursions+private_fpc
+   bb-start         min   5.11 med   5.16  ratio 1.000
+   bb-tcmalloc      min   4.85 med   5.07  ratio 0.948
+   bb-gtun          min   4.90 med   5.03  ratio 0.958
+   bb-mimtun        min   4.81 med   4.98  ratio 0.941
+ecdsar1+transfer_0_recursions+sponsored_fpc
+   bb-start         min   3.30 med   3.76  ratio 1.000
+   bb-tcmalloc      min   3.18 med   3.66  ratio 0.966
+   bb-gtun          min   3.36 med   3.39  ratio 1.020
+   bb-mimtun        min   3.30 med   3.36  ratio 1.001
+ecdsar1+transfer_1_recursions+private_fpc
+   bb-start         min   5.48 med   6.00  ratio 1.000
+   bb-tcmalloc      min   5.03 med   5.14  ratio 0.919
+   bb-gtun          min   5.15 med   5.22  ratio 0.940
+   bb-mimtun        min   5.01 med   5.67  ratio 0.915
+ecdsar1+transfer_1_recursions+sponsored_fpc
+   bb-start         min   3.62 med   3.79  ratio 1.000
+   bb-tcmalloc      min   3.54 med   3.85  ratio 0.977
+   bb-gtun          min   3.55 med   3.83  ratio 0.981
+   bb-mimtun        min   3.53 med   4.14  ratio 0.976
+schnorr+deploy_tokenContract_with_registration+spo
+   bb-start         min   4.29 med   4.60  ratio 1.000
+   bb-tcmalloc      min   4.03 med   4.16  ratio 0.941
+   bb-gtun          min   4.08 med   4.46  ratio 0.952
+   bb-mimtun        min   4.03 med   4.23  ratio 0.939
+TOTAL bb-start           54.40 ratio 1.000
+TOTAL bb-tcmalloc        51.53 ratio 0.947
+TOTAL bb-gtun            52.53 ratio 0.966
+TOTAL bb-mimtun          52.10 ratio 0.958

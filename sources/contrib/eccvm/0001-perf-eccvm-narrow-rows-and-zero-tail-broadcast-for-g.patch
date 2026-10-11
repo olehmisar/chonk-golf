@@ -1,0 +1,348 @@
+From 6803445a0b14a31de05cf1068c293a9c4ebb8611 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:17:45 +0000
+Subject: [PATCH 1/2] perf(eccvm): narrow rows and zero-tail broadcast for
+ grand product and log-derivative inverses
+
+The ECCVM grand product and lookup-inverse computations fetched all 119 columns per row via get_row
+and evaluated every one of the 2^15 fixed-size rows, although only ~50 / ~21 columns are read and
+everything past the active trace (~6.5k rows) is zero.
+
+- ECCVMFlavor::ProverPolynomials gains get_row_for_grand_product / get_row_for_logderivative_inverse
+  (only the columns the set / lookup relations read) and the matching *_zero_row_start (first row from
+  which all those columns are zero, found by scanning back from each column's end).
+- compute_grand_product evaluates numerator/denominator once on the zero row and broadcasts it to all
+  later rows; the remaining rows are split evenly over the threads (the active rows previously all fell
+  in thread 0's chunk).
+- compute_logderivative_inverse stops at the zero row when no lookup operation exists on it.
+
+Same field values row by row, so z_perm and lookup_inverses are unchanged.
+---
+ .../cpp/src/barretenberg/eccvm/eccvm.test.cpp |  61 ++++++++
+ .../src/barretenberg/eccvm/eccvm_flavor.hpp   | 146 ++++++++++++++++++
+ .../honk/library/grand_product_library.hpp    |  34 +++-
+ .../proof_system/logderivative_library.hpp    |  21 ++-
+ 4 files changed, 257 insertions(+), 5 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/eccvm/eccvm.test.cpp b/barretenberg/cpp/src/barretenberg/eccvm/eccvm.test.cpp
+index 2c8ce8f..646d953 100644
+--- a/barretenberg/cpp/src/barretenberg/eccvm/eccvm.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/eccvm/eccvm.test.cpp
+@@ -658,3 +658,64 @@ TEST_F(ECCVMTests, WitnessPolynomialsMasked)
+     check_masked(polynomials.z_perm, "z_perm");
+     check_masked(polynomials.lookup_inverses, "lookup_inverses");
+ }
++
++/**
++ * @brief The narrow row getters used by the grand product and log-derivative inverse computations read every column
++ * their relations use: on every row they produce the same relation values as the full get_row, and every row at or
++ * beyond the reported zero-row start produces the values of that start row.
++ */
++TEST_F(ECCVMTests, NarrowRowGettersMatchFullRow)
++{
++    using SetRelation = std::tuple_element_t<0, ECCVMFlavor::GrandProductRelations>;
++    using LookupRelation = ECCVMFlavor::LookupRelation;
++    using SetAccumulator = std::tuple_element_t<0, typename SetRelation::SumcheckArrayOfValuesOverSubrelations>;
++    using LookupAccumulator = typename LookupRelation::ValueAccumulator0;
++
++    ECCVMCircuitBuilder builder = generate_circuit(&engine);
++    ECCVMFlavor::ProverPolynomials polynomials(builder);
++    const auto params = RelationParameters<FF>::get_random();
++    const size_t num_rows = polynomials.get_polynomial_size();
++
++    const auto set_values = [&](const auto& row) {
++        return std::array<FF, 2>{ SetRelation::template compute_grand_product_numerator<SetAccumulator>(row, params),
++                                  SetRelation::template compute_grand_product_denominator<SetAccumulator>(row,
++                                                                                                          params) };
++    };
++    const auto lookup_values = [&](const auto& row) {
++        std::array<FF, LookupRelation::NUM_LOOKUP_TERMS + LookupRelation::NUM_TABLE_TERMS + 1> values;
++        values[0] = FF(static_cast<uint64_t>(LookupRelation::operation_exists_at_row(row)));
++        bb::constexpr_for<0, LookupRelation::NUM_LOOKUP_TERMS, 1>([&]<size_t i>() {
++            values[1 + i] = LookupRelation::template compute_lookup_term<LookupAccumulator, i>(row, params);
++        });
++        bb::constexpr_for<0, LookupRelation::NUM_TABLE_TERMS, 1>([&]<size_t i>() {
++            values[1 + LookupRelation::NUM_LOOKUP_TERMS + i] =
++                LookupRelation::template compute_table_term<LookupAccumulator, i>(row, params);
++        });
++        return values;
++    };
++
++    const size_t grand_product_zero_row_start = polynomials.get_grand_product_zero_row_start();
++    const size_t lookup_zero_row_start = polynomials.get_logderivative_inverse_zero_row_start();
++    EXPECT_LT(grand_product_zero_row_start, num_rows);
++    EXPECT_LT(lookup_zero_row_start, num_rows);
++    const auto grand_product_zero_row_values =
++        set_values(polynomials.get_row_for_grand_product(grand_product_zero_row_start));
++    const auto lookup_zero_row_values =
++        lookup_values(polynomials.get_row_for_logderivative_inverse(lookup_zero_row_start));
++    EXPECT_EQ(lookup_zero_row_values[0], FF(0));
++
++    for (size_t row_idx = 0; row_idx < num_rows; ++row_idx) {
++        const auto full_row = polynomials.get_row(row_idx);
++        const auto full_set_values = set_values(full_row);
++        const auto full_lookup_values = lookup_values(full_row);
++        ASSERT_EQ(full_set_values, set_values(polynomials.get_row_for_grand_product(row_idx))) << "row " << row_idx;
++        ASSERT_EQ(full_lookup_values, lookup_values(polynomials.get_row_for_logderivative_inverse(row_idx)))
++            << "row " << row_idx;
++        if (row_idx >= grand_product_zero_row_start) {
++            ASSERT_EQ(full_set_values, grand_product_zero_row_values) << "row " << row_idx;
++        }
++        if (row_idx >= lookup_zero_row_start) {
++            ASSERT_EQ(full_lookup_values, lookup_zero_row_values) << "row " << row_idx;
++        }
++    }
++}
+diff --git a/barretenberg/cpp/src/barretenberg/eccvm/eccvm_flavor.hpp b/barretenberg/cpp/src/barretenberg/eccvm/eccvm_flavor.hpp
+index c84723d..757b3c0 100644
+--- a/barretenberg/cpp/src/barretenberg/eccvm/eccvm_flavor.hpp
++++ b/barretenberg/cpp/src/barretenberg/eccvm/eccvm_flavor.hpp
+@@ -556,6 +556,105 @@ class ECCVMFlavor {
+      */
+     using ExtendedEdges = ProverUnivariates<MAX_PARTIAL_RELATION_LENGTH>;
+ 
++    /**
++     * @brief The entities read by the numerator and denominator of ECCVMSetRelation.
++     */
++    template <typename Entities> static auto get_grand_product_entities(Entities& entities)
++    {
++        return RefArray{ entities.lagrange_first,
++                         entities.msm_accumulator_x_shift,
++                         entities.msm_accumulator_y_shift,
++                         entities.msm_add1,
++                         entities.msm_add2,
++                         entities.msm_add3,
++                         entities.msm_add4,
++                         entities.msm_count,
++                         entities.msm_pc,
++                         entities.msm_pc_shift,
++                         entities.msm_round,
++                         entities.msm_size_of_msm,
++                         entities.msm_slice1,
++                         entities.msm_slice2,
++                         entities.msm_slice3,
++                         entities.msm_slice4,
++                         entities.msm_transition_shift,
++                         entities.precompute_pc,
++                         entities.precompute_point_transition,
++                         entities.precompute_round,
++                         entities.precompute_s1hi,
++                         entities.precompute_s1lo,
++                         entities.precompute_s2hi,
++                         entities.precompute_s2lo,
++                         entities.precompute_s3hi,
++                         entities.precompute_s3lo,
++                         entities.precompute_s4hi,
++                         entities.precompute_s4lo,
++                         entities.precompute_scalar_sum,
++                         entities.precompute_select,
++                         entities.precompute_skew,
++                         entities.precompute_tx,
++                         entities.precompute_ty,
++                         entities.transcript_Px,
++                         entities.transcript_Py,
++                         entities.transcript_base_infinity,
++                         entities.transcript_msm_count,
++                         entities.transcript_msm_transition,
++                         entities.transcript_msm_x,
++                         entities.transcript_msm_y,
++                         entities.transcript_mul,
++                         entities.transcript_pc,
++                         entities.transcript_pc_shift,
++                         entities.transcript_z1,
++                         entities.transcript_z1zero,
++                         entities.transcript_z2,
++                         entities.transcript_z2zero };
++    }
++
++    /**
++     * @brief The entities read by ECCVMLookupRelation when computing the log-derivative inverses (operation
++     * existence, lookup terms and table terms).
++     */
++    template <typename Entities> static auto get_logderivative_inverse_entities(Entities& entities)
++    {
++        return RefArray{ entities.msm_add,
++                         entities.msm_skew,
++                         entities.msm_pc,
++                         entities.msm_count,
++                         entities.msm_slice1,
++                         entities.msm_slice2,
++                         entities.msm_slice3,
++                         entities.msm_slice4,
++                         entities.msm_x1,
++                         entities.msm_x2,
++                         entities.msm_x3,
++                         entities.msm_x4,
++                         entities.msm_y1,
++                         entities.msm_y2,
++                         entities.msm_y3,
++                         entities.msm_y4,
++                         entities.precompute_select,
++                         entities.precompute_pc,
++                         entities.precompute_tx,
++                         entities.precompute_ty,
++                         entities.precompute_round };
++    }
++
++    /**
++     * @brief Returns the first row index from which every given polynomial is zero.
++     */
++    static size_t get_zero_row_start(const auto& polynomials)
++    {
++        size_t zero_row_start = 0;
++        for (const Polynomial& polynomial : polynomials) {
++            size_t end = polynomial.end_index();
++            while (end > zero_row_start && end > polynomial.start_index() && polynomial.get(end - 1).is_zero()) {
++                --end;
++            }
++            zero_row_start = std::max(zero_row_start, end);
++        }
++        return zero_row_start;
++    }
++
+     /**
+      * @brief A container for the prover polynomials.
+      */
+@@ -585,6 +684,53 @@ class ECCVMFlavor {
+             }
+             return result;
+         }
++        /**
++         * @brief Returns, at one point of the boolean hypercube, only the evaluations read by the numerator and
++         * denominator of ECCVMSetRelation (the grand product computation). All other entries of the returned AllValues
++         * are left uninitialized.
++         */
++        [[nodiscard]] AllValues get_row_for_grand_product(const size_t row_idx) const
++        {
++            AllValues result;
++            for (auto [result_field, polynomial] :
++                 zip_view(get_grand_product_entities(result), get_grand_product_entities(*this))) {
++                result_field = polynomial.get(row_idx);
++            }
++            return result;
++        }
++
++        /**
++         * @brief Returns the first row index from which every polynomial read by get_row_for_grand_product is zero.
++         * All rows at or beyond it are identical, so they share one grand product numerator and denominator.
++         */
++        [[nodiscard]] size_t get_grand_product_zero_row_start() const
++        {
++            return get_zero_row_start(get_grand_product_entities(*this));
++        }
++
++        /**
++         * @brief Returns, at one point of the boolean hypercube, only the evaluations read by ECCVMLookupRelation when
++         * computing the log-derivative inverses. All other entries of the returned AllValues are left uninitialized.
++         */
++        [[nodiscard]] AllValues get_row_for_logderivative_inverse(const size_t row_idx) const
++        {
++            AllValues result;
++            for (auto [result_field, polynomial] :
++                 zip_view(get_logderivative_inverse_entities(result), get_logderivative_inverse_entities(*this))) {
++                result_field = polynomial.get(row_idx);
++            }
++            return result;
++        }
++
++        /**
++         * @brief Returns the first row index from which every polynomial read by get_row_for_logderivative_inverse is
++         * zero. All rows at or beyond it are identical.
++         */
++        [[nodiscard]] size_t get_logderivative_inverse_zero_row_start() const
++        {
++            return get_zero_row_start(get_logderivative_inverse_entities(*this));
++        }
++
+         // Set all shifted polynomials based on their to-be-shifted counterpart
+         void set_shifted()
+         {
+diff --git a/barretenberg/cpp/src/barretenberg/honk/library/grand_product_library.hpp b/barretenberg/cpp/src/barretenberg/honk/library/grand_product_library.hpp
+index 946725e..c141615 100644
+--- a/barretenberg/cpp/src/barretenberg/honk/library/grand_product_library.hpp
++++ b/barretenberg/cpp/src/barretenberg/honk/library/grand_product_library.hpp
+@@ -114,14 +114,44 @@ void compute_grand_product(typename Flavor::ProverPolynomials& full_polynomials,
+     const bool count_duplicates = duplicate_count_out != nullptr;
+     std::vector<uint32_t> thread_duplicate_counts(count_duplicates ? thread_data.num_threads : 0, 0);
+ 
++    // If the flavor reports a row from which every polynomial read by the relation is zero, all rows at or beyond it
++    // share one numerator and denominator: compute them once and broadcast them to `zero_rows_start` onward.
++    size_t zero_rows_start = active_size - 1;
++    FF zero_row_numerator{ 0 };
++    FF zero_row_denominator{ 0 };
++    if constexpr (requires { full_polynomials.get_grand_product_zero_row_start(); }) {
++        const size_t zero_row_idx = std::max(full_polynomials.get_grand_product_zero_row_start(), gp_start);
++        if (zero_row_idx - gp_start < zero_rows_start) {
++            zero_rows_start = zero_row_idx - gp_start;
++            const auto zero_row = full_polynomials.get_row_for_grand_product(zero_row_idx);
++            zero_row_numerator =
++                GrandProdRelation::template compute_grand_product_numerator<Accumulator>(zero_row, relation_parameters);
++            zero_row_denominator = GrandProdRelation::template compute_grand_product_denominator<Accumulator>(
++                zero_row, relation_parameters);
++        }
++    }
++    // Each thread evaluates its share of the rows before `zero_rows_start` and broadcasts into its share of the rest.
++    const auto thread_range = [&](size_t begin, size_t end, size_t thread_idx) {
++        const size_t chunk_size = (end - begin + thread_data.num_threads - 1) / thread_data.num_threads;
++        const size_t chunk_start = std::min(end, begin + (thread_idx * chunk_size));
++        return std::pair{ chunk_start, std::min(end, chunk_start + chunk_size) };
++    };
++
+     // Step (1)
+     // Populate `numerator` and `denominator` with the algebra described by Relation
+     parallel_for(thread_data.num_threads, [&](size_t thread_idx) {
+         BB_BENCH_TRACY_NAME("GrandProduct::step1_numerator_denominator");
+-        const size_t start = thread_data.start[thread_idx];
+-        const size_t end = thread_data.end[thread_idx];
+         typename Flavor::AllValues row;
+         uint32_t local_duplicates = 0;
++        const auto [zero_start, zero_end] = thread_range(zero_rows_start, active_size - 1, thread_idx);
++        for (size_t i = zero_start; i < zero_end; ++i) {
++            numerator.at(i) = zero_row_numerator;
++            denominator.at(i) = zero_row_denominator;
++            if (count_duplicates && zero_row_numerator == zero_row_denominator) {
++                ++local_duplicates;
++            }
++        }
++        const auto [start, end] = thread_range(0, zero_rows_start, thread_idx);
+         for (size_t i = start; i < end; ++i) {
+             const size_t poly_idx = i + gp_start;
+             // TODO: consider avoiding get_row if possible.
+diff --git a/barretenberg/cpp/src/barretenberg/honk/proof_system/logderivative_library.hpp b/barretenberg/cpp/src/barretenberg/honk/proof_system/logderivative_library.hpp
+index 858412c..6fbf873 100644
+--- a/barretenberg/cpp/src/barretenberg/honk/proof_system/logderivative_library.hpp
++++ b/barretenberg/cpp/src/barretenberg/honk/proof_system/logderivative_library.hpp
+@@ -41,12 +41,27 @@ void compute_logderivative_inverse(Polynomials& polynomials, auto& relation_para
+     auto& inverse_polynomial = Relation::get_inverse_polynomial(polynomials);
+     const size_t offset = std::max(inverse_polynomial.start_index(), start_index);
+     // Clamp to the polynomial's actual (non-virtual) data extent; beyond end_index() everything is virtual zero.
+-    const size_t actual_size = inverse_polynomial.end_index() > offset ? inverse_polynomial.end_index() - offset : 0;
++    size_t actual_size = inverse_polynomial.end_index() > offset ? inverse_polynomial.end_index() - offset : 0;
++    // If the polynomials report a row from which every polynomial read by the relation is zero, all rows at or beyond
++    // it are identical; when no operation exists on that row, none of them has an inverse and they are skipped.
++    if constexpr (requires { polynomials.get_logderivative_inverse_zero_row_start(); }) {
++        const size_t zero_row_idx = std::max(polynomials.get_logderivative_inverse_zero_row_start(), offset);
++        if (zero_row_idx - offset < actual_size &&
++            !Relation::operation_exists_at_row(polynomials.get_row_for_logderivative_inverse(zero_row_idx))) {
++            actual_size = zero_row_idx - offset;
++        }
++    }
+     const auto compute_inverses = [&](size_t start, size_t end) {
+         for (size_t i = start; i < end; ++i) {
+             const size_t row_idx = i + offset;
+-            // TODO(https://github.com/AztecProtocol/barretenberg/issues/940): avoid get_row if possible.
+-            auto row = polynomials.get_row(row_idx);
++            const auto row = [&]() {
++                if constexpr (requires { polynomials.get_row_for_logderivative_inverse(row_idx); }) {
++                    return polynomials.get_row_for_logderivative_inverse(row_idx);
++                } else {
++                    // TODO(https://github.com/AztecProtocol/barretenberg/issues/940): avoid get_row if possible.
++                    return polynomials.get_row(row_idx);
++                }
++            }();
+             bool has_inverse = Relation::operation_exists_at_row(row);
+             if (!has_inverse) {
+                 continue;
+-- 
+2.43.0
+

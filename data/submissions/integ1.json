@@ -17,53 +17,53 @@
   "patches": [
     {
       "name": "0001-harness-deterministic-RNG-env-hook.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0001-harness-deterministic-RNG-env-hook.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0001-harness-deterministic-RNG-env-hook.patch",
       "summary": "harness: deterministic RNG env hook"
     },
     {
       "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
       "summary": "harness: sequential random polys in deterministic mode"
     },
     {
       "name": "0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
       "summary": "perf: single-limb fast path in uint256 divmod; chunked keccak normalize_sparse"
     },
     {
       "name": "0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
       "summary": "perf(msm): fused scalar batch-affine drain for native Stage 6a"
     },
     {
       "name": "0005-perf-translator-fetch-only-grand-product-columns-per.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
       "summary": "perf(translator): fetch only grand-product columns per row"
     },
     {
       "name": "0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
       "summary": "perf(sumcheck): skip fold multiply for bit-identical neighbour pairs"
     },
     {
       "name": "0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
       "summary": "perf(ecc): batched variable-time divsteps in Bernstein-Yang inverse"
     },
     {
       "name": "0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
       "summary": "perf(sumcheck): fold subrelation separators into Poseidon2 quad relations on the prover"
     },
     {
       "name": "0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
       "summary": "perf(sumcheck): skip databus lookup rows of other bus columns"
     }
   ],
-  "series_url": "https://github.com/olehmisar/playground/tree/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated",
+  "series_url": "https://github.com/olehmisar/chonk-golf/tree/main/sources/integrated",
   "description": "Integrated `git am` series 0001-0009 on bb15fcb. Includes: own 0003-0006, msm/0001, sumcheck/0001-0002.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/STATUS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/STATUS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

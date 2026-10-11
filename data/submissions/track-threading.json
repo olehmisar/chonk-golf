@@ -17,13 +17,13 @@
   "patches": [
     {
       "name": "0001-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-threading/bb-chonk-prover-opt/contrib/threading/0001-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/threading/0001-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
       "summary": "perf(threading): lock-free parallel_for pool with bounded spin before sleeping"
     }
   ],
   "series_url": null,
   "description": "Lock-free iteration claiming via one 64-bit atomic (generation, next iteration) and a bounded 100 µs spin before sleeping. Every flow faster.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-threading/bb-chonk-prover-opt/contrib/threading/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/threading/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU KVM Intel Xeon",
     "cores": 4,

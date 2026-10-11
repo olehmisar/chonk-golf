@@ -17,13 +17,13 @@
   "patches": [
     {
       "name": "0001-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-fields2/bb-chonk-prover-opt/contrib/fields2/0001-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/fields2/0001-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
       "summary": "perf(field): lower-latency ADX Montgomery mul and split-reduction squaring"
     }
   ],
   "series_url": null,
   "description": "Lower-latency ADX Montgomery multiplication and split-reduction squaring. All 11 flows faster (0.936-0.983).",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-fields2/bb-chonk-prover-opt/contrib/fields2/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/fields2/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

@@ -12,9 +12,10 @@ export default defineConfig({
       enabled: true,
     },
     assets: {
-      // Routing is hash-based (#/s/<id>), so only "/" is ever requested; unknown paths get index.html anyway.
+      // Every route is a real file (rules.html, s/<id>.html, … emitted by scripts/route-pages.ts), served at its
+      // extensionless URL; anything else gets 404.html with a 404 status.
       htmlHandling: "auto-trailing-slash",
-      notFoundHandling: "single-page-application",
+      notFoundHandling: "404-page",
     },
     // Custom domain once the zone is on Cloudflare:
     // routes: [{ pattern: "chonk.golf", customDomain: true }],

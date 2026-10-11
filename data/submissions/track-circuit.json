@@ -17,33 +17,33 @@
   "patches": [
     {
       "name": "0001-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-circuit/bb-chonk-prover-opt/contrib/circuit/0001-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/circuit/0001-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
       "summary": "perf(dsl): move decoded ACIR enum variants instead of copying; string_view field names"
     },
     {
       "name": "0002-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-circuit/bb-chonk-prover-opt/contrib/circuit/0002-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/circuit/0002-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
       "summary": "perf(dsl): stream msgpack-compact ACIR program and witness decoding"
     },
     {
       "name": "0003-perf-uintx-skip-multiplications-by-zero-halves.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-circuit/bb-chonk-prover-opt/contrib/circuit/0003-perf-uintx-skip-multiplications-by-zero-halves.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/circuit/0003-perf-uintx-skip-multiplications-by-zero-halves.patch",
       "summary": "perf(uintx): skip multiplications by zero halves"
     },
     {
       "name": "0004-perf-field-compile-time-one-and-neg_one.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-circuit/bb-chonk-prover-opt/contrib/circuit/0004-perf-field-compile-time-one-and-neg_one.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/circuit/0004-perf-field-compile-time-one-and-neg_one.patch",
       "summary": "perf(field): compile-time one() and neg_one()"
     },
     {
       "name": "0005-perf-trace-chunked-gate-tile-storage.patch",
-      "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-circuit/bb-chonk-prover-opt/contrib/circuit/0005-perf-trace-chunked-gate-tile-storage.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/circuit/0005-perf-trace-chunked-gate-tile-storage.patch",
       "summary": "perf(trace): chunked gate tile storage"
     }
   ],
   "series_url": null,
   "description": "Streaming msgpack decoders for ACIR program and witness, move-not-copy serde, uintx zero-half skips, compile-time field::one(), chunked gate-tile storage. ChonkLoad −41..45%, create_circuit −17..22%. integ2 took 0001-0004; 0005 (chunked tiles) is still a candidate.",
-  "source_url": "https://github.com/olehmisar/playground/blob/claude/bbopt-circuit/bb-chonk-prover-opt/contrib/circuit/RESULTS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/contrib/circuit/RESULTS.md",
   "machine": {
     "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
     "cores": 4,

@@ -1,8 +1,7 @@
 # chonk.golf
 
 A [zk.golf](https://zk.golf)-style leaderboard for **proof-preserving Barretenberg Chonk prover optimisations**
-(the [`bb-chonk-prover-opt`](https://github.com/olehmisar/playground/tree/claude/nice-sagan-f00j9v/bb-chonk-prover-opt)
-effort). Fewer strokes (seconds, MiB), same bytes: a card only counts if the prover's output is unchanged.
+(the `bb-chonk-prover-opt` effort; its results snapshot is in [`sources/`](sources/)). Fewer strokes (seconds, MiB), same bytes: a card only counts if the prover's output is unchanged.
 
 Golf mapping: the 11 pinned Chonk flows are the **holes**, the unmodified prover is **par**, a submission is a
 **card**. Full patch series measured against the unmodified prover play the **Championship**; single-track
@@ -37,7 +36,8 @@ The site is fully static and deploys as a **Workers static-assets** project (no 
 - `public/_headers` — strict CSP (no inline scripts, no third-party origins), `immutable` caching for hashed
   `/assets/*`, revalidation for `index.html`.
 
-Routing is hash-based (`#/s/<id>`), so no rewrite rules are needed.
+Routes are real URLs (`/`, `/s/<id>`, `/rules`, `/submit`), handled client-side; Cloudflare's SPA fallback
+(`notFoundHandling: "single-page-application"`) serves `index.html` for them. Old `#/…` links are rewritten on load.
 
 ```bash
 pnpm install
@@ -80,20 +80,21 @@ _Verified_ = 11/11 identical and 11/11 stock bb.js; _Identical_ = 11/11 identica
 
 ## Layout
 
-| Path                                                       | What                                                                                                    |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `src/schema.ts`                                            | zod schema of a submission (single source of truth)                                                     |
-| `data/submission.schema.json`                              | generated JSON Schema (rewritten by `pnpm run validate`)                                                |
-| `data/submissions/*.json`                                  | one card per file; file name = `id`                                                                     |
-| `scripts/validate-data.ts`                                 | build-time validation (task `data:validate`, a dependency of `app:build`)                               |
-| `scripts/seed-from-results.py`                             | how the seed cards were transcribed (needs a clone of olehmisar/playground, see the script header)      |
-| `scripts/screenshots.mjs`                                  | Playwright screenshots of every page                                                                    |
-| `harness/`                                                 | correctness + benchmark harness that emits a card — see [`harness/README.md`](harness/README.md)        |
-| `src/pages/`                                               | Leaderboard, Submission detail, Rules, Submit                                                           |
-| `reference/`                                               | proof/VK SHA-256 of the unmodified prover for the 11 flows, baseline timings (from bb-chonk-prover-opt) |
-| `harness/patches/`                                         | the two harness patches (seeded RNG) every build applies on bb15fcb                                     |
-| `harness/build-bb.sh`                                      | builds par or a candidate `bb` and downloads the pinned flows                                           |
-| `cloudflare.config.ts`, `public/_headers`, `.node-version` | Cloudflare deployment (`cf` CLI)                                                                        |
+| Path                                                       | What                                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `src/schema.ts`                                            | zod schema of a submission (single source of truth)                                                          |
+| `data/submission.schema.json`                              | generated JSON Schema (rewritten by `pnpm run validate`)                                                     |
+| `data/submissions/*.json`                                  | one card per file; file name = `id`                                                                          |
+| `scripts/validate-data.ts`                                 | build-time validation (task `data:validate`, a dependency of `app:build`)                                    |
+| `scripts/seed-from-results.py`                             | regenerates the seed cards from `sources/` (numbers transcribed by hand)                                     |
+| `scripts/screenshots.mjs`                                  | Playwright screenshots of every page                                                                         |
+| `harness/`                                                 | correctness + benchmark harness that emits a card — see [`harness/README.md`](harness/README.md)             |
+| `src/pages/`                                               | Leaderboard, Submission detail, Rules, Submit                                                                |
+| `sources/`                                                 | bb-chonk-prover-opt results snapshot: integrated series, patches, per-track RESULTS.md (what the cards cite) |
+| `reference/`                                               | proof/VK SHA-256 of the unmodified prover for the 11 flows, baseline timings (from bb-chonk-prover-opt)      |
+| `harness/patches/`                                         | the two harness patches (seeded RNG) every build applies on bb15fcb                                          |
+| `harness/build-bb.sh`                                      | builds par or a candidate `bb` and downloads the pinned flows                                                |
+| `cloudflare.config.ts`, `public/_headers`, `.node-version` | Cloudflare deployment (`cf` CLI)                                                                             |
 
 ## Seed data
 
@@ -121,8 +122,9 @@ All numbers are transcribed from the published results; anything not reported is
 | `track-joint`                                       | range             | `contrib/joint/RESULTS.md`                      | ±0 (11 flows)                  | —               |
 | `track-pipeline`, `track-stdlib`, `track-sumcheck2` | range             | RESULTS.md (WIP)                                | not reported                   | —               |
 
-Patch links point at the files on `claude/nice-sagan-f00j9v` (integrated series, own patches) and
-`claude/bbopt-<track>` (track patches). `buildflags/0001` is covered by integ3 only (its 0.947 allocator screen used
+Every patch and source link points at the snapshot in [`sources/`](sources/): the integrated series and
+coordinator patches (`sources/integrated/`, `sources/patches/`) and each track's patches and RESULTS.md
+(`sources/contrib/<track>/`), at the versions the cards were transcribed from. `buildflags/0001` is covered by integ3 only (its 0.947 allocator screen used
 LD_PRELOAD, not the patch's default build, so it has no card).
 
 ## Screenshots
