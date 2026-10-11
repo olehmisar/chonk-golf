@@ -1,5 +1,5 @@
 import { FLOW_COUNT, type Submission } from "../schema.ts";
-import type { Verdict } from "../score.ts";
+import { isRamRegression, type Verdict } from "../score.ts";
 
 const VERDICT: Record<Verdict, { label: string; icon: string; cls: string; title: string }> = {
   verified: {
@@ -48,6 +48,19 @@ const STATUS: Record<Submission["status"], string> = {
   withdrawn: "Withdrawn",
   wip: "WIP",
 };
+
+/** Visible warning when a card uses more peak RAM than par. */
+export function RamRegressionChip({ ratio }: { ratio: number | null }) {
+  if (!isRamRegression(ratio) || ratio === null) return null;
+  return (
+    <span
+      title="Peak RSS above par: faster but fatter"
+      className="inline-flex items-center gap-1 rounded border border-transparent bg-bad-bg px-1.5 py-px text-[11px] font-semibold text-flag uppercase"
+    >
+      <span aria-hidden>▲</span> RAM +{((ratio - 1) * 100).toFixed(1)}%
+    </span>
+  );
+}
 
 export function StatusChip({ s }: { s: Submission }) {
   const label =

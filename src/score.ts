@@ -114,6 +114,11 @@ export function withPositions(ranked: Scored[], metric: Metric) {
   return out;
 }
 
+/** Peak RSS above par by more than this fraction is flagged as a RAM regression (1% ≈ measurement noise). */
+export const RAM_REGRESSION_THRESHOLD = 0.01;
+export const isRamRegression = (ratio: number | null) =>
+  ratio !== null && ratio > 1 + RAM_REGRESSION_THRESHOLD;
+
 /** "−24.2%" style delta vs par. */
 export function pctDelta(ratio: number | null, digits = 1): string {
   if (ratio === null) return "—";

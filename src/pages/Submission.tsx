@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import { CorrectnessList, StatusChip, VerdictBadge } from "../components/Badges.tsx";
+import {
+  CorrectnessList,
+  RamRegressionChip,
+  StatusChip,
+  VerdictBadge,
+} from "../components/Badges.tsx";
 import { FlowBars } from "../components/FlowBars.tsx";
 import { blobUrl } from "../config.ts";
 import { BY_ID } from "../data.ts";
@@ -58,6 +63,7 @@ export function SubmissionPage({ id }: { id: string }) {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <VerdictBadge verdict={x.verdict} />
           <StatusChip s={s} />
+          <RamRegressionChip ratio={x.ramRatio} />
           <span className="rounded border border-line px-1.5 py-px text-[11px] font-medium text-ink-2 uppercase">
             {s.kind === "series" ? "Championship" : s.kind === "delta" ? "Driving range" : "Par"}
           </span>

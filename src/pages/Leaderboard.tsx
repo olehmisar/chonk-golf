@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { StatusChip, VerdictBadge } from "../components/Badges.tsx";
+import { RamRegressionChip, StatusChip, VerdictBadge } from "../components/Badges.tsx";
 import { Segmented } from "../components/Segmented.tsx";
 import { ALL, BY_ID } from "../data.ts";
 import { href } from "../router.ts";
 import { FLOW_COUNT, FLOWS, type FlowName } from "../schema.ts";
 import {
   holeNumber,
+  isRamRegression,
   pctDelta,
   rank,
   withPositions,
@@ -27,19 +28,27 @@ function cellTone(r: number | undefined): string {
   return "";
 }
 
-function ScoreCell({ ratio, metric }: { ratio: number | null; metric: Metric }) {
+function ScoreCell({
+  ratio,
+  metric,
+  ranked,
+}: {
+  ratio: number | null;
+  metric: Metric;
+  ranked: boolean;
+}) {
   if (ratio === null) return <span className="text-muted">—</span>;
   const under = ratio < 0.9995;
   const over = ratio > 1.0005;
   return (
     <span className="flex flex-col items-end leading-tight">
       <span
-        className={`num text-lg font-semibold ${under ? "text-rough" : over ? "text-flag" : "text-ink-2"}`}
+        className={`num font-semibold ${ranked ? "text-lg" : "text-base"} ${under ? "text-rough" : over ? "text-flag" : "text-ink-2"}`}
       >
         {pctDelta(ratio)}
       </span>
-      <span className="num text-xs text-muted">
-        {metric === "time" ? speedup(ratio) : `${ratio.toFixed(3)}×`}
+      <span className="num text-xs whitespace-nowrap text-muted">
+        {metric === "time" ? speedup(ratio) : over ? "more RAM" : under ? "less RAM" : "even"}
       </span>
     </span>
   );
@@ -98,6 +107,13 @@ function Hero({ leader }: { leader: Scored | undefined }) {
                 vs unmodified, {leader.timeFlows ?? "?"} flows
               </span>
             </div>
+            <p
+              className={`num mt-2 text-sm font-semibold ${isRamRegression(leader.ramRatio) ? "text-[#c7362b]" : "text-[#3f5246]"}`}
+            >
+              {isRamRegression(leader.ramRatio) ? "▲ " : ""}Peak RAM {pctDelta(leader.ramRatio)} vs
+              par
+              {leader.ramFlows ? ` (${leader.ramFlows} flows)` : ""}
+            </p>
           </a>
         )}
       </div>
@@ -223,8 +239,11 @@ export function Leaderboard() {
               <tr className="border-b border-line bg-surface-2 text-left text-xs tracking-wide text-muted uppercase">
                 <th className="w-12 px-3 py-2 text-center">Pos</th>
                 <th className="px-3 py-2">Card</th>
-                <th className="px-3 py-2 text-right">
-                  {metric === "time" ? "Time vs par" : "RAM vs par"}
+                <th className={`px-3 py-2 text-right ${metric === "time" ? "text-ink" : ""}`}>
+                  Time vs par{metric === "time" ? " ▾" : ""}
+                </th>
+                <th className={`px-3 py-2 text-right ${metric === "ram" ? "text-ink" : ""}`}>
+                  RAM vs par{metric === "ram" ? " ▾" : ""}
                 </th>
                 <th className="px-3 py-2">Correctness</th>
                 <th className="px-3 py-2 text-right">Flows</th>
@@ -278,16 +297,23 @@ export function Leaderboard() {
                             wasm
                           </span>
                         )}
+                        <RamRegressionChip ratio={x.ramRatio} />
                         {tab === "range" && against && <span>vs {against}</span>}
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-right">
-                      {isPar ? (
-                        <span className="num text-lg font-semibold text-ink-2">E</span>
-                      ) : (
-                        <ScoreCell ratio={ratio} metric={metric} />
-                      )}
-                    </td>
+                    {(["time", "ram"] as const).map((m) => (
+                      <td key={m} className="px-3 py-3 text-right">
+                        {isPar ? (
+                          <span className="num text-lg font-semibold text-ink-2">E</span>
+                        ) : (
+                          <ScoreCell
+                            ratio={m === "time" ? x.timeRatio : x.ramRatio}
+                            metric={m}
+                            ranked={m === metric}
+                          />
+                        )}
+                      </td>
+                    ))}
                     <td className="px-3 py-3">
                       <VerdictBadge verdict={x.verdict} />
                     </td>
@@ -322,7 +348,7 @@ export function Leaderboard() {
               {!rows.length && (
                 <tr>
                   <td
-                    colSpan={5 + (holes ? flowCols.length : 0)}
+                    colSpan={6 + (holes ? flowCols.length : 0)}
                     className="px-3 py-8 text-center text-muted"
                   >
                     No cards match this filter.
