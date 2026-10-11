@@ -46,14 +46,14 @@ pnpm run deploy:preview    # upload a version with a preview URL, without promot
 **From Git (Workers Builds)**: Cloudflare dashboard → Workers & Pages → Create → Import a repository →
 `olehmisar/playground`, then:
 
-| Setting | Value |
-|---|---|
-| Root directory | `chonk-golf` |
-| Build command | `pnpm install --frozen-lockfile && pnpm run build` |
-| Deploy command | `npx wrangler deploy` |
-| Non-production deploy command | `npx wrangler versions upload` |
-| Production branch | `main` |
-| Build env vars | optional `VITE_GITHUB_REF` (git ref that "Submission JSON" / schema links point at; default `main`) |
+| Setting                       | Value                                                                                               |
+| ----------------------------- | --------------------------------------------------------------------------------------------------- |
+| Root directory                | `chonk-golf`                                                                                        |
+| Build command                 | `pnpm install --frozen-lockfile && pnpm run build`                                                  |
+| Deploy command                | `npx wrangler deploy`                                                                               |
+| Non-production deploy command | `npx wrangler versions upload`                                                                      |
+| Production branch             | `main`                                                                                              |
+| Build env vars                | optional `VITE_GITHUB_REF` (git ref that "Submission JSON" / schema links point at; default `main`) |
 
 Node is pinned with `.node-version` (22.22.0; the data validator needs ≥ 22.18 for TypeScript type stripping).
 The build fails if any card in `data/submissions/` is invalid.
