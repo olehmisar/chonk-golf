@@ -41,7 +41,7 @@ done
 
 python3 "$HERE/chonk_golf.py" --baseline-bb "$T/bb-base" --candidate-bb "$T/bb-cand" --flows "$T/flows" \
   --reference "$T/ref" --reps 2 --skip-bbjs --id selftest --title "Self-test" --author harness \
-  --patches-dir "$HERE/../../bb-chonk-prover-opt/patches" --patch-url-base https://example.com/p --out "$T/selftest.json"
+  --patches-dir "$HERE/patches" --patch-url-base https://example.com/p --out "$T/selftest.json"
 
 if python3 "$HERE/chonk_golf.py" --baseline-bb "$T/bb-base" --candidate-bb "$T/bb-bad" --flows "$T/flows" \
   --reference "$T/ref" --reps 1 --skip-bbjs --skip-bench --id bad --title Bad --author harness --out "$T/bad.json" 2>/dev/null; then

@@ -9,12 +9,11 @@ const STEPS = [
   {
     title: "Build par and your card",
     text: "Two builds of bb from the same pinned commit on the same machine: the baseline with only the harness patches, and the candidate with the harness plus your series.",
-    code: `# baseline (harness 0001-0002 only)
-WORK=$HOME/golf/base ./bb-chonk-prover-opt/scripts/setup.sh --harness-only
-# candidate: aztec-packages bb15fcb + harness + your series
-cd $HOME/golf/cand/aztec-packages
-git am /path/to/bb-chonk-prover-opt/patches/000{1,2}-*.patch /path/to/my-series/*.patch
-cd barretenberg/cpp && cmake --preset default -DAVM=OFF && (cd build && ninja bb)`,
+    code: `git clone ${REPO}.git && cd chonk-golf
+# par: aztec-packages bb15fcb + harness 0001-0002 (also downloads the 11 flows)
+WORK=$HOME/golf/base ./harness/build-bb.sh
+# your card: bb15fcb + harness + your series
+WORK=$HOME/golf/cand ./harness/build-bb.sh /path/to/my-series`,
   },
   {
     title: "Install the stock verifier",
@@ -26,26 +25,26 @@ npm install ${PINNED_BBJS} msgpackr pako`,
   {
     title: "Run the harness",
     text: "It checks byte-identical proofs/VKs on all 11 flows, proves with real randomness through stock bb.js and verifies in a separate stock instance (plus tamper check and VK comparison), runs the interleaved time + peak-RSS benchmark, detects the machine and writes a submission JSON.",
-    code: `python3 chonk-golf/harness/chonk_golf.py \\
+    code: `python3 harness/chonk_golf.py \\
   --baseline-bb $HOME/golf/base/aztec-packages/barretenberg/cpp/build/bin/bb \\
   --candidate-bb $HOME/golf/cand/aztec-packages/barretenberg/cpp/build/bin/bb \\
   --flows $HOME/golf/base/flows \\
-  --reference bb-chonk-prover-opt/reference \\
+  --reference reference \\
   --stock-bbjs $HOME/golf/stock \\
   --reps 5 \\
   --id my-card --title "My faster MSM" --author "@me" \\
   --patches-dir /path/to/my-series \\
-  --patch-url-base ${REPO}/blob/<your-branch>/chonk-golf/patches/my-card \\
-  --out chonk-golf/data/submissions/my-card.json`,
+  --patch-url-base ${REPO}/blob/<your-branch>/patches/my-card \\
+  --out data/submissions/my-card.json`,
   },
   {
     title: "Open a pull request",
     text: "Add your patch series and the emitted JSON. vp check / vp test validate the card against the schema; a maintainer re-runs the harness on the reference machine before merging.",
-    code: `chonk-golf/patches/my-card/0001-perf-….patch
-chonk-golf/patches/my-card/0002-perf-….patch
-chonk-golf/data/submissions/my-card.json
+    code: `patches/my-card/0001-perf-….patch
+patches/my-card/0002-perf-….patch
+data/submissions/my-card.json
 
-cd chonk-golf && pnpm install && pnpm run validate && vp test`,
+pnpm install && pnpm run validate && vp test`,
   },
 ];
 

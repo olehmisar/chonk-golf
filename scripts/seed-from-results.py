@@ -1,11 +1,12 @@
 # Generator for the seed cards in data/submissions/*.json. The numbers below are transcribed by hand from
 # bb-chonk-prover-opt/integrated/STATUS.md, reference/ and each track's contrib/<track>/RESULTS.md on the
 # claude/bbopt-* branches; patch names/subjects are read from git. Needs:
-#   git fetch origin '+refs/heads/claude/bbopt-*:refs/remotes/origin/claude/bbopt-*' claude/nice-sagan-f00j9v
-#   python3 scripts/seed-from-results.py
+#   git -C ../playground fetch origin '+refs/heads/claude/bbopt-*:refs/remotes/origin/claude/bbopt-*' claude/nice-sagan-f00j9v
+#   PLAYGROUND_REPO=../playground python3 scripts/seed-from-results.py
 import json, subprocess, os, sys
-REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OUT = f"{REPO}/chonk-golf/data/submissions"
+# A clone of olehmisar/playground with the branches above fetched (the numbers' source).
+REPO = os.environ.get("PLAYGROUND_REPO", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "playground")))
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "submissions")
 GH = "https://github.com/olehmisar/playground/blob"
 MAIN_BR = "claude/nice-sagan-f00j9v"
 COMMIT = "bb15fcbbe969f11a892272715fe59f0976b086ca"

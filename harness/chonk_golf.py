@@ -13,14 +13,14 @@ Steps
      verifies it in a separate stock instance; tampered proofs must be rejected and VKs must equal the baseline's.
   3. Benchmark: interleaved runs (baseline/candidate order alternates per rep) of `bb prove --scheme chonk`; wall
      time (min of N) and peak RSS of the bb process via wait4() (max of N).
-  4. Machine description + submission JSON (schema: chonk-golf/data/submission.schema.json).
+  4. Machine description + submission JSON (schema: data/submission.schema.json).
 
 Example
-  python3 chonk-golf/harness/chonk_golf.py \\
+  python3 harness/chonk_golf.py \\
     --baseline-bb base/bb --candidate-bb cand/bb --flows ~/bbwork/flows \\
-    --reference bb-chonk-prover-opt/reference --stock-bbjs ~/stock --reps 5 \\
+    --reference reference --stock-bbjs ~/stock --reps 5 \\
     --id my-card --title "My card" --author "@me" --patches-dir my-series \\
-    --out chonk-golf/data/submissions/my-card.json
+    --out data/submissions/my-card.json
 """
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ def check_apply(aztec_repo: Path, patches: list[Path]) -> bool:
     try:
         subprocess.run(["git", "-C", str(aztec_repo), "worktree", "add", "-q", "--detach", str(wt), PINNED_COMMIT],
                        check=True)
-        harness = sorted((HERE.parent.parent / "bb-chonk-prover-opt" / "patches").glob("000[12]-*.patch"))
+        harness = sorted((HERE / "patches").glob("000[12]-*.patch"))
         r = subprocess.run(["git", "-C", str(wt), "-c", "user.name=golf", "-c", "user.email=golf@local", "am", "-q",
                             *map(str, harness + patches)], capture_output=True, text=True)
         if r.returncode != 0:

@@ -1,0 +1,11 @@
+deploy_ecdsar1+sponsored_fpc 6.551 rc=0
+deploy_schnorr+sponsored_fpc 6.458 rc=0
+ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc 9.826 rc=0
+ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc 9.085 rc=0
+ecdsar1+storage_proof_7_layers+sponsored_fpc 21.659 rc=0
+ecdsar1+token_bridge_claim_private+sponsored_fpc 6.670 rc=0
+ecdsar1+transfer_0_recursions+private_fpc 8.461 rc=0
+ecdsar1+transfer_0_recursions+sponsored_fpc 5.964 rc=0
+ecdsar1+transfer_1_recursions+private_fpc 8.979 rc=0
+ecdsar1+transfer_1_recursions+sponsored_fpc 6.319 rc=0
+schnorr+deploy_tokenContract_with_registration+sponsored_fpc 6.990 rc=0

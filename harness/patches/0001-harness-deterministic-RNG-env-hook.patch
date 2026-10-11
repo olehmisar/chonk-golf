@@ -1,0 +1,38 @@
+From ed04074c9383a67551cf0b4ce3c53298ad580725 Mon Sep 17 00:00:00 2001
+From: harness <a@b>
+Date: Sat, 10 Oct 2026 23:38:39 +0000
+Subject: [PATCH 1/6] harness: deterministic RNG env hook
+
+---
+ .../cpp/src/barretenberg/numeric/random/engine.cpp        | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/barretenberg/cpp/src/barretenberg/numeric/random/engine.cpp b/barretenberg/cpp/src/barretenberg/numeric/random/engine.cpp
+index 014919a..1a84b43 100644
+--- a/barretenberg/cpp/src/barretenberg/numeric/random/engine.cpp
++++ b/barretenberg/cpp/src/barretenberg/numeric/random/engine.cpp
+@@ -9,6 +9,7 @@
+ #include "barretenberg/common/throw_or_abort.hpp"
+ #include <array>
+ #include <cerrno>
++#include <cstdlib>
+ #include <cstring>
+ #include <functional>
+ #include <memory>
+@@ -261,6 +262,13 @@ RNG& get_randomness()
+     // Use determinism for logging
+     return get_debug_randomness();
+ #else
++    // Test harness: BB_DETERMINISTIC_PROVING=<seed> makes proving reproducible so proofs can be compared bytewise.
++    static const char* deterministic_seed = std::getenv("BB_DETERMINISTIC_PROVING");
++    if (deterministic_seed != nullptr) {
++        static RNG& deterministic_engine =
++            get_debug_randomness(/*reset=*/true, static_cast<std::uint_fast64_t>(std::strtoull(deterministic_seed, nullptr, 10)));
++        return deterministic_engine;
++    }
+     static RandomEngine engine;
+     return engine;
+ #endif
+-- 
+2.43.0
+
