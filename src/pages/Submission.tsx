@@ -9,7 +9,15 @@ import { FlowBars } from "../components/FlowBars.tsx";
 import { blobUrl } from "../config.ts";
 import { BY_ID } from "../data.ts";
 import { href } from "../router.ts";
-import { FLOW_COUNT, FLOWS, type Submission } from "../schema.ts";
+import {
+  FLOW_COUNT,
+  FLOWS,
+  HEADLINE_FLOW,
+  HEADLINE_LABEL,
+  STANDARDS_FLOWS,
+  type StandardsFlowName,
+  type Submission,
+} from "../schema.ts";
 import {
   flowRamRatio,
   flowWallRatio,
@@ -112,6 +120,133 @@ function RssBisect({ bisect }: { bisect: NonNullable<Submission["rss_bisect"]> }
   );
 }
 
+const STANDARDS_SHORT: Record<StandardsFlowName, string> = {
+  standards_token_transfer_private_to_private: "transfer private → private",
+  standards_token_mint_to_private: "mint to private",
+  standards_token_transfer_private_to_public: "transfer private → public",
+};
+
+function Headline({ s, isPar }: { s: Submission; isPar: boolean }) {
+  const std = s.standards;
+  if (!std) {
+    return (
+      <section className="rounded-xl border border-dashed border-line p-5">
+        <h2 className="font-display text-xl font-semibold">⛳ Headline: {HEADLINE_LABEL}</h2>
+        <p className="mt-1 text-sm text-muted">
+          Not measured. This card predates the headline benchmark (the aztec-standards Token flows);
+          its numbers below are on the pinned flows only.
+        </p>
+      </section>
+    );
+  }
+  const flows = [...std.flows].sort(
+    (a, b) => STANDARDS_FLOWS.indexOf(a.flow) - STANDARDS_FLOWS.indexOf(b.flow),
+  );
+  const head = flows.find((f) => f.flow === HEADLINE_FLOW);
+  const tr = head ? flowWallRatio(head) : null;
+  const rr = head ? flowRamRatio(head) : null;
+  const c = std.correctness;
+  const frac = (n: number | null) => (n === null ? "not reported" : `${n}/${c.flows_total}`);
+  return (
+    <section className="rounded-2xl border border-line bg-good-bg/30 p-4 sm:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-display text-2xl font-semibold">⛳ Headline: {HEADLINE_LABEL}</h2>
+        {std.source_url && (
+          <a
+            href={std.source_url}
+            className="text-sm text-ink-2 underline-offset-2 hover:underline"
+          >
+            Source ↗
+          </a>
+        )}
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        aztec-standards Token, captured with {std.toolchain}.{" "}
+        {std.machine_note ? `${std.machine_note}.` : ""}
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tile
+          label="Time vs par"
+          value={isPar ? "E" : pctDelta(tr)}
+          tone={isPar ? "text-ink-2" : tone(tr)}
+          sub={
+            head?.wall_s != null && head.baseline_wall_s != null
+              ? `${head.baseline_wall_s.toFixed(2)} → ${head.wall_s.toFixed(2)} s`
+              : undefined
+          }
+        />
+        <Tile
+          label="Peak RAM vs par"
+          value={isPar ? "E" : pctDelta(rr)}
+          tone={isPar ? "text-ink-2" : tone(rr)}
+          sub={
+            head?.peak_rss_mib != null && head.baseline_peak_rss_mib != null
+              ? `${head.baseline_peak_rss_mib.toFixed(1)} → ${head.peak_rss_mib.toFixed(1)} MiB`
+              : undefined
+          }
+        />
+        <Tile label="Identical proof + VK" value={frac(c.identical_flows)} sub="token flows" />
+        <Tile
+          label="Stock bb.js accepts"
+          value={frac(c.stock_bbjs_verified_flows)}
+          sub={
+            c.tampered_rejected === null
+              ? "tampered: not reported"
+              : c.tampered_rejected
+                ? "tampered proofs rejected"
+                : "tampered proof accepted!"
+          }
+        />
+      </div>
+      <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-surface">
+        <table className="w-full min-w-[560px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-line bg-surface-2 text-left text-xs tracking-wide text-muted uppercase">
+              <th className="px-3 py-2">Token flow</th>
+              <th className="px-3 py-2 text-right">Par s</th>
+              <th className="px-3 py-2 text-right">Wall s</th>
+              <th className="px-3 py-2 text-right">Time</th>
+              <th className="px-3 py-2 text-right">Par MiB</th>
+              <th className="px-3 py-2 text-right">Peak MiB</th>
+              <th className="px-3 py-2 text-right">RAM</th>
+            </tr>
+          </thead>
+          <tbody>
+            {flows.map((f) => {
+              const t = flowWallRatio(f);
+              const r = flowRamRatio(f);
+              return (
+                <tr key={f.flow} className="border-b border-line last:border-b-0">
+                  <td className="px-3 py-2" title={f.flow}>
+                    {f.flow === HEADLINE_FLOW ? "⛳ " : ""}
+                    {STANDARDS_SHORT[f.flow]}
+                  </td>
+                  <td className="num px-3 py-2 text-right text-ink-2">{n(f.baseline_wall_s)}</td>
+                  <td className="num px-3 py-2 text-right">{n(f.wall_s)}</td>
+                  <td
+                    className={`num px-3 py-2 text-right font-semibold ${isPar ? "text-muted" : tone(t)}`}
+                  >
+                    {isPar ? "par" : pctDelta(t)}
+                  </td>
+                  <td className="num px-3 py-2 text-right text-ink-2">
+                    {n(f.baseline_peak_rss_mib, 1)}
+                  </td>
+                  <td className="num px-3 py-2 text-right">{n(f.peak_rss_mib, 1)}</td>
+                  <td
+                    className={`num px-3 py-2 text-right font-semibold ${isPar ? "text-muted" : tone(r)}`}
+                  >
+                    {isPar ? "par" : pctDelta(r)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export function SubmissionPage({ id }: { id: string }) {
   const x = BY_ID.get(id);
   if (!x) return <NotFound what={`submission “${id}”`} />;
@@ -149,6 +284,9 @@ export function SubmissionPage({ id }: { id: string }) {
         <p className="mt-4 max-w-3xl text-ink-2">{s.description}</p>
       </div>
 
+      <Headline s={s} isPar={isPar} />
+
+      <h2 className="font-display text-2xl font-semibold">Pinned flows</h2>
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Scorecard">
         <Tile
           label="Time vs par"

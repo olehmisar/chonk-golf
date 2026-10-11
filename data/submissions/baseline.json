@@ -140,5 +140,43 @@
       "peak_rss_mib": null,
       "reps": 1
     }
-  ]
+  ],
+  "standards": {
+    "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
+    "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/flows-standards/README.md",
+    "machine_note": "Unmodified side of the integ5 A/B: 4-vCPU Xeon without AVX-512 IFMA, 7 interleaved reps",
+    "flows": [
+      {
+        "flow": "standards_token_transfer_private_to_private",
+        "baseline_wall_s": 5.94,
+        "wall_s": 5.94,
+        "baseline_peak_rss_mib": 307.0,
+        "peak_rss_mib": 307.0,
+        "reps": 7
+      },
+      {
+        "flow": "standards_token_mint_to_private",
+        "baseline_wall_s": 6.14,
+        "wall_s": 6.14,
+        "baseline_peak_rss_mib": 306.1,
+        "peak_rss_mib": 306.1,
+        "reps": 7
+      },
+      {
+        "flow": "standards_token_transfer_private_to_public",
+        "baseline_wall_s": 5.6,
+        "wall_s": 5.6,
+        "baseline_peak_rss_mib": 298.3,
+        "peak_rss_mib": 298.3,
+        "reps": 7
+      }
+    ],
+    "correctness": {
+      "flows_total": 3,
+      "identical_flows": 3,
+      "stock_bbjs_verified_flows": null,
+      "tampered_rejected": null,
+      "vks_match": true
+    }
+  }
 }

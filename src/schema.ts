@@ -20,27 +20,40 @@ export const PINNED_BBJS = "@aztec-foundation/bb.js@7.0.0-nightly.20261009";
 
 export const flowName = z.enum(FLOWS);
 
+/**
+ * aztec-standards Token flows captured with aztec-standards' own 6.0.0-rc.1 toolchain
+ * (sources/flows-standards/README.md). The first is the headline benchmark the leaderboard ranks by.
+ */
+export const STANDARDS_FLOWS = [
+  "standards_token_transfer_private_to_private",
+  "standards_token_mint_to_private",
+  "standards_token_transfer_private_to_public",
+] as const;
+export const HEADLINE_FLOW = STANDARDS_FLOWS[0];
+export const HEADLINE_LABEL = "Token transfer (private → private)";
+export const standardsFlowName = z.enum(STANDARDS_FLOWS);
+
 /** A number that was measured, or `null` when the source did not report it. Never invent values. */
 const num = z.number().finite().nonnegative().nullable();
 const count = z.number().int().min(0).max(FLOW_COUNT).nullable();
 
-export const flowMetrics = z
-  .object({
-    flow: flowName,
-    /** Min wall-clock seconds of the reference build (`against`) over `reps` interleaved runs. */
-    baseline_wall_s: num,
-    /** Min wall-clock seconds of this submission over `reps` interleaved runs. */
-    wall_s: num,
-    /** Max peak RSS (MiB) of the reference build's `bb` process. */
-    baseline_peak_rss_mib: num,
-    /** Max peak RSS (MiB) of this submission's `bb` process. */
-    peak_rss_mib: num,
-    /** Repetitions per binary (interleaved). */
-    reps: z.number().int().positive().nullable(),
-    /** Reported wall-time ratio (wall / baseline) when absolute seconds were not published. */
-    wall_ratio: z.number().positive().nullable().optional(),
-  })
-  .strict();
+const metricsShape = {
+  /** Min wall-clock seconds of the reference build (`against`) over `reps` interleaved runs. */
+  baseline_wall_s: num,
+  /** Min wall-clock seconds of this submission over `reps` interleaved runs. */
+  wall_s: num,
+  /** Max peak RSS (MiB) of the reference build's `bb` process. */
+  baseline_peak_rss_mib: num,
+  /** Max peak RSS (MiB) of this submission's `bb` process. */
+  peak_rss_mib: num,
+  /** Repetitions per binary (interleaved). */
+  reps: z.number().int().positive().nullable(),
+  /** Published wall-time ratio (wall / baseline); preferred over recomputing from rounded seconds. */
+  wall_ratio: z.number().positive().nullable().optional(),
+};
+
+export const flowMetrics = z.object({ flow: flowName, ...metricsShape }).strict();
+export const standardsFlowMetrics = z.object({ flow: standardsFlowName, ...metricsShape }).strict();
 
 export const patch = z
   .object({
@@ -127,6 +140,26 @@ export const submission = z
       })
       .strict(),
     flows: z.array(flowMetrics),
+    /** Results on the aztec-standards Token flows (the headline benchmark). Absent = not measured. */
+    standards: z
+      .object({
+        /** Toolchain the inputs were captured with, e.g. "aztec-standards cdfba94, 6.0.0-rc.1". */
+        toolchain: z.string().min(1),
+        source_url: z.url().nullable(),
+        machine_note: z.string().nullable(),
+        flows: z.array(standardsFlowMetrics).min(1),
+        correctness: z
+          .object({
+            flows_total: z.number().int().positive(),
+            identical_flows: z.number().int().min(0).nullable(),
+            stock_bbjs_verified_flows: z.number().int().min(0).nullable(),
+            tampered_rejected: z.boolean().nullable(),
+            vks_match: z.boolean().nullable(),
+          })
+          .strict(),
+      })
+      .strict()
+      .optional(),
     /** Optional peak-RSS bisect along a patch series: where the RAM went. */
     rss_bisect: z
       .object({
@@ -182,4 +215,6 @@ export const submission = z
 
 export type Submission = z.infer<typeof submission>;
 export type FlowMetrics = z.infer<typeof flowMetrics>;
+export type StandardsFlowMetrics = z.infer<typeof standardsFlowMetrics>;
+export type StandardsFlowName = (typeof STANDARDS_FLOWS)[number];
 export type FlowName = (typeof FLOWS)[number];

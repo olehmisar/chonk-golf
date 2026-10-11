@@ -340,6 +340,29 @@ track("wasm", "WASM batched divstep matrix",
       summ(11.026, 10.789, round(10.789/11.026, 4), 1, 8, "bb.js BackendType.Wasm, threads 4, Node 22; 4 processes × 2 proves."),
       [fm(FLOWS[8], 11.026, 10.789, reps=8)], target="wasm")
 
+# ---------- headline: aztec-standards Token flows (sources/flows-standards/README.md, integ5 vs unmodified) ----------
+STD_TOOLCHAIN = "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)"
+STD_URL = f"{GH}/sources/flows-standards/README.md"
+STD = [  # flow, par s, integ5 s, par RSS, integ5 RSS (min of 7 interleaved), published time ratio
+  ("standards_token_transfer_private_to_private", 5.94, 4.04, 307.0, 266.6, 0.681),
+  ("standards_token_mint_to_private", 6.14, 4.53, 306.1, 271.9, 0.738),
+  ("standards_token_transfer_private_to_public", 5.60, 3.99, 298.3, 269.9, 0.712)]
+BY = {x["id"]: x for x in S}
+BY["integ5"]["standards"] = {
+    "toolchain": STD_TOOLCHAIN, "source_url": STD_URL,
+    "machine_note": "4-vCPU Xeon without AVX-512 IFMA; ab.sh, 7 interleaved reps, min wall / max peak RSS",
+    "flows": [fm(f, a, b, ra, rb, 7, r) for f, a, b, ra, rb, r in STD],
+    "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": 3,
+                    "tampered_rejected": True, "vks_match": True},
+}
+BY["baseline"]["standards"] = {
+    "toolchain": STD_TOOLCHAIN, "source_url": STD_URL,
+    "machine_note": "Unmodified side of the integ5 A/B: 4-vCPU Xeon without AVX-512 IFMA, 7 interleaved reps",
+    "flows": [fm(f, a, a, ra, ra, 7) for f, a, _, ra, _, _ in STD],
+    "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": None,
+                    "tampered_rejected": None, "vks_match": True},
+}
+
 os.makedirs(OUT, exist_ok=True)
 for s in S:
     with open(f"{OUT}/{s['id']}.json", "w") as fh:

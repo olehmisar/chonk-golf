@@ -372,5 +372,46 @@
       "peak_rss_mib": 304.4,
       "reps": 3
     }
-  ]
+  ],
+  "standards": {
+    "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
+    "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/flows-standards/README.md",
+    "machine_note": "4-vCPU Xeon without AVX-512 IFMA; ab.sh, 7 interleaved reps, min wall / max peak RSS",
+    "flows": [
+      {
+        "flow": "standards_token_transfer_private_to_private",
+        "baseline_wall_s": 5.94,
+        "wall_s": 4.04,
+        "baseline_peak_rss_mib": 307.0,
+        "peak_rss_mib": 266.6,
+        "reps": 7,
+        "wall_ratio": 0.681
+      },
+      {
+        "flow": "standards_token_mint_to_private",
+        "baseline_wall_s": 6.14,
+        "wall_s": 4.53,
+        "baseline_peak_rss_mib": 306.1,
+        "peak_rss_mib": 271.9,
+        "reps": 7,
+        "wall_ratio": 0.738
+      },
+      {
+        "flow": "standards_token_transfer_private_to_public",
+        "baseline_wall_s": 5.6,
+        "wall_s": 3.99,
+        "baseline_peak_rss_mib": 298.3,
+        "peak_rss_mib": 269.9,
+        "reps": 7,
+        "wall_ratio": 0.712
+      }
+    ],
+    "correctness": {
+      "flows_total": 3,
+      "identical_flows": 3,
+      "stock_bbjs_verified_flows": 3,
+      "tampered_rejected": true,
+      "vks_match": true
+    }
+  }
 }

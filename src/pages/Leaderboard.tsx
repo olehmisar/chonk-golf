@@ -3,20 +3,53 @@ import { RamRegressionChip, StatusChip, VerdictBadge } from "../components/Badge
 import { Segmented } from "../components/Segmented.tsx";
 import { ALL, BY_ID } from "../data.ts";
 import { href } from "../router.ts";
-import { FLOW_COUNT, FLOWS, type FlowName } from "../schema.ts";
+import { FLOW_COUNT, FLOWS, HEADLINE_LABEL, type FlowName } from "../schema.ts";
 import {
   holeNumber,
   isRamRegression,
   pctDelta,
+  metricValue,
   rank,
   withPositions,
   SHORT_FLOW,
   speedup,
   type Metric,
+  type Scope,
   type Scored,
 } from "../score.ts";
 
 type Tab = "championship" | "range";
+
+const COLUMNS: { key: string; label: string; hint: string; metric: Metric; scope: Scope }[] = [
+  {
+    key: "ht",
+    label: "⛳ Time",
+    hint: `${HEADLINE_LABEL}: wall time vs par`,
+    metric: "time",
+    scope: "headline",
+  },
+  {
+    key: "hr",
+    label: "⛳ RAM",
+    hint: `${HEADLINE_LABEL}: peak RSS vs par`,
+    metric: "ram",
+    scope: "headline",
+  },
+  {
+    key: "at",
+    label: "Pinned time",
+    hint: "Total wall time over the measured pinned flows vs par",
+    metric: "time",
+    scope: "aggregate",
+  },
+  {
+    key: "ar",
+    label: "Pinned RAM",
+    hint: "Peak RSS over the measured pinned flows vs par",
+    metric: "ram",
+    scope: "aggregate",
+  },
+];
 type Filter = "all" | "identical" | "verified";
 
 function cellTone(r: number | undefined): string {
@@ -32,12 +65,15 @@ function ScoreCell({
   ratio,
   metric,
   ranked,
+  missing,
 }: {
   ratio: number | null;
   metric: Metric;
   ranked: boolean;
+  missing?: string;
 }) {
-  if (ratio === null) return <span className="text-muted">—</span>;
+  if (ratio === null)
+    return <span className="text-xs whitespace-nowrap text-muted">{missing ?? "—"}</span>;
   const under = ratio < 0.9995;
   const over = ratio > 1.0005;
   return (
@@ -97,23 +133,43 @@ function Hero({ leader }: { leader: Scored | undefined }) {
               Clubhouse leader
             </p>
             <p className="mt-1 font-display text-xl font-semibold">{integ.title}</p>
-            <div className="mt-3 flex items-end gap-4">
-              <span className="num text-4xl font-bold text-[#1f7a45]">
-                {pctDelta(leader.timeRatio)}
-              </span>
-              <span className="pb-1 text-sm text-[#3f5246]">
-                <span className="num font-semibold">{speedup(leader.timeRatio)}</span> faster
-                <br />
-                vs unmodified, {leader.timeFlows ?? "?"} flows
-              </span>
-            </div>
-            <p
-              className={`num mt-2 text-sm font-semibold ${isRamRegression(leader.ramRatio) ? "text-[#c7362b]" : "text-[#3f5246]"}`}
-            >
-              {isRamRegression(leader.ramRatio) ? "▲ " : ""}Peak RAM {pctDelta(leader.ramRatio)} vs
-              par
-              {leader.ramFlows ? ` (${leader.ramFlows} flows)` : ""}
-            </p>
+            {leader.headlineTime !== null ? (
+              <>
+                <p className="mt-3 text-xs font-semibold tracking-wide text-[#6a776d] uppercase">
+                  ⛳ Headline: {HEADLINE_LABEL}
+                </p>
+                <div className="mt-1 flex items-end gap-4">
+                  <span className="num text-4xl font-bold text-[#1f7a45]">
+                    {pctDelta(leader.headlineTime)}
+                  </span>
+                  <span className="pb-1 text-sm text-[#3f5246]">
+                    <span className="num font-semibold">{speedup(leader.headlineTime)}</span> faster
+                    <br />
+                    <span
+                      className={`num font-semibold ${isRamRegression(leader.headlineRam) ? "text-[#c7362b]" : ""}`}
+                    >
+                      Peak RAM {pctDelta(leader.headlineRam)}
+                    </span>
+                  </span>
+                </div>
+                <p className="num mt-2 text-xs text-[#3f5246]">
+                  Pinned flows: time {pctDelta(leader.timeRatio)}
+                  {leader.timeFlows ? ` (${leader.timeFlows} flows)` : ""} · RAM{" "}
+                  {pctDelta(leader.ramRatio)}
+                </p>
+              </>
+            ) : (
+              <div className="mt-3 flex items-end gap-4">
+                <span className="num text-4xl font-bold text-[#1f7a45]">
+                  {pctDelta(leader.timeRatio)}
+                </span>
+                <span className="pb-1 text-sm text-[#3f5246]">
+                  <span className="num font-semibold">{speedup(leader.timeRatio)}</span> faster
+                  <br />
+                  vs unmodified, {leader.timeFlows ?? "?"} flows
+                </span>
+              </div>
+            )}
           </a>
         )}
       </div>
@@ -133,6 +189,7 @@ function Hero({ leader }: { leader: Scored | undefined }) {
 export function Leaderboard() {
   const [tab, setTab] = useState<Tab>("championship");
   const [metric, setMetric] = useState<Metric>("time");
+  const [scope, setScope] = useState<Scope>("headline");
   const [filter, setFilter] = useState<Filter>("all");
   const [holes, setHoles] = useState(() => window.matchMedia("(min-width: 768px)").matches);
 
@@ -141,6 +198,7 @@ export function Leaderboard() {
       rank(
         ALL.filter((x) => x.s.kind === "series"),
         "time",
+        "headline",
       )[0],
     [],
   );
@@ -157,8 +215,17 @@ export function Leaderboard() {
           ? x.verdict === "verified"
           : x.verdict !== "unverified" && x.verdict !== "failed",
     );
-    return withPositions(rank(pool, metric), metric);
-  }, [tab, metric, filter]);
+    // Nobody in this pool measured the headline flow yet: rank by the pinned-flow aggregate instead.
+    const effective: Scope =
+      scope === "headline" &&
+      !pool.some((x) => x.s.kind !== "reference" && metricValue(x, metric, "headline") !== null)
+        ? "aggregate"
+        : scope;
+    return {
+      effective,
+      list: withPositions(rank(pool, metric, effective), metric, effective),
+    };
+  }, [tab, metric, scope, filter]);
 
   const flowCols: FlowName[] = [...FLOWS];
 
@@ -190,6 +257,19 @@ export function Leaderboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Segmented<Scope>
+            label="Rank by flow set"
+            value={scope}
+            onChange={setScope}
+            options={[
+              {
+                value: "headline",
+                label: "⛳ Headline flow",
+                hint: `${HEADLINE_LABEL} (aztec-standards)`,
+              },
+              { value: "aggregate", label: "Pinned flows", hint: "5/11 pinned Chonk flows, total" },
+            ]}
+          />
           <Segmented<Metric>
             label="Score by"
             value={metric}
@@ -228,25 +308,42 @@ export function Leaderboard() {
           </label>
         </div>
 
-        {metric === "ram" && rows.every((r) => r.ratio === null || r.x.s.kind === "reference") && (
+        {scope === "headline" && rows.effective === "aggregate" && (
           <p className="rounded-lg border border-dashed border-line px-4 py-3 text-sm text-muted">
-            None of these cards reported peak RSS yet. New cards from the harness always include it.
+            No card on this board has been measured on the headline flow yet, so it is ranked by the
+            pinned-flow aggregate.
           </p>
         )}
+        {metric === "ram" &&
+          rows.list.every((r) => r.ratio === null || r.x.s.kind === "reference") && (
+            <p className="rounded-lg border border-dashed border-line px-4 py-3 text-sm text-muted">
+              None of these cards reported peak RSS yet. New cards from the harness always include
+              it.
+            </p>
+          )}
         <div className="overflow-x-auto rounded-xl border border-line bg-surface">
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-line bg-surface-2 text-left text-xs tracking-wide text-muted uppercase">
                 <th className="w-12 px-3 py-2 text-center">Pos</th>
                 <th className="px-3 py-2">Card</th>
-                <th className={`px-3 py-2 text-right ${metric === "time" ? "text-ink" : ""}`}>
-                  Time vs par{metric === "time" ? " ▾" : ""}
-                </th>
-                <th className={`px-3 py-2 text-right ${metric === "ram" ? "text-ink" : ""}`}>
-                  RAM vs par{metric === "ram" ? " ▾" : ""}
-                </th>
+                {COLUMNS.map((c) => {
+                  const active = c.metric === metric && c.scope === rows.effective;
+                  return (
+                    <th
+                      key={c.key}
+                      title={c.hint}
+                      className={`px-3 py-2 text-right ${c.scope === "headline" ? "bg-good-bg/40" : ""} ${active ? "text-ink" : ""}`}
+                    >
+                      {c.label}
+                      {active ? " ▾" : ""}
+                    </th>
+                  );
+                })}
                 <th className="px-3 py-2">Correctness</th>
-                <th className="px-3 py-2 text-right">Flows</th>
+                <th className="px-3 py-2 text-right" title="Pinned flows measured">
+                  Flows
+                </th>
                 {holes &&
                   flowCols.map((f) => (
                     <th key={f} className="px-1.5 py-2 text-center" title={f}>
@@ -256,7 +353,7 @@ export function Leaderboard() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ x, ratio, pos }) => {
+              {rows.list.map(({ x, ratio, pos }) => {
                 const isPar = x.s.kind === "reference";
                 const per = metric === "time" ? x.flowRatio : x.flowRamRatio;
                 const against = x.s.against.id
@@ -297,23 +394,30 @@ export function Leaderboard() {
                             wasm
                           </span>
                         )}
-                        <RamRegressionChip ratio={x.ramRatio} />
+                        <RamRegressionChip ratio={x.headlineRam ?? x.ramRatio} />
                         {tab === "range" && against && <span>vs {against}</span>}
                       </div>
                     </td>
-                    {(["time", "ram"] as const).map((m) => (
-                      <td key={m} className="px-3 py-3 text-right">
-                        {isPar ? (
-                          <span className="num text-lg font-semibold text-ink-2">E</span>
-                        ) : (
-                          <ScoreCell
-                            ratio={m === "time" ? x.timeRatio : x.ramRatio}
-                            metric={m}
-                            ranked={m === metric}
-                          />
-                        )}
-                      </td>
-                    ))}
+                    {COLUMNS.map((c) => {
+                      const v = metricValue(x, c.metric, c.scope);
+                      return (
+                        <td
+                          key={c.key}
+                          className={`px-3 py-3 text-right ${c.scope === "headline" ? "bg-good-bg/20" : ""}`}
+                        >
+                          {isPar && v !== null ? (
+                            <span className="num text-lg font-semibold text-ink-2">E</span>
+                          ) : (
+                            <ScoreCell
+                              ratio={v}
+                              metric={c.metric}
+                              ranked={c.metric === metric && c.scope === rows.effective}
+                              missing={c.scope === "headline" ? "not measured" : undefined}
+                            />
+                          )}
+                        </td>
+                      );
+                    })}
                     <td className="px-3 py-3">
                       <VerdictBadge verdict={x.verdict} />
                     </td>
@@ -345,10 +449,10 @@ export function Leaderboard() {
                   </tr>
                 );
               })}
-              {!rows.length && (
+              {!rows.list.length && (
                 <tr>
                   <td
-                    colSpan={6 + (holes ? flowCols.length : 0)}
+                    colSpan={4 + COLUMNS.length + (holes ? flowCols.length : 0)}
                     className="px-3 py-8 text-center text-muted"
                   >
                     No cards match this filter.
@@ -359,9 +463,10 @@ export function Leaderboard() {
           </table>
         </div>
         <p className="text-xs text-muted">
-          Cells show per-hole ratio vs par (lower is better);{" "}
-          <span className="text-muted/60">·</span> = not reported. Cards without a reported total
-          sort to the bottom. Holes:{" "}
+          ⛳ Headline = {HEADLINE_LABEL}, the aztec-standards Token flow (see the rules). Pinned =
+          total over the measured pinned Chonk flows. Cells show per-hole ratio vs par (lower is
+          better); <span className="text-muted/60">·</span> = not reported. Cards without a reported
+          total sort to the bottom. Holes:{" "}
           {flowCols.map((f) => `H${holeNumber(f)} ${SHORT_FLOW[f]}`).join(" · ")}.
         </p>
       </section>

@@ -1,4 +1,16 @@
-import { FLOW_COUNT, FLOWS, type FlowMetrics, type FlowName, type Submission } from "./schema.ts";
+import {
+  FLOW_COUNT,
+  FLOWS,
+  HEADLINE_FLOW,
+  type FlowMetrics,
+  type FlowName,
+  type Submission,
+} from "./schema.ts";
+
+type Metrics = Pick<
+  FlowMetrics,
+  "wall_s" | "baseline_wall_s" | "wall_ratio" | "peak_rss_mib" | "baseline_peak_rss_mib"
+>;
 
 export type Verdict = "verified" | "identical" | "unverified" | "failed";
 
@@ -13,18 +25,23 @@ export interface Scored {
   verdict: Verdict;
   flowRatio: Partial<Record<FlowName, number>>;
   flowRamRatio: Partial<Record<FlowName, number>>;
+  /** Headline flow (aztec-standards private→private token transfer); null = not measured. */
+  headlineTime: number | null;
+  headlineRam: number | null;
 }
 
 const has = (x: number | null | undefined): x is number =>
   typeof x === "number" && Number.isFinite(x);
 
-export function flowWallRatio(f: FlowMetrics): number | null {
+/** Wall-time ratio: the published ratio when given (computed from unrounded mins), else wall / par wall. */
+export function flowWallRatio(f: Metrics): number | null {
+  if (has(f.wall_ratio)) return f.wall_ratio;
   if (has(f.wall_s) && has(f.baseline_wall_s) && f.baseline_wall_s > 0)
     return f.wall_s / f.baseline_wall_s;
   return f.wall_ratio ?? null;
 }
 
-export function flowRamRatio(f: FlowMetrics): number | null {
+export function flowRamRatio(f: Metrics): number | null {
   if (has(f.peak_rss_mib) && has(f.baseline_peak_rss_mib) && f.baseline_peak_rss_mib > 0)
     return f.peak_rss_mib / f.baseline_peak_rss_mib;
   return null;
@@ -76,8 +93,11 @@ export function score(s: Submission): Scored {
     const m = flowRamRatio(f);
     if (m !== null) flowRam[f.flow] = m;
   }
+  const headline = s.standards?.flows.find((f) => f.flow === HEADLINE_FLOW);
   return {
     s,
+    headlineTime: headline ? flowWallRatio(headline) : null,
+    headlineRam: headline ? flowRamRatio(headline) : null,
     timeRatio: t.ratio,
     timeFlows: t.flows,
     ramRatio: r.ratio,
@@ -89,25 +109,38 @@ export function score(s: Submission): Scored {
 }
 
 export type Metric = "time" | "ram";
+/** `headline`: the aztec-standards token transfer; `aggregate`: the 5/11 pinned-flow totals. */
+export type Scope = "headline" | "aggregate";
 
-/** Sort ascending by ratio (lower = better); entries without the metric sink to the bottom, then by title. */
-export function rank(items: Scored[], metric: Metric): Scored[] {
-  const key = (x: Scored) => (metric === "time" ? x.timeRatio : x.ramRatio);
-  return [...items].sort((a, b) => {
-    const ka = key(a);
-    const kb = key(b);
-    if (ka === null && kb === null) return a.s.title.localeCompare(b.s.title);
+export function metricValue(x: Scored, metric: Metric, scope: Scope): number | null {
+  if (scope === "headline") return metric === "time" ? x.headlineTime : x.headlineRam;
+  return metric === "time" ? x.timeRatio : x.ramRatio;
+}
+
+/**
+ * Sort ascending by ratio (lower = better). Cards without the metric sink to the bottom; among those (and on ties)
+ * the aggregate of the same metric decides, then the title.
+ */
+export function rank(items: Scored[], metric: Metric, scope: Scope = "aggregate"): Scored[] {
+  const cmp = (ka: number | null, kb: number | null) => {
+    if (ka === null && kb === null) return 0;
     if (ka === null) return 1;
     if (kb === null) return -1;
-    return ka - kb || a.s.title.localeCompare(b.s.title);
-  });
+    return ka - kb;
+  };
+  return [...items].sort(
+    (a, b) =>
+      cmp(metricValue(a, metric, scope), metricValue(b, metric, scope)) ||
+      cmp(metricValue(a, metric, "aggregate"), metricValue(b, metric, "aggregate")) ||
+      a.s.title.localeCompare(b.s.title),
+  );
 }
 
 /** Attach leaderboard positions; par and cards without the metric get no position. */
-export function withPositions(ranked: Scored[], metric: Metric) {
+export function withPositions(ranked: Scored[], metric: Metric, scope: Scope = "aggregate") {
   const out: { x: Scored; ratio: number | null; pos: number }[] = [];
   for (const x of ranked) {
-    const ratio = metric === "time" ? x.timeRatio : x.ramRatio;
+    const ratio = metricValue(x, metric, scope);
     const prev = out.at(-1)?.pos ?? 0;
     out.push({ x, ratio, pos: ratio !== null && x.s.kind !== "reference" ? prev + 1 : prev });
   }

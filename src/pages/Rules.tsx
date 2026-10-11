@@ -1,6 +1,13 @@
+import { blobUrl } from "../config.ts";
 import { BY_ID } from "../data.ts";
 import { href } from "../router.ts";
-import { FLOWS, PINNED_AZTEC_COMMIT, PINNED_BBJS } from "../schema.ts";
+import {
+  FLOWS,
+  HEADLINE_FLOW,
+  HEADLINE_LABEL,
+  PINNED_AZTEC_COMMIT,
+  PINNED_BBJS,
+} from "../schema.ts";
 import { holeNumber, SHORT_FLOW } from "../score.ts";
 
 const RULES = [
@@ -48,7 +55,8 @@ const RULES = [
         Wall-clock proving time and peak RSS of the <code>bb</code> process per flow, against the
         unmodified baseline built and run <strong>on the same machine</strong>: interleaved runs (A,
         B, A, B, …), min of N for time, max of N for RSS. The machine description ships with the
-        card.
+        card. <strong>Peak RAM must not grow</strong>: a card that is faster but uses more memory
+        than par is flagged as a RAM regression and has to fix or drop the regressing patches.
       </>
     ),
   },
@@ -92,6 +100,42 @@ export function Rules() {
           </li>
         ))}
       </ol>
+
+      <section className="rounded-2xl border border-line bg-good-bg/30 p-5 sm:p-6">
+        <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">
+          The headline hole
+        </p>
+        <h2 className="mt-1 font-display text-2xl font-semibold">⛳ {HEADLINE_LABEL}</h2>
+        <div className="mt-3 grid gap-4 text-sm leading-relaxed text-ink-2 lg:grid-cols-2">
+          <p>
+            The leaderboard is ranked by one flow first: a private → private transfer of the{" "}
+            <a
+              className="font-medium text-ink underline underline-offset-2"
+              href="https://github.com/AztecProtocol/aztec-standards"
+            >
+              aztec-standards
+            </a>{" "}
+            Token (<code>{HEADLINE_FLOW}</code>), with time and peak RAM side by side. Two
+            neighbouring Token flows (mint to private, transfer private → public) are reported with
+            it. The 5/11 pinned-flow totals stay on the board as secondary columns.
+          </p>
+          <p>
+            The flows were captured with aztec-standards' own <strong>6.0.0-rc.1</strong> toolchain
+            (aztec-standards <code>cdfba94</code>, noir 1.0.0-rc.3) and are proved by the pinned{" "}
+            <code>bb15fcb</code> prover; the precomputed VKs from that toolchain equal the ones{" "}
+            <code>bb15fcb</code> derives. The same rules apply: byte-identical proof and VK, stock
+            bb.js accepts, and <strong>RAM must not grow</strong>. Capture recipe, reference hashes
+            and results:{" "}
+            <a
+              className="font-medium text-ink underline underline-offset-2"
+              href={blobUrl("sources/flows-standards/README.md")}
+            >
+              flows-standards README
+            </a>
+            . Cards measured before this benchmark existed show “not measured”.
+          </p>
+        </div>
+      </section>
 
       <section className="grid gap-8 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4">

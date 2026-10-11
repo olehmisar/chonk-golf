@@ -3,6 +3,12 @@
 A [zk.golf](https://zk.golf)-style leaderboard for **proof-preserving Barretenberg Chonk prover optimisations**
 (the `bb-chonk-prover-opt` effort; its results snapshot is in [`sources/`](sources/)). Fewer strokes (seconds, MiB), same bytes: a card only counts if the prover's output is unchanged.
 
+**Headline flow:** the board ranks by one flow first — a private → private transfer of the
+[aztec-standards](https://github.com/AztecProtocol/aztec-standards) Token (`standards_token_transfer_private_to_private`),
+captured with aztec-standards' own 6.0.0-rc.1 toolchain ([`sources/flows-standards/README.md`](sources/flows-standards/README.md)) —
+with time and peak RAM side by side. The 5/11 pinned-flow totals are secondary columns; cards measured before the
+headline benchmark existed show "not measured". RAM must not grow.
+
 Golf mapping: the 11 pinned Chonk flows are the **holes**, the unmodified prover is **par**, a submission is a
 **card**. Full patch series measured against the unmodified prover play the **Championship**; single-track
 contributions measured against their own start point are marginal gains on the **Driving range**.

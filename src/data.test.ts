@@ -35,6 +35,14 @@ describe("seed data", () => {
     expect(rank(series, "time")[0]?.s.id).toBe("integ5");
   });
 
+  test("integ5 leads on the headline flow; older cards are not measured there", () => {
+    const series = submissions.filter((s) => s.kind === "series").map(score);
+    expect(rank(series, "time", "headline")[0]?.s.id).toBe("integ5");
+    const integ4 = series.find((x) => x.s.id === "integ4")!;
+    expect(integ4.headlineTime).toBeNull();
+    expect(integ4.headlineRam).toBeNull();
+  });
+
   test("baseline is par", () => {
     const b = score(submissions.find((s) => s.id === "baseline")!);
     expect(b.timeRatio).toBe(1);

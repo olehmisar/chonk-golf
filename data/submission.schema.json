@@ -422,6 +422,187 @@
         "additionalProperties": false
       }
     },
+    "standards": {
+      "type": "object",
+      "properties": {
+        "toolchain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "machine_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "flows": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "flow": {
+                "type": "string",
+                "enum": [
+                  "standards_token_transfer_private_to_private",
+                  "standards_token_mint_to_private",
+                  "standards_token_transfer_private_to_public"
+                ]
+              },
+              "baseline_wall_s": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "wall_s": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "baseline_peak_rss_mib": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "peak_rss_mib": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reps": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "wall_ratio": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "flow",
+              "baseline_wall_s",
+              "wall_s",
+              "baseline_peak_rss_mib",
+              "peak_rss_mib",
+              "reps"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "correctness": {
+          "type": "object",
+          "properties": {
+            "flows_total": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "identical_flows": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stock_bbjs_verified_flows": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tampered_rejected": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "vks_match": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "flows_total",
+            "identical_flows",
+            "stock_bbjs_verified_flows",
+            "tampered_rejected",
+            "vks_match"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "toolchain",
+        "source_url",
+        "machine_note",
+        "flows",
+        "correctness"
+      ],
+      "additionalProperties": false
+    },
     "rss_bisect": {
       "type": "object",
       "properties": {
