@@ -194,12 +194,14 @@ export const submission = z
     standards: standardsSchema.optional(),
     /** Caveats readers must see next to the numbers (e.g. hardware features inactive in the run). */
     caveats: z.array(z.string().min(1)).optional(),
-    /** Earlier measurements of the same card (e.g. before a common all-flows run replaced them). */
+    /** Other measurements of the same card: earlier ones, or alternate runs (other hardware, kernels forced off). */
     history: z
       .array(
         z
           .object({
             label: z.string().min(1),
+            /** `superseded`: an earlier measurement (default). `alternate`: another current run, e.g. other hardware. */
+            kind: z.enum(["superseded", "alternate"]).optional(),
             source_url: z.url().nullable(),
             machine: z.string().nullable(),
             summary: summarySchema,

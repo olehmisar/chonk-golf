@@ -397,160 +397,318 @@
     }
   ],
   "series_url": "https://github.com/olehmisar/chonk-golf/tree/main/sources/final",
-  "description": "Final 76-commit `git am` series on bb15fcb: 0001-0002 harness, 74 optimisations. integ5 minus 14/35 (they cancel) and 33 (opt-in allocator), plus r3-msm-algo/0001 (folded into the IFMA test commit), r3-bbapi 0002-0003, r3-hotspots 0001-0004, r3-ifma-fr 0001-0005, r3-construction 0001-0003 and r3-memory 0001-0007. Excluded: r3-bbapi/0001 (verifier-path cache), r3-msm-algo 0002-0005 (neutral on the headline flow), r3-sumcheck-algo/0002 (+1.3-1.5% headline RSS), buildflags2 (no gain). Caveat: measured on a VM without AVX-512 IFMA, so the IFMA kernels were inactive; an IFMA-VM run and WASM numbers are still to come.",
-  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/README.md",
+  "description": "Final 76-commit `git am` series on bb15fcb: 0001-0002 harness, 74 optimisations. integ5 minus 14/35 (they cancel) and 33 (opt-in allocator), plus r3-msm-algo/0001 (folded into the IFMA test commit), r3-bbapi 0002-0003, r3-hotspots 0001-0004, r3-ifma-fr 0001-0005, r3-construction 0001-0003 and r3-memory 0001-0007. Excluded: r3-bbapi/0001 (verifier-path cache), r3-msm-algo 0002-0005 (neutral on the headline flow), r3-sumcheck-algo/0002 (+1.3-1.5% headline RSS), buildflags2 (no gain). Main numbers: AVX-512 IFMA VM (the hardware the IFMA kernels target); the no-IFMA run shared with the other cards and an IFMA-forced-off headline run are listed under Also measured.",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/final-ifma-vm.md",
   "machine": {
-    "cpu": "4 vCPU Intel Xeon @ 2.80GHz (cloud VM, AVX-512, no AVX-512 IFMA: IFMA kernels inactive)",
+    "cpu": "Intel Xeon, family 6 model 173 (Granite Rapids), 4 vCPUs, AVX-512 IFMA (IFMA kernels active)",
     "cores": 4,
-    "ram": "15 GiB",
+    "ram": null,
     "os": null,
-    "compiler": "clang 18 (Release)"
+    "compiler": null
   },
   "correctness": {
     "identical_flows": 11,
-    "stock_bbjs_verified_flows": null,
-    "tampered_rejected": null,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": true,
     "vks_match": true,
-    "notes": "check_identical.sh: 14/14 IDENTICAL (11 pinned + 3 aztec-standards). Stock bb.js 14/14 and unmodified native bb verify 14/14 were checked on the 75-commit version without r3-memory/0007; the memory track reports the same for the full series. The stock bb.js run on this exact series is pending, so it is not counted here."
+    "notes": "Exact 76-commit series on the IFMA VM (final-ifma-vm.md): check_identical 14/14 IDENTICAL with IFMA on and with BB_FIELD_NO_IFMA=1 BB_MSM_NO_IFMA=1; stock bb.js 7.0.0-nightly.20261009 verifies all 14 in both modes (tampered rejected, VKs equal the unmodified prover's); unmodified native bb verify 14/14 (tampered rejected). On the no-IFMA VM: check_identical 14/14 (final/README.md)."
   },
   "summary": {
-    "baseline_wall_s": 120.27,
-    "wall_s": 83.34,
+    "baseline_wall_s": 71.27,
+    "wall_s": 36.13,
     "wall_ratio": null,
     "flows_measured": 14,
-    "reps": 5,
-    "notes": "Common 14-flow run (11 pinned + 3 aztec-standards): all 7 binaries round-robin, order shuffled per flow and rep, 5 reps; time = min wall, RAM = median peak RSS of bb."
+    "reps": 3,
+    "notes": "All 14 flows x 3 reps on the AVX-512 IFMA VM, interleaved, time = min wall, RAM = max peak RSS of bb; the headline flow row is the dedicated min-of-7 run."
   },
   "flows": [
     {
       "flow": "deploy_ecdsar1+sponsored_fpc",
-      "baseline_wall_s": 6.954,
-      "wall_s": 5.485,
-      "baseline_peak_rss_mib": 310.6,
-      "peak_rss_mib": 241.6,
-      "reps": 5
+      "baseline_wall_s": 4.26,
+      "wall_s": 2.21,
+      "baseline_peak_rss_mib": 309.1,
+      "peak_rss_mib": 242.4,
+      "reps": 3
     },
     {
       "flow": "deploy_schnorr+sponsored_fpc",
-      "baseline_wall_s": 6.742,
-      "wall_s": 4.558,
-      "baseline_peak_rss_mib": 307.0,
-      "peak_rss_mib": 221.9,
-      "reps": 5
+      "baseline_wall_s": 3.94,
+      "wall_s": 1.96,
+      "baseline_peak_rss_mib": 306.7,
+      "peak_rss_mib": 224.1,
+      "reps": 3
     },
     {
       "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
-      "baseline_wall_s": 10.633,
-      "wall_s": 7.556,
-      "baseline_peak_rss_mib": 348.5,
-      "peak_rss_mib": 242.3,
-      "reps": 5
+      "baseline_wall_s": 6.29,
+      "wall_s": 3.34,
+      "baseline_peak_rss_mib": 348.7,
+      "peak_rss_mib": 247.0,
+      "reps": 3
     },
     {
       "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
-      "baseline_wall_s": 8.16,
-      "wall_s": 6.145,
-      "baseline_peak_rss_mib": 326.1,
-      "peak_rss_mib": 238.6,
-      "reps": 5
+      "baseline_wall_s": 4.94,
+      "wall_s": 2.55,
+      "baseline_peak_rss_mib": 328.1,
+      "peak_rss_mib": 238.5,
+      "reps": 3
     },
     {
       "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
-      "baseline_wall_s": 21.103,
-      "wall_s": 14.054,
-      "baseline_peak_rss_mib": 851.0,
-      "peak_rss_mib": 569.8,
-      "reps": 5
+      "baseline_wall_s": 13.49,
+      "wall_s": 6.53,
+      "baseline_peak_rss_mib": 855.2,
+      "peak_rss_mib": 597.9,
+      "reps": 3
     },
     {
       "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
-      "baseline_wall_s": 7.149,
-      "wall_s": 4.964,
-      "baseline_peak_rss_mib": 313.5,
-      "peak_rss_mib": 217.1,
-      "reps": 5
+      "baseline_wall_s": 4.17,
+      "wall_s": 2.13,
+      "baseline_peak_rss_mib": 314.5,
+      "peak_rss_mib": 223.0,
+      "reps": 3
     },
     {
       "flow": "ecdsar1+transfer_0_recursions+private_fpc",
-      "baseline_wall_s": 9.427,
-      "wall_s": 6.633,
-      "baseline_peak_rss_mib": 331.7,
-      "peak_rss_mib": 244.9,
-      "reps": 5
+      "baseline_wall_s": 5.29,
+      "wall_s": 2.81,
+      "baseline_peak_rss_mib": 335.4,
+      "peak_rss_mib": 235.4,
+      "reps": 3
     },
     {
       "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
-      "baseline_wall_s": 6.227,
-      "wall_s": 4.344,
-      "baseline_peak_rss_mib": 291.2,
-      "peak_rss_mib": 225.6,
-      "reps": 5
+      "baseline_wall_s": 3.55,
+      "wall_s": 1.83,
+      "baseline_peak_rss_mib": 292.3,
+      "peak_rss_mib": 227.5,
+      "reps": 3
     },
     {
       "flow": "ecdsar1+transfer_1_recursions+private_fpc",
-      "baseline_wall_s": 10.532,
-      "wall_s": 6.685,
-      "baseline_peak_rss_mib": 339.3,
-      "peak_rss_mib": 244.9,
-      "reps": 5
+      "baseline_wall_s": 5.57,
+      "wall_s": 2.94,
+      "baseline_peak_rss_mib": 339.2,
+      "peak_rss_mib": 245.0,
+      "reps": 3
     },
     {
       "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
-      "baseline_wall_s": 7.097,
-      "wall_s": 4.885,
-      "baseline_peak_rss_mib": 302.5,
-      "peak_rss_mib": 226.1,
-      "reps": 5
+      "baseline_wall_s": 4.08,
+      "wall_s": 2.03,
+      "baseline_peak_rss_mib": 302.6,
+      "peak_rss_mib": 227.5,
+      "reps": 3
     },
     {
       "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
-      "baseline_wall_s": 7.699,
-      "wall_s": 5.252,
-      "baseline_peak_rss_mib": 324.0,
-      "peak_rss_mib": 226.6,
-      "reps": 5
+      "baseline_wall_s": 4.71,
+      "wall_s": 2.3,
+      "baseline_peak_rss_mib": 324.8,
+      "peak_rss_mib": 228.2,
+      "reps": 3
+    }
+  ],
+  "history": [
+    {
+      "label": "No-IFMA VM: common 14-flow run (4 vCPU Xeon @ 2.80GHz without IFMA, IFMA kernels inactive)",
+      "kind": "alternate",
+      "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/README.md",
+      "machine": "4 vCPU Intel Xeon @ 2.80GHz (cloud VM, AVX-512, no AVX-512 IFMA: IFMA kernels inactive)",
+      "summary": {
+        "baseline_wall_s": 120.27,
+        "wall_s": 83.34,
+        "wall_ratio": null,
+        "flows_measured": 14,
+        "reps": 5,
+        "notes": "Common 14-flow run (11 pinned + 3 aztec-standards): all 7 binaries round-robin, order shuffled per flow and rep, 5 reps; time = min wall, RAM = median peak RSS of bb."
+      },
+      "flows": [
+        {
+          "flow": "deploy_ecdsar1+sponsored_fpc",
+          "baseline_wall_s": 6.954,
+          "wall_s": 5.485,
+          "baseline_peak_rss_mib": 310.6,
+          "peak_rss_mib": 241.6,
+          "reps": 5
+        },
+        {
+          "flow": "deploy_schnorr+sponsored_fpc",
+          "baseline_wall_s": 6.742,
+          "wall_s": 4.558,
+          "baseline_peak_rss_mib": 307.0,
+          "peak_rss_mib": 221.9,
+          "reps": 5
+        },
+        {
+          "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+          "baseline_wall_s": 10.633,
+          "wall_s": 7.556,
+          "baseline_peak_rss_mib": 348.5,
+          "peak_rss_mib": 242.3,
+          "reps": 5
+        },
+        {
+          "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+          "baseline_wall_s": 8.16,
+          "wall_s": 6.145,
+          "baseline_peak_rss_mib": 326.1,
+          "peak_rss_mib": 238.6,
+          "reps": 5
+        },
+        {
+          "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+          "baseline_wall_s": 21.103,
+          "wall_s": 14.054,
+          "baseline_peak_rss_mib": 851.0,
+          "peak_rss_mib": 569.8,
+          "reps": 5
+        },
+        {
+          "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+          "baseline_wall_s": 7.149,
+          "wall_s": 4.964,
+          "baseline_peak_rss_mib": 313.5,
+          "peak_rss_mib": 217.1,
+          "reps": 5
+        },
+        {
+          "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+          "baseline_wall_s": 9.427,
+          "wall_s": 6.633,
+          "baseline_peak_rss_mib": 331.7,
+          "peak_rss_mib": 244.9,
+          "reps": 5
+        },
+        {
+          "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+          "baseline_wall_s": 6.227,
+          "wall_s": 4.344,
+          "baseline_peak_rss_mib": 291.2,
+          "peak_rss_mib": 225.6,
+          "reps": 5
+        },
+        {
+          "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+          "baseline_wall_s": 10.532,
+          "wall_s": 6.685,
+          "baseline_peak_rss_mib": 339.3,
+          "peak_rss_mib": 244.9,
+          "reps": 5
+        },
+        {
+          "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+          "baseline_wall_s": 7.097,
+          "wall_s": 4.885,
+          "baseline_peak_rss_mib": 302.5,
+          "peak_rss_mib": 226.1,
+          "reps": 5
+        },
+        {
+          "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+          "baseline_wall_s": 7.699,
+          "wall_s": 5.252,
+          "baseline_peak_rss_mib": 324.0,
+          "peak_rss_mib": 226.6,
+          "reps": 5
+        }
+      ],
+      "standards_flows": [
+        {
+          "flow": "standards_token_transfer_private_to_private",
+          "baseline_wall_s": 6.376,
+          "wall_s": 4.323,
+          "baseline_peak_rss_mib": 306.1,
+          "peak_rss_mib": 223.3,
+          "reps": 5
+        },
+        {
+          "flow": "standards_token_mint_to_private",
+          "baseline_wall_s": 6.338,
+          "wall_s": 4.341,
+          "baseline_peak_rss_mib": 305.2,
+          "peak_rss_mib": 216.2,
+          "reps": 5
+        },
+        {
+          "flow": "standards_token_transfer_private_to_public",
+          "baseline_wall_s": 5.831,
+          "wall_s": 4.113,
+          "baseline_peak_rss_mib": 296.8,
+          "peak_rss_mib": 215.8,
+          "reps": 5
+        }
+      ]
+    },
+    {
+      "label": "IFMA VM with IFMA forced off (BB_FIELD_NO_IFMA=1 BB_MSM_NO_IFMA=1): headline, min of 7",
+      "kind": "alternate",
+      "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/final-ifma-vm.md",
+      "machine": "Intel Xeon, family 6 model 173 (Granite Rapids), 4 vCPUs, AVX-512 IFMA; IFMA kernels disabled",
+      "summary": {
+        "baseline_wall_s": 3.63,
+        "wall_s": 2.55,
+        "wall_ratio": 0.702,
+        "flows_measured": 1,
+        "reps": 7,
+        "notes": "Separate interleaved run vs unmodified on the IFMA VM."
+      },
+      "flows": [],
+      "standards_flows": [
+        {
+          "flow": "standards_token_transfer_private_to_private",
+          "baseline_wall_s": 3.63,
+          "wall_s": 2.55,
+          "baseline_peak_rss_mib": 305.6,
+          "peak_rss_mib": 224.8,
+          "reps": 7,
+          "wall_ratio": 0.702
+        }
+      ]
     }
   ],
   "caveats": [
-    "No AVX-512 IFMA on the benchmark VM: the runtime-dispatched IFMA kernels were inactive. An IFMA-VM run is coming.",
-    "WASM proving numbers are still to come.",
-    "Stock bb.js on this exact 76-commit series is pending (it passed 14/14 on the 75-commit version)."
+    "Headline numbers are from an AVX-512 IFMA VM (Granite Rapids), the hardware the IFMA kernels target. The other cards were measured on a VM without IFMA; final on that VM (same run as the others) is under \"Also measured\": headline −32.2% time, −27.0% RAM.",
+    "WASM proving numbers are still to come."
   ],
   "standards": {
     "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
-    "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/flows-standards/README.md",
-    "machine_note": "Common 14-flow run, 5 reps (min wall / median peak RSS)",
+    "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/final-ifma-vm.md",
+    "machine_note": "AVX-512 IFMA VM: headline min of 7 (time min, peak RSS max); other token flows from the 14-flow x 3-rep run",
     "flows": [
       {
         "flow": "standards_token_transfer_private_to_private",
-        "baseline_wall_s": 6.376,
-        "wall_s": 4.323,
-        "baseline_peak_rss_mib": 306.1,
-        "peak_rss_mib": 223.3,
-        "reps": 5
+        "baseline_wall_s": 3.76,
+        "wall_s": 1.83,
+        "baseline_peak_rss_mib": 307.1,
+        "peak_rss_mib": 225.3,
+        "reps": 7,
+        "wall_ratio": 0.488
       },
       {
         "flow": "standards_token_mint_to_private",
-        "baseline_wall_s": 6.338,
-        "wall_s": 4.341,
-        "baseline_peak_rss_mib": 305.2,
-        "peak_rss_mib": 216.2,
-        "reps": 5
+        "baseline_wall_s": 3.76,
+        "wall_s": 1.89,
+        "baseline_peak_rss_mib": 305.4,
+        "peak_rss_mib": 217.2,
+        "reps": 3
       },
       {
         "flow": "standards_token_transfer_private_to_public",
-        "baseline_wall_s": 5.831,
-        "wall_s": 4.113,
-        "baseline_peak_rss_mib": 296.8,
-        "peak_rss_mib": 215.8,
-        "reps": 5
+        "baseline_wall_s": 3.64,
+        "wall_s": 1.78,
+        "baseline_peak_rss_mib": 297.1,
+        "peak_rss_mib": 217.0,
+        "reps": 3
       }
     ],
     "correctness": {
       "flows_total": 3,
       "identical_flows": 3,
-      "stock_bbjs_verified_flows": null,
-      "tampered_rejected": null,
+      "stock_bbjs_verified_flows": 3,
+      "tampered_rejected": true,
       "vks_match": true
     }
   }

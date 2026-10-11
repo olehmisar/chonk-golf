@@ -825,6 +825,13 @@
             "type": "string",
             "minLength": 1
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "superseded",
+              "alternate"
+            ]
+          },
           "source_url": {
             "anyOf": [
               {

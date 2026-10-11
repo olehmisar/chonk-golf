@@ -307,16 +307,20 @@ function WasmCells({ w, isPar }: { w: WasmMetrics | null | undefined; isPar: boo
 }
 
 /** Earlier measurements of this card, kept after a common run replaced the headline numbers. */
-function History({ s }: { s: Submission }) {
+function History({ s, kind }: { s: Submission; kind: "superseded" | "alternate" }) {
+  const entries = (s.history ?? []).filter((h) => (h.kind ?? "superseded") === kind);
   return (
     <section>
-      <h2 className="font-display text-2xl font-semibold">Earlier measurements</h2>
+      <h2 className="font-display text-2xl font-semibold">
+        {kind === "alternate" ? "Also measured" : "Earlier measurements"}
+      </h2>
       <p className="mt-1 text-sm text-muted">
-        Superseded by the numbers above; kept for reference. Ratios are vs the par measured in the
-        same run.
+        {kind === "alternate"
+          ? "Other current runs of this card (other hardware, or kernels forced off). Ratios are vs the par measured in the same run."
+          : "Superseded by the numbers above; kept for reference. Ratios are vs the par measured in the same run."}
       </p>
       <ul className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
-        {(s.history ?? []).map((h) => {
+        {entries.map((h) => {
           const old: Submission = {
             ...s,
             summary: h.summary,
@@ -357,11 +361,11 @@ function History({ s }: { s: Submission }) {
                 </span>
                 <span>
                   time <strong className={tone(sc.timeRatio)}>{pctDelta(sc.timeRatio)}</strong>
-                  {sc.timeFlows ? ` (${sc.timeFlows} flows)` : ""}
+                  {sc.timeFlows ? ` (${sc.timeFlows} flow${sc.timeFlows === 1 ? "" : "s"})` : ""}
                 </span>
                 <span>
                   RAM <strong className={tone(sc.ramRatio)}>{pctDelta(sc.ramRatio)}</strong>
-                  {sc.ramFlows ? ` (${sc.ramFlows} flows)` : ""}
+                  {sc.ramFlows ? ` (${sc.ramFlows} flow${sc.ramFlows === 1 ? "" : "s"})` : ""}
                 </span>
               </div>
             </li>
@@ -421,6 +425,8 @@ export function SubmissionPage({ id }: { id: string }) {
       ) : null}
 
       <Headline s={s} isPar={isPar} />
+
+      {s.history?.some((h) => h.kind === "alternate") ? <History s={s} kind="alternate" /> : null}
 
       <h2 className="font-display text-2xl font-semibold">All flows</h2>
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Scorecard">
@@ -532,7 +538,9 @@ export function SubmissionPage({ id }: { id: string }) {
         </p>
       </section>
 
-      {s.history?.length ? <History s={s} /> : null}
+      {s.history?.some((h) => (h.kind ?? "superseded") === "superseded") ? (
+        <History s={s} kind="superseded" />
+      ) : null}
 
       {s.rss_bisect && <RssBisect bisect={s.rss_bisect} />}
 

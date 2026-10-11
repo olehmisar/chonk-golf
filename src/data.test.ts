@@ -34,10 +34,10 @@ describe("seed data", () => {
     const series = submissions.filter((s) => s.kind === "series").map(score);
     const ranked = rank(series, "time", "headline");
     expect(ranked[0]?.s.id).toBe("final");
-    // integ4 is faster on headline time but grew peak RAM, so it ranks below every RAM-clean card.
+    // integ4 grew peak RAM, so it ranks below every RAM-clean card even though it beats integ5 on time.
     const integ4 = ranked.findIndex((x) => x.s.id === "integ4");
     expect(series.find((x) => x.s.id === "integ4")!.headlineTime!).toBeLessThan(
-      ranked[0]!.headlineTime!,
+      series.find((x) => x.s.id === "integ5")!.headlineTime!,
     );
     expect(integ4).toBeGreaterThan(ranked.findIndex((x) => x.s.id === "integ1"));
   });
@@ -49,9 +49,13 @@ describe("seed data", () => {
       expect(x.ramFlows, id).toBe(14);
       expect(x.headlineTime, id).not.toBeNull();
     }
+    // final's main numbers are from the IFMA VM; its no-IFMA run (the same run as the others) is an alternate.
     const fin = score(submissions.find((s) => s.id === "final")!);
-    expect(fin.timeRatio!).toBeCloseTo(83.34 / 120.27, 3);
-    expect(fin.ramRatio!).toBeCloseTo(3555 / 4954, 3);
+    expect(fin.timeRatio!).toBeCloseTo(36.13 / 71.27, 3);
+    expect(fin.ramRatio!).toBeCloseTo(3595 / 4965, 2);
+    expect(fin.headlineTime).toBe(0.488);
+    const alt = fin.s.history!.find((h) => h.kind === "alternate" && h.flows.length === 11)!;
+    expect(alt.summary.wall_s! / alt.summary.baseline_wall_s!).toBeCloseTo(83.34 / 120.27, 3);
   });
 
   test("baseline is par", () => {

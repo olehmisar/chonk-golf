@@ -415,8 +415,8 @@ FINAL_DESC = ("Final 76-commit `git am` series on bb15fcb: 0001-0002 harness, 74
               "r3-bbapi 0002-0003, r3-hotspots 0001-0004, r3-ifma-fr 0001-0005, r3-construction 0001-0003 and "
               "r3-memory 0001-0007. Excluded: r3-bbapi/0001 (verifier-path cache), r3-msm-algo 0002-0005 (neutral on "
               "the headline flow), r3-sumcheck-algo/0002 (+1.3-1.5% headline RSS), buildflags2 (no gain). "
-              "Caveat: measured on a VM without AVX-512 IFMA, so the IFMA kernels were inactive; an IFMA-VM run and "
-              "WASM numbers are still to come.")
+              "Main numbers: AVX-512 IFMA VM (the hardware the IFMA kernels target); the no-IFMA run shared with the "
+              "other cards and an IFMA-forced-off headline run are listed under Also measured.")
 pinned, std, summary = run14("final")
 add(id="final", title="final: 76-commit series (integ5 cleanup + round-3 tracks)",
     author="bb-chonk-prover-opt coordinator", track="integrated", kind="series", status="integrated",
@@ -428,15 +428,56 @@ add(id="final", title="final: 76-commit series (integ5 cleanup + round-3 tracks)
                      "without r3-memory/0007; the memory track reports the same for the full series. The stock bb.js "
                      "run on this exact series is pending, so it is not counted here."),
     summary=summary, flows=pinned)
+# The final card's headline numbers come from the AVX-512 IFMA VM (sources/final/final-ifma-vm.md), the hardware the
+# IFMA kernels target; the no-IFMA 14-flow run above and the IFMA-forced-off headline stay on the card as alternates.
+IFMA_URL = f"{GH}/sources/final/final-ifma-vm.md"
+IFMA_MACHINE = {"cpu": "Intel Xeon, family 6 model 173 (Granite Rapids), 4 vCPUs, AVX-512 IFMA (IFMA kernels active)",
+                "cores": 4, "ram": None, "os": None, "compiler": None}
+IFMA14 = {  # flow: (unmodified min s, final min s, unmodified peak RSS, final peak RSS): "All 14 flows x 3 reps"
+  FLOWS[0]: (4.26, 2.21, 309.1, 242.4), FLOWS[1]: (3.94, 1.96, 306.7, 224.1), FLOWS[2]: (6.29, 3.34, 348.7, 247.0),
+  FLOWS[3]: (4.94, 2.55, 328.1, 238.5), FLOWS[4]: (13.49, 6.53, 855.2, 597.9), FLOWS[5]: (4.17, 2.13, 314.5, 223.0),
+  FLOWS[6]: (5.29, 2.81, 335.4, 235.4), FLOWS[7]: (3.55, 1.83, 292.3, 227.5), FLOWS[8]: (5.57, 2.94, 339.2, 245.0),
+  FLOWS[9]: (4.08, 2.03, 302.6, 227.5), FLOWS[10]: (4.71, 2.30, 324.8, 228.2),
+  "standards_token_mint_to_private": (3.76, 1.89, 305.4, 217.2),
+  "standards_token_transfer_private_to_private": (3.60, 1.83, 305.9, 224.3),
+  "standards_token_transfer_private_to_public": (3.64, 1.78, 297.1, 217.0)}
+# Headline: the dedicated interleaved min-of-7 run (time min, peak RSS max of reps).
+IFMA_HEAD = ("standards_token_transfer_private_to_private", 3.76, 1.83, 307.1, 225.3, 0.488)
+fin = S[-1]
+no_ifma = {"label": "No-IFMA VM: common 14-flow run (4 vCPU Xeon @ 2.80GHz without IFMA, IFMA kernels inactive)",
+           "kind": "alternate", "source_url": FINAL_URL, "machine": MACHINE14["cpu"],
+           "summary": fin["summary"], "flows": fin["flows"], "standards_flows": std}
+ifma_off = {"label": "IFMA VM with IFMA forced off (BB_FIELD_NO_IFMA=1 BB_MSM_NO_IFMA=1): headline, min of 7",
+            "kind": "alternate", "source_url": IFMA_URL,
+            "machine": "Intel Xeon, family 6 model 173 (Granite Rapids), 4 vCPUs, AVX-512 IFMA; IFMA kernels disabled",
+            "summary": summ(3.63, 2.55, 0.702, 1, 7, "Separate interleaved run vs unmodified on the IFMA VM."),
+            "flows": [], "standards_flows": [fm(IFMA_HEAD[0], 3.63, 2.55, 305.6, 224.8, 7, 0.702)]}
+fin["flows"] = [fm(f, *IFMA14[f], 3) for f in FLOWS]
+ifma_std = [fm(f, *IFMA14[f], 3) for f in STD_NAMES if f != IFMA_HEAD[0]]
+ifma_std.insert(0, fm(IFMA_HEAD[0], *IFMA_HEAD[1:5], 7, IFMA_HEAD[5]))
+fin["summary"] = summ(71.27, 36.13, None, 14, 3, "All 14 flows x 3 reps on the AVX-512 IFMA VM, interleaved, time = min "
+                      "wall, RAM = max peak RSS of bb; the headline flow row is the dedicated min-of-7 run.")
+fin["machine"], fin["source_url"] = IFMA_MACHINE, IFMA_URL
+fin["correctness"] = corr(11, 11, True, True, "Exact 76-commit series on the IFMA VM (final-ifma-vm.md): "
+                          "check_identical 14/14 IDENTICAL with IFMA on and with BB_FIELD_NO_IFMA=1 BB_MSM_NO_IFMA=1; "
+                          "stock bb.js 7.0.0-nightly.20261009 verifies all 14 in both modes (tampered rejected, VKs equal "
+                          "the unmodified prover's); unmodified native bb verify 14/14 (tampered rejected). On the "
+                          "no-IFMA VM: check_identical 14/14 (final/README.md).")
+fin["history"] = [no_ifma, ifma_off]
+fin["_ifma_std"] = ifma_std
+
 S[-1]["caveats"] = [
-    "No AVX-512 IFMA on the benchmark VM: the runtime-dispatched IFMA kernels were inactive. An IFMA-VM run is coming.",
+    "Headline numbers are from an AVX-512 IFMA VM (Granite Rapids), the hardware the IFMA kernels target. The other "
+    "cards were measured on a VM without IFMA; final on that VM (same run as the others) is under \"Also measured\": "
+    "headline −32.2% time, −27.0% RAM.",
     "WASM proving numbers are still to come.",
-    "Stock bb.js on this exact 76-commit series is pending (it passed 14/14 on the 75-commit version).",
 ]
-S[-1]["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": STD_URL,
-                      "machine_note": "Common 14-flow run, 5 reps (min wall / median peak RSS)", "flows": std,
-                      "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": None,
-                                      "tampered_rejected": None, "vks_match": True}}
+S[-1]["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": IFMA_URL,
+                      "machine_note": "AVX-512 IFMA VM: headline min of 7 (time min, peak RSS max); other token flows "
+                                      "from the 14-flow x 3-rep run",
+                      "flows": S[-1].pop("_ifma_std"),
+                      "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": 3,
+                                      "tampered_rejected": True, "vks_match": True}}
 
 os.makedirs(OUT, exist_ok=True)
 for s in S:
