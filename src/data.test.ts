@@ -39,10 +39,12 @@ describe("seed data", () => {
 
   test("final2 carries WASM numbers on the headline flow", () => {
     const x = score(submissions.find((s) => s.id === "final2")!);
-    expect(x.headlineTime!).toBeCloseTo(4.25 / 6.14, 3);
+    expect(x.headlineTime).toBe(0.501); // IFMA VM, min of 7
+    const noIfma = x.s.history!.find((h) => h.common_run)!;
+    expect(noIfma.summary.wall_s! / noIfma.summary.baseline_wall_s!).toBeCloseTo(85.84 / 122.79, 3);
     expect(x.headlineWasmTime!).toBeCloseTo(13.43 / 14.99, 3);
     expect(x.headlineWasmRam!).toBeCloseTo(576.2 / 579.2, 3);
-    expect(x.timeRatio!).toBeCloseTo(85.84 / 122.79, 3);
+    expect(x.timeRatio!).toBeCloseTo(35.63 / 70.36, 3);
   });
 
   test("final2 leads on the headline flow; RAM-regressed cards rank after RAM-clean ones", () => {
@@ -180,8 +182,8 @@ describe("progress chart", () => {
     ]);
     expect(pts[0]!.time).toBe(1);
     const fin = pts.at(-1)!;
-    expect(fin.time!).toBeCloseTo(4.25 / 6.14, 3);
-    expect(fin.alt).toBeNull();
+    expect(fin.time!).toBeCloseTo(4.25 / 6.14, 3); // no-IFMA run
+    expect(fin.alt?.time).toBe(0.501); // IFMA VM
   });
 });
 

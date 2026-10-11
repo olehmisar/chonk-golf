@@ -371,6 +371,7 @@ BIN = {"baseline": "00-baseline", "integ1": "01-integ1", "integ2": "02-integ2", 
        "integ4": "04-integ4", "integ5": "05-integ5", "final": "06-final"}
 MACHINE14 = {"cpu": "4 vCPU Intel Xeon @ 2.80GHz (cloud VM, AVX-512, no AVX-512 IFMA: IFMA kernels inactive)",
              "cores": 4, "ram": "15 GiB", "os": None, "compiler": "clang 18 (Release)"}
+HEADLINE = "standards_token_transfer_private_to_private"
 STD_NAMES = ["standards_token_transfer_private_to_private", "standards_token_mint_to_private",
              "standards_token_transfer_private_to_public"]
 
@@ -552,12 +553,55 @@ S[-1]["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": F2_URL,
 S[-1]["caveats"] = [
     "WASM peak RSS is dominated by the linear-memory high-water mark, which never shrinks, so the native RAM savings "
     "barely carry over to WASM (headline WASM RAM −0.5%).",
-    "Measured on a 4 vCPU VM without AVX-512 IFMA (IFMA kernels inactive). The IFMA-VM numbers on the final card "
-    "(headline −51.2% time) were measured on final, not final2; final2 only drops a circuit-construction commit that "
-    "is IFMA-independent, but a final2 IFMA re-run is pending, so they are not shown here.",
-    "The other milestone cards come from an earlier 14-flow run on the same VM type; final2's run has its own "
-    "unmodified baseline, so ratios are comparable but seconds are not.",
+    "Headline and all-flows numbers are from an AVX-512 IFMA VM (Granite Rapids), the hardware the IFMA kernels "
+    "target. The other cards were measured on a VM without IFMA; final2 on that VM is under \"Also measured\": "
+    "headline −30.8% time, −27.0% RAM. WASM numbers are from the no-IFMA VM.",
+    "On the progress chart final2 uses its no-IFMA run, which has its own unmodified baseline (an earlier run than the "
+    "other milestone cards, same VM type), so ratios are comparable but seconds are not.",
 ]
+
+# final2 on the AVX-512 IFMA VM (sources/final2/final2-ifma-vm.md): main numbers, like final. The no-IFMA run above
+# (with the WASM numbers) becomes an alternate and stays the progress-chart point.
+F2_IFMA_URL = f"{GH}/sources/final2/final2-ifma-vm.md"
+F2_IFMA_MD = open(os.path.join(F2, "final2-ifma-vm.md")).read()
+_all14 = F2_IFMA_MD.split("## All 14 flows")[1]
+F2_IFMA14 = {}  # flow prefix (names are cut at 52 chars): (A min s, B min s, A peak RSS, B peak RSS)
+for m in re.finditer(r"^(\S+)\s+time A\s+([\d.]+)/\s*[\d.]+ B\s+([\d.]+)/\s*[\d.]+ B/A [\d.]+ \| peakRSS MiB A\s+([\d.]+) "
+                     r"B\s+([\d.]+)", _all14, re.M):
+    F2_IFMA14[m.group(1)] = tuple(float(x) for x in m.group(2, 3, 4, 5))
+assert len(F2_IFMA14) == 14, F2_IFMA14
+def ifma2(f):
+    return next(v for k, v in F2_IFMA14.items() if f.startswith(k))
+# Headline: the dedicated interleaved min-of-7 runs (IFMA on, and IFMA forced off), as published.
+F2_HEAD = (3.64, 1.82, 305.0, 225.0, 0.501)
+f2 = S[-1]
+f2_no_ifma = {"label": "No-IFMA VM: 14-flow run (4 vCPU Xeon @ 2.80GHz without IFMA, IFMA kernels inactive)",
+              "kind": "alternate", "common_run": True, "source_url": F2_URL, "machine": MACHINE14["cpu"],
+              "summary": f2["summary"], "flows": f2["flows"], "standards_flows": f2["standards"]["flows"]}
+f2_ifma_off = {"label": "IFMA VM with IFMA forced off (BB_FIELD_NO_IFMA=1 BB_MSM_NO_IFMA=1): headline, min of 7",
+               "kind": "alternate", "source_url": F2_IFMA_URL,
+               "machine": "Intel Xeon, family 6 model 173 (Granite Rapids), 4 vCPUs, AVX-512 IFMA; IFMA kernels disabled",
+               "summary": summ(3.66, 2.53, 0.691, 1, 7, "Separate interleaved run vs unmodified on the IFMA VM."),
+               "flows": [], "standards_flows": [fm(HEADLINE, 3.66, 2.53, 307.0, 225.0, 7, 0.691)]}
+def with_wasm(row, src):
+    if src.get("wasm"): row["wasm"] = src["wasm"]
+    return row
+no_ifma_by = {r["flow"]: r for r in f2["flows"] + f2["standards"]["flows"]}
+f2["flows"] = [with_wasm(fm(f, *ifma2(f), 3), no_ifma_by[f]) for f in FLOWS]
+f2_std_ifma = [with_wasm(fm(f, *ifma2(f), 3), no_ifma_by[f]) for f in STD_NAMES if f != HEADLINE]
+f2_std_ifma.insert(0, with_wasm(fm(HEADLINE, *F2_HEAD[:4], 7, F2_HEAD[4]), no_ifma_by[HEADLINE]))
+f2["summary"] = summ(70.36, 35.63, None, 14, 3, "All 14 flows x 3 reps on the AVX-512 IFMA VM, interleaved, time = min "
+                     "wall, RAM = max peak RSS of bb; the headline flow row is the dedicated min-of-7 run.")
+assert abs(sum(v[0] for v in F2_IFMA14.values()) - 70.36) < 0.02 and abs(sum(v[1] for v in F2_IFMA14.values()) - 35.63) < 0.02
+f2["machine"], f2["source_url"] = IFMA_MACHINE, F2_IFMA_URL
+f2["correctness"]["notes"] = (
+    "On the IFMA VM (final2-ifma-vm.md): check_identical 14/14 IDENTICAL with IFMA on and with BB_FIELD_NO_IFMA=1 "
+    "BB_MSM_NO_IFMA=1; stock bb.js 7.0.0-nightly.20261009 verifies all 14 in both modes; unmodified native bb verify "
+    "14/14 (tampered rejected). On the no-IFMA coordinator VM (sources/final2/): " + f2["correctness"]["notes"])
+f2["history"] = [f2_no_ifma, f2_ifma_off]
+f2["standards"] = {**f2["standards"], "source_url": F2_IFMA_URL, "flows": f2_std_ifma,
+                   "machine_note": "AVX-512 IFMA VM: headline min of 7 (time min, peak RSS max); other token flows from "
+                                   "the 14-flow x 3-rep run. WASM columns: no-IFMA VM, stock bb.js (wasm_bench.md)"}
 
 # Progress chart order: par, then each integrated series (final is invalid: WASM proofs fail; final2 replaces it).
 for i, cid in enumerate(["baseline", "integ1", "integ2", "integ3", "integ4", "integ5", "final2"]):

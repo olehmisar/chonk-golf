@@ -135,7 +135,7 @@ export function ProgressChart() {
                 strokeWidth="2"
               />
             </svg>
-            final, time on the AVX-512 IFMA VM
+            {points[last]?.label}, time on the AVX-512 IFMA VM
           </span>
         )}
       </div>

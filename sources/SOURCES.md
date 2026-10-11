@@ -10,6 +10,8 @@ kept here so every patch and source link on the site resolves inside this reposi
 | `integrated/`      | integrated `git am` series 0001-0033 and `STATUS.md` (integ1-integ3 results, peak RSS) |
 | `integ4/` | the integ4 linear series 0001-0043 and its `STATUS.md` (time, per-flow peak RSS, RSS bisect); patches 0001-0033 were refreshed in it, so integ1-3 keep linking to `integrated/` |
 | `integ5/` | the integ5 series 0001-0058 (current) and its `STATUS.md` (per-flow seconds and peak RSS) |
+| `final/` | the final 76-commit series (invalid for WASM), its 14-flow benchmark of all series, verification logs and `final-ifma-vm.md` |
+| `final2/` | the final2 75-commit series (final minus final/0047) in `patches/`, `README.md`, 14-flow and WASM benchmark runs, verification logs and `final2-ifma-vm.md` (from the r3-ifma-fr track) |
 | `contrib/<track>/` | each track's patches and `RESULTS.md` at the version the card was made from            |
 
 Files are copied verbatim; branch names mentioned inside them refer to where the work was originally developed.
