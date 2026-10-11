@@ -108,13 +108,13 @@
   ],
   "series_url": "https://github.com/olehmisar/chonk-golf/tree/main/sources/integrated",
   "description": "Integrated `git am` series 0001-0018 on bb15fcb. Includes: integ1 + circuit/0001-0004, pipeline/0001-0002, threading/0001, transcript/0001-0002. Peak RSS rose ~5% from integ2 (+16 / +32 MiB), under investigation.",
-  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/STATUS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/README.md",
   "machine": {
-    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cpu": "4 vCPU Intel Xeon @ 2.80GHz (cloud VM, AVX-512, no AVX-512 IFMA: IFMA kernels inactive)",
     "cores": 4,
-    "ram": null,
+    "ram": "15 GiB",
     "os": null,
-    "compiler": null
+    "compiler": "clang 18 (Release)"
   },
   "correctness": {
     "identical_flows": 11,
@@ -124,66 +124,209 @@
     "notes": "STATUS.md: 11/11 identical, 11/11 stock bb.js verify; tampered/VK checks not itemised. Unit tests pass; proof bytes identical with HARDWARE_CONCURRENCY = 1, 2, 3, 4, 8, 16."
   },
   "summary": {
-    "baseline_wall_s": 51.43,
-    "wall_s": 39.22,
-    "wall_ratio": 0.7626,
-    "flows_measured": 5,
-    "reps": 3,
-    "notes": "End-to-end vs unmodified, min of 3, 5 flows. Per-flow seconds not published (ratios only)."
+    "baseline_wall_s": 120.27,
+    "wall_s": 95.05,
+    "wall_ratio": null,
+    "flows_measured": 14,
+    "reps": 5,
+    "notes": "Common 14-flow run (11 pinned + 3 aztec-standards): all 7 binaries round-robin, order shuffled per flow and rep, 5 reps; time = min wall, RAM = median peak RSS of bb."
   },
   "flows": [
     {
+      "flow": "deploy_ecdsar1+sponsored_fpc",
+      "baseline_wall_s": 6.954,
+      "wall_s": 5.781,
+      "baseline_peak_rss_mib": 310.6,
+      "peak_rss_mib": 325.9,
+      "reps": 5
+    },
+    {
       "flow": "deploy_schnorr+sponsored_fpc",
-      "baseline_wall_s": null,
-      "wall_s": null,
-      "baseline_peak_rss_mib": null,
-      "peak_rss_mib": null,
-      "reps": 3,
-      "wall_ratio": 0.743
+      "baseline_wall_s": 6.742,
+      "wall_s": 5.187,
+      "baseline_peak_rss_mib": 307.0,
+      "peak_rss_mib": 322.2,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
-      "baseline_wall_s": null,
-      "wall_s": null,
-      "baseline_peak_rss_mib": null,
-      "peak_rss_mib": null,
-      "reps": 3,
-      "wall_ratio": 0.778
+      "baseline_wall_s": 10.633,
+      "wall_s": 8.635,
+      "baseline_peak_rss_mib": 348.5,
+      "peak_rss_mib": 383.8,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 8.16,
+      "wall_s": 6.705,
+      "baseline_peak_rss_mib": 326.1,
+      "peak_rss_mib": 353.2,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
-      "baseline_wall_s": null,
-      "wall_s": null,
-      "baseline_peak_rss_mib": 840.0,
-      "peak_rss_mib": 877.5,
-      "reps": 3,
-      "wall_ratio": 0.754
+      "baseline_wall_s": 21.103,
+      "wall_s": 16.392,
+      "baseline_peak_rss_mib": 851.0,
+      "peak_rss_mib": 885.3,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
-      "baseline_wall_s": null,
-      "wall_s": null,
-      "baseline_peak_rss_mib": null,
-      "peak_rss_mib": null,
-      "reps": 3,
-      "wall_ratio": 0.759
+      "baseline_wall_s": 7.149,
+      "wall_s": 5.681,
+      "baseline_peak_rss_mib": 313.5,
+      "peak_rss_mib": 333.2,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+      "baseline_wall_s": 9.427,
+      "wall_s": 7.253,
+      "baseline_peak_rss_mib": 331.7,
+      "peak_rss_mib": 359.9,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
-      "baseline_wall_s": null,
-      "wall_s": null,
-      "baseline_peak_rss_mib": 291.5,
-      "peak_rss_mib": 306.3,
-      "reps": null
+      "baseline_wall_s": 6.227,
+      "wall_s": 4.949,
+      "baseline_peak_rss_mib": 291.2,
+      "peak_rss_mib": 306.1,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+transfer_1_recursions+private_fpc",
-      "baseline_wall_s": null,
-      "wall_s": null,
-      "baseline_peak_rss_mib": null,
-      "peak_rss_mib": null,
-      "reps": 3,
-      "wall_ratio": 0.78
+      "baseline_wall_s": 10.532,
+      "wall_s": 7.948,
+      "baseline_peak_rss_mib": 339.3,
+      "peak_rss_mib": 370.6,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 7.097,
+      "wall_s": 5.498,
+      "baseline_peak_rss_mib": 302.5,
+      "peak_rss_mib": 316.8,
+      "reps": 5
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 7.699,
+      "wall_s": 6.016,
+      "baseline_peak_rss_mib": 324.0,
+      "peak_rss_mib": 353.3,
+      "reps": 5
+    }
+  ],
+  "standards": {
+    "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
+    "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/flows-standards/README.md",
+    "machine_note": "Common 14-flow run, 5 reps (min wall / median peak RSS)",
+    "flows": [
+      {
+        "flow": "standards_token_transfer_private_to_private",
+        "baseline_wall_s": 6.376,
+        "wall_s": 4.94,
+        "baseline_peak_rss_mib": 306.1,
+        "peak_rss_mib": 320.2,
+        "reps": 5
+      },
+      {
+        "flow": "standards_token_mint_to_private",
+        "baseline_wall_s": 6.338,
+        "wall_s": 5.26,
+        "baseline_peak_rss_mib": 305.2,
+        "peak_rss_mib": 326.0,
+        "reps": 5
+      },
+      {
+        "flow": "standards_token_transfer_private_to_public",
+        "baseline_wall_s": 5.831,
+        "wall_s": 4.804,
+        "baseline_peak_rss_mib": 296.8,
+        "peak_rss_mib": 315.1,
+        "reps": 5
+      }
+    ],
+    "correctness": {
+      "flows_total": 3,
+      "identical_flows": null,
+      "stock_bbjs_verified_flows": null,
+      "tampered_rejected": null,
+      "vks_match": null
+    }
+  },
+  "history": [
+    {
+      "label": "integrated/STATUS.md: 5 flows, min of 3 (ratios) + peak RSS on 2 flows",
+      "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integrated/STATUS.md",
+      "machine": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+      "summary": {
+        "baseline_wall_s": 51.43,
+        "wall_s": 39.22,
+        "wall_ratio": 0.7626,
+        "flows_measured": 5,
+        "reps": 3,
+        "notes": "End-to-end vs unmodified, min of 3, 5 flows. Per-flow seconds not published (ratios only)."
+      },
+      "flows": [
+        {
+          "flow": "deploy_schnorr+sponsored_fpc",
+          "baseline_wall_s": null,
+          "wall_s": null,
+          "baseline_peak_rss_mib": null,
+          "peak_rss_mib": null,
+          "reps": 3,
+          "wall_ratio": 0.743
+        },
+        {
+          "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+          "baseline_wall_s": null,
+          "wall_s": null,
+          "baseline_peak_rss_mib": null,
+          "peak_rss_mib": null,
+          "reps": 3,
+          "wall_ratio": 0.778
+        },
+        {
+          "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+          "baseline_wall_s": null,
+          "wall_s": null,
+          "baseline_peak_rss_mib": 840.0,
+          "peak_rss_mib": 877.5,
+          "reps": 3,
+          "wall_ratio": 0.754
+        },
+        {
+          "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+          "baseline_wall_s": null,
+          "wall_s": null,
+          "baseline_peak_rss_mib": null,
+          "peak_rss_mib": null,
+          "reps": 3,
+          "wall_ratio": 0.759
+        },
+        {
+          "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+          "baseline_wall_s": null,
+          "wall_s": null,
+          "baseline_peak_rss_mib": 291.5,
+          "peak_rss_mib": 306.3,
+          "reps": null
+        },
+        {
+          "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+          "baseline_wall_s": null,
+          "wall_s": null,
+          "baseline_peak_rss_mib": null,
+          "peak_rss_mib": null,
+          "reps": 3,
+          "wall_ratio": 0.78
+        }
+      ]
     }
   ]
 }

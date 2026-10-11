@@ -10,7 +10,7 @@ import { blobUrl } from "../config.ts";
 import { BY_ID } from "../data.ts";
 import { href } from "../router.ts";
 import {
-  FLOW_COUNT,
+  TOTAL_FLOWS,
   FLOWS,
   HEADLINE_FLOW,
   HEADLINE_LABEL,
@@ -29,6 +29,7 @@ import {
   speedup,
   wasmTimeRatio,
   wasmRamRatio,
+  score,
 } from "../score.ts";
 import { NotFound } from "./NotFound.tsx";
 
@@ -305,6 +306,72 @@ function WasmCells({ w, isPar }: { w: WasmMetrics | null | undefined; isPar: boo
   );
 }
 
+/** Earlier measurements of this card, kept after a common run replaced the headline numbers. */
+function History({ s }: { s: Submission }) {
+  return (
+    <section>
+      <h2 className="font-display text-2xl font-semibold">Earlier measurements</h2>
+      <p className="mt-1 text-sm text-muted">
+        Superseded by the numbers above; kept for reference. Ratios are vs the par measured in the
+        same run.
+      </p>
+      <ul className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+        {(s.history ?? []).map((h) => {
+          const old: Submission = {
+            ...s,
+            summary: h.summary,
+            flows: h.flows,
+            standards:
+              h.standards_flows && s.standards
+                ? { ...s.standards, flows: h.standards_flows }
+                : undefined,
+          };
+          const sc = score(old);
+          return (
+            <li
+              key={h.label}
+              className="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center"
+            >
+              <div>
+                <div className="font-medium">{h.label}</div>
+                <div className="text-xs text-muted">
+                  {h.machine ?? "machine not reported"}
+                  {h.source_url ? (
+                    <>
+                      {" · "}
+                      <a href={h.source_url} className="underline underline-offset-2">
+                        source ↗
+                      </a>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              <div className="num flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2 sm:justify-end">
+                <span>
+                  ⛳ time{" "}
+                  <strong className={tone(sc.headlineTime)}>{pctDelta(sc.headlineTime)}</strong>
+                </span>
+                <span>
+                  ⛳ RAM{" "}
+                  <strong className={tone(sc.headlineRam)}>{pctDelta(sc.headlineRam)}</strong>
+                </span>
+                <span>
+                  time <strong className={tone(sc.timeRatio)}>{pctDelta(sc.timeRatio)}</strong>
+                  {sc.timeFlows ? ` (${sc.timeFlows} flows)` : ""}
+                </span>
+                <span>
+                  RAM <strong className={tone(sc.ramRatio)}>{pctDelta(sc.ramRatio)}</strong>
+                  {sc.ramFlows ? ` (${sc.ramFlows} flows)` : ""}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function SubmissionPage({ id }: { id: string }) {
   const x = BY_ID.get(id);
   if (!x) return <NotFound what={`submission “${id}”`} />;
@@ -342,9 +409,20 @@ export function SubmissionPage({ id }: { id: string }) {
         <p className="mt-4 max-w-3xl text-ink-2">{s.description}</p>
       </div>
 
+      {s.caveats?.length ? (
+        <aside className="rounded-xl border border-warn/50 bg-sand/40 px-4 py-3 text-sm text-ink">
+          <p className="font-semibold">⚠ Caveats</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-ink-2">
+            {s.caveats.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        </aside>
+      ) : null}
+
       <Headline s={s} isPar={isPar} />
 
-      <h2 className="font-display text-2xl font-semibold">Pinned flows</h2>
+      <h2 className="font-display text-2xl font-semibold">All flows</h2>
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Scorecard">
         <Tile
           label="Time vs par"
@@ -377,7 +455,7 @@ export function SubmissionPage({ id }: { id: string }) {
         />
         <Tile
           label="Flows · reps"
-          value={`${x.timeFlows ?? "—"}/${FLOW_COUNT}`}
+          value={`${x.timeFlows ?? "—"}/${TOTAL_FLOWS}`}
           sub={s.summary.reps ? `min of ${s.summary.reps}, interleaved` : "reps not reported"}
         />
       </section>
@@ -453,6 +531,8 @@ export function SubmissionPage({ id }: { id: string }) {
           reported; numbers are never filled in.
         </p>
       </section>
+
+      {s.history?.length ? <History s={s} /> : null}
 
       {s.rss_bisect && <RssBisect bisect={s.rss_bisect} />}
 

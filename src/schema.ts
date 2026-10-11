@@ -92,6 +92,38 @@ export const patch = z
   })
   .strict();
 
+export const TOTAL_FLOWS = FLOW_COUNT + STANDARDS_FLOWS.length;
+
+const summarySchema = z
+  .object({
+    baseline_wall_s: num,
+    wall_s: num,
+    wall_ratio: z.number().positive().nullable(),
+    flows_measured: z.number().int().min(0).max(TOTAL_FLOWS).nullable(),
+    reps: z.number().int().positive().nullable(),
+    notes: z.string().nullable().optional(),
+  })
+  .strict();
+
+const standardsSchema = z
+  .object({
+    /** Toolchain the inputs were captured with, e.g. "aztec-standards cdfba94, 6.0.0-rc.1". */
+    toolchain: z.string().min(1),
+    source_url: z.url().nullable(),
+    machine_note: z.string().nullable(),
+    flows: z.array(standardsFlowMetrics).min(1),
+    correctness: z
+      .object({
+        flows_total: z.number().int().positive(),
+        identical_flows: z.number().int().min(0).nullable(),
+        stock_bbjs_verified_flows: z.number().int().min(0).nullable(),
+        tampered_rejected: z.boolean().nullable(),
+        vks_match: z.boolean().nullable(),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const submission = z
   .object({
     $schema: z.string().optional(),
@@ -151,40 +183,31 @@ export const submission = z
         notes: z.string().nullable().optional(),
       })
       .strict(),
+
     /**
-     * Headline totals as reported (sum over measured flows of min wall time). Used when per-flow seconds are not
-     * available; otherwise totals are recomputed from `flows`.
+     * Totals over all measured flows (sum of per-flow min wall time): up to 14 = 11 pinned + 3 aztec-standards.
+     * Used when per-flow seconds are not available; otherwise totals are recomputed from the flows.
      */
-    summary: z
-      .object({
-        baseline_wall_s: num,
-        wall_s: num,
-        wall_ratio: z.number().positive().nullable(),
-        flows_measured: count,
-        reps: z.number().int().positive().nullable(),
-        notes: z.string().nullable().optional(),
-      })
-      .strict(),
+    summary: summarySchema,
     flows: z.array(flowMetrics),
     /** Results on the aztec-standards Token flows (the headline benchmark). Absent = not measured. */
-    standards: z
-      .object({
-        /** Toolchain the inputs were captured with, e.g. "aztec-standards cdfba94, 6.0.0-rc.1". */
-        toolchain: z.string().min(1),
-        source_url: z.url().nullable(),
-        machine_note: z.string().nullable(),
-        flows: z.array(standardsFlowMetrics).min(1),
-        correctness: z
+    standards: standardsSchema.optional(),
+    /** Caveats readers must see next to the numbers (e.g. hardware features inactive in the run). */
+    caveats: z.array(z.string().min(1)).optional(),
+    /** Earlier measurements of the same card (e.g. before a common all-flows run replaced them). */
+    history: z
+      .array(
+        z
           .object({
-            flows_total: z.number().int().positive(),
-            identical_flows: z.number().int().min(0).nullable(),
-            stock_bbjs_verified_flows: z.number().int().min(0).nullable(),
-            tampered_rejected: z.boolean().nullable(),
-            vks_match: z.boolean().nullable(),
+            label: z.string().min(1),
+            source_url: z.url().nullable(),
+            machine: z.string().nullable(),
+            summary: summarySchema,
+            flows: z.array(flowMetrics),
+            standards_flows: z.array(standardsFlowMetrics).optional(),
           })
           .strict(),
-      })
-      .strict()
+      )
       .optional(),
     /** Optional peak-RSS bisect along a patch series: where the RAM went. */
     rss_bisect: z

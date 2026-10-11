@@ -308,13 +308,13 @@
   ],
   "series_url": "https://github.com/olehmisar/chonk-golf/tree/main/sources/integ5",
   "description": "Current `git am` series 0001-0058 on bb15fcb. Includes: integ3 + pipeline RAM fix (bounded lookahead, free each step), transcript Poseidon2 delta, eccvm (rebased), fields2, msm2/0002, msm/0002 (tests), pcs on-integ3 (6), stdlib 0005-0007, sumcheck2 on-integ3 (4), circuit/0005 (revised), wasm build flags, wasm-poly 0003-0004. Fixes integ4's RAM regression: peak RSS is now 6.5% below par. Not included: wasm-poly/0001-0002 (conflict with newer native polynomial changes), joint2 (no reproducible gain), pcs/0002-0003 originals (superseded), wasm-threads (diagnostic only).",
-  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ5/STATUS.md",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/final/README.md",
   "machine": {
-    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cpu": "4 vCPU Intel Xeon @ 2.80GHz (cloud VM, AVX-512, no AVX-512 IFMA: IFMA kernels inactive)",
     "cores": 4,
-    "ram": null,
+    "ram": "15 GiB",
     "os": null,
-    "compiler": null
+    "compiler": "clang 18 (Release)"
   },
   "correctness": {
     "identical_flows": 11,
@@ -324,86 +324,131 @@
     "notes": "STATUS.md: 11/11 identical, 11/11 stock bb.js verify; tampered/VK checks not itemised."
   },
   "summary": {
-    "baseline_wall_s": 51.72,
-    "wall_s": 35.82,
-    "wall_ratio": 0.6926,
-    "flows_measured": 5,
-    "reps": 3,
-    "notes": "End-to-end vs unmodified, min of 3, 5 flows; per-flow seconds and peak RSS from the same A/B."
+    "baseline_wall_s": 120.27,
+    "wall_s": 85.29,
+    "wall_ratio": null,
+    "flows_measured": 14,
+    "reps": 5,
+    "notes": "Common 14-flow run (11 pinned + 3 aztec-standards): all 7 binaries round-robin, order shuffled per flow and rep, 5 reps; time = min wall, RAM = median peak RSS of bb."
   },
   "flows": [
     {
+      "flow": "deploy_ecdsar1+sponsored_fpc",
+      "baseline_wall_s": 6.954,
+      "wall_s": 5.067,
+      "baseline_peak_rss_mib": 310.6,
+      "peak_rss_mib": 279.5,
+      "reps": 5
+    },
+    {
       "flow": "deploy_schnorr+sponsored_fpc",
-      "baseline_wall_s": 6.21,
-      "wall_s": 4.34,
-      "baseline_peak_rss_mib": 305.9,
-      "peak_rss_mib": 277.5,
-      "reps": 3
+      "baseline_wall_s": 6.742,
+      "wall_s": 4.714,
+      "baseline_peak_rss_mib": 307.0,
+      "peak_rss_mib": 271.5,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
-      "baseline_wall_s": 9.8,
-      "wall_s": 7.39,
-      "baseline_peak_rss_mib": 350.4,
-      "peak_rss_mib": 314.3,
-      "reps": 3
+      "baseline_wall_s": 10.633,
+      "wall_s": 8.034,
+      "baseline_peak_rss_mib": 348.5,
+      "peak_rss_mib": 309.5,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 8.16,
+      "wall_s": 5.901,
+      "baseline_peak_rss_mib": 326.1,
+      "peak_rss_mib": 291.9,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
-      "baseline_wall_s": 20.31,
-      "wall_s": 13.1,
-      "baseline_peak_rss_mib": 853.4,
-      "peak_rss_mib": 848.8,
-      "reps": 3
+      "baseline_wall_s": 21.103,
+      "wall_s": 13.993,
+      "baseline_peak_rss_mib": 851.0,
+      "peak_rss_mib": 829.6,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
-      "baseline_wall_s": 6.6,
-      "wall_s": 4.68,
-      "baseline_peak_rss_mib": 316.8,
-      "peak_rss_mib": 283.6,
-      "reps": 3
+      "baseline_wall_s": 7.149,
+      "wall_s": 5.29,
+      "baseline_peak_rss_mib": 313.5,
+      "peak_rss_mib": 278.0,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+private_fpc",
+      "baseline_wall_s": 9.427,
+      "wall_s": 6.493,
+      "baseline_peak_rss_mib": 331.7,
+      "peak_rss_mib": 293.3,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_0_recursions+sponsored_fpc",
+      "baseline_wall_s": 6.227,
+      "wall_s": 4.494,
+      "baseline_peak_rss_mib": 291.2,
+      "peak_rss_mib": 262.0,
+      "reps": 5
     },
     {
       "flow": "ecdsar1+transfer_1_recursions+private_fpc",
-      "baseline_wall_s": 8.81,
-      "wall_s": 6.3,
-      "baseline_peak_rss_mib": 343.4,
-      "peak_rss_mib": 304.4,
-      "reps": 3
+      "baseline_wall_s": 10.532,
+      "wall_s": 7.404,
+      "baseline_peak_rss_mib": 339.3,
+      "peak_rss_mib": 301.2,
+      "reps": 5
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+sponsored_fpc",
+      "baseline_wall_s": 7.097,
+      "wall_s": 4.958,
+      "baseline_peak_rss_mib": 302.5,
+      "peak_rss_mib": 272.0,
+      "reps": 5
+    },
+    {
+      "flow": "schnorr+deploy_tokenContract_with_registration+sponsored_fpc",
+      "baseline_wall_s": 7.699,
+      "wall_s": 5.638,
+      "baseline_peak_rss_mib": 324.0,
+      "peak_rss_mib": 284.2,
+      "reps": 5
     }
   ],
   "standards": {
     "toolchain": "aztec-standards cdfba94, @aztec-labs/* and bb.js 6.0.0-rc.1 (noir 1.0.0-rc.3)",
     "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/flows-standards/README.md",
-    "machine_note": "4-vCPU Xeon without AVX-512 IFMA; ab.sh, 7 interleaved reps, min wall / max peak RSS",
+    "machine_note": "Common 14-flow run, 5 reps (min wall / median peak RSS)",
     "flows": [
       {
         "flow": "standards_token_transfer_private_to_private",
-        "baseline_wall_s": 5.94,
-        "wall_s": 4.04,
-        "baseline_peak_rss_mib": 307.0,
-        "peak_rss_mib": 266.6,
-        "reps": 7,
-        "wall_ratio": 0.681
+        "baseline_wall_s": 6.376,
+        "wall_s": 4.7,
+        "baseline_peak_rss_mib": 306.1,
+        "peak_rss_mib": 261.9,
+        "reps": 5
       },
       {
         "flow": "standards_token_mint_to_private",
-        "baseline_wall_s": 6.14,
-        "wall_s": 4.53,
-        "baseline_peak_rss_mib": 306.1,
-        "peak_rss_mib": 271.9,
-        "reps": 7,
-        "wall_ratio": 0.738
+        "baseline_wall_s": 6.338,
+        "wall_s": 4.514,
+        "baseline_peak_rss_mib": 305.2,
+        "peak_rss_mib": 267.4,
+        "reps": 5
       },
       {
         "flow": "standards_token_transfer_private_to_public",
-        "baseline_wall_s": 5.6,
-        "wall_s": 3.99,
-        "baseline_peak_rss_mib": 298.3,
-        "peak_rss_mib": 269.9,
-        "reps": 7,
-        "wall_ratio": 0.712
+        "baseline_wall_s": 5.831,
+        "wall_s": 4.092,
+        "baseline_peak_rss_mib": 296.8,
+        "peak_rss_mib": 266.4,
+        "reps": 5
       }
     ],
     "correctness": {
@@ -413,5 +458,91 @@
       "tampered_rejected": true,
       "vks_match": true
     }
-  }
+  },
+  "history": [
+    {
+      "label": "integ5 STATUS.md: 5 flows, min of 3; aztec-standards README: 3 flows, 7 reps",
+      "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ5/STATUS.md",
+      "machine": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+      "summary": {
+        "baseline_wall_s": 51.72,
+        "wall_s": 35.82,
+        "wall_ratio": 0.6926,
+        "flows_measured": 5,
+        "reps": 3,
+        "notes": "End-to-end vs unmodified, min of 3, 5 flows; per-flow seconds and peak RSS from the same A/B."
+      },
+      "flows": [
+        {
+          "flow": "deploy_schnorr+sponsored_fpc",
+          "baseline_wall_s": 6.21,
+          "wall_s": 4.34,
+          "baseline_peak_rss_mib": 305.9,
+          "peak_rss_mib": 277.5,
+          "reps": 3
+        },
+        {
+          "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+          "baseline_wall_s": 9.8,
+          "wall_s": 7.39,
+          "baseline_peak_rss_mib": 350.4,
+          "peak_rss_mib": 314.3,
+          "reps": 3
+        },
+        {
+          "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+          "baseline_wall_s": 20.31,
+          "wall_s": 13.1,
+          "baseline_peak_rss_mib": 853.4,
+          "peak_rss_mib": 848.8,
+          "reps": 3
+        },
+        {
+          "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+          "baseline_wall_s": 6.6,
+          "wall_s": 4.68,
+          "baseline_peak_rss_mib": 316.8,
+          "peak_rss_mib": 283.6,
+          "reps": 3
+        },
+        {
+          "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+          "baseline_wall_s": 8.81,
+          "wall_s": 6.3,
+          "baseline_peak_rss_mib": 343.4,
+          "peak_rss_mib": 304.4,
+          "reps": 3
+        }
+      ],
+      "standards_flows": [
+        {
+          "flow": "standards_token_transfer_private_to_private",
+          "baseline_wall_s": 5.94,
+          "wall_s": 4.04,
+          "baseline_peak_rss_mib": 307.0,
+          "peak_rss_mib": 266.6,
+          "reps": 7,
+          "wall_ratio": 0.681
+        },
+        {
+          "flow": "standards_token_mint_to_private",
+          "baseline_wall_s": 6.14,
+          "wall_s": 4.53,
+          "baseline_peak_rss_mib": 306.1,
+          "peak_rss_mib": 271.9,
+          "reps": 7,
+          "wall_ratio": 0.738
+        },
+        {
+          "flow": "standards_token_transfer_private_to_public",
+          "baseline_wall_s": 5.6,
+          "wall_s": 3.99,
+          "baseline_peak_rss_mib": 298.3,
+          "peak_rss_mib": 269.9,
+          "reps": 7,
+          "wall_ratio": 0.712
+        }
+      ]
+    }
+  ]
 }

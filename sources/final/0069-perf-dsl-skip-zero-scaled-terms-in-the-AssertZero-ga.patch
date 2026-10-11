@@ -1,0 +1,47 @@
+From b16931a7922fb170ff6df017b8893bcca64d1794 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:45:09 +0000
+Subject: [PATCH 69/76] perf(dsl): skip zero-scaled terms in the AssertZero
+ gate satisfiability check
+
+check_mul_add_gate evaluated all five terms of every arithmetic gate with the
+witness values, although most gates have zero mul/linear scalings (IS_CONSTANT
+wires mapped to the zero index, linear-only gates). Zero-scaled terms add zero
+and the result is only compared with zero, so they are skipped.
+---
+ .../dsl/acir_format/arithmetic_constraints.cpp | 18 +++++++++++++-----
+ 1 file changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/dsl/acir_format/arithmetic_constraints.cpp b/barretenberg/cpp/src/barretenberg/dsl/acir_format/arithmetic_constraints.cpp
+index 4bff0c450..56fc61d49 100644
+--- a/barretenberg/cpp/src/barretenberg/dsl/acir_format/arithmetic_constraints.cpp
++++ b/barretenberg/cpp/src/barretenberg/dsl/acir_format/arithmetic_constraints.cpp
+@@ -37,12 +37,20 @@ void check_mul_add_gate(Builder& builder, const QuadConstraint& mul_quad, const
+         return;
+     }
+ 
++    // Terms with a zero scaling are skipped: they add zero, and only result == 0 is checked.
+     FF result = mul_quad.const_scaling + next_wire_w4;
+-    result += builder.get_variable(mul_quad.a) * builder.get_variable(mul_quad.b) * mul_quad.mul_scaling;
+-    result += builder.get_variable(mul_quad.a) * mul_quad.a_scaling;
+-    result += builder.get_variable(mul_quad.b) * mul_quad.b_scaling;
+-    result += builder.get_variable(mul_quad.c) * mul_quad.c_scaling;
+-    result += builder.get_variable(mul_quad.d) * mul_quad.d_scaling;
++    if (!mul_quad.mul_scaling.is_zero()) {
++        result += builder.get_variable(mul_quad.a) * builder.get_variable(mul_quad.b) * mul_quad.mul_scaling;
++    }
++    auto add_linear_term = [&](uint32_t witness_index, const FF& scaling) {
++        if (!scaling.is_zero()) {
++            result += builder.get_variable(witness_index) * scaling;
++        }
++    };
++    add_linear_term(mul_quad.a, mul_quad.a_scaling);
++    add_linear_term(mul_quad.b, mul_quad.b_scaling);
++    add_linear_term(mul_quad.c, mul_quad.c_scaling);
++    add_linear_term(mul_quad.d, mul_quad.d_scaling);
+ 
+     if (result != FF::zero()) {
+         builder.failure("mul_add_gate");
+-- 
+2.43.0
+

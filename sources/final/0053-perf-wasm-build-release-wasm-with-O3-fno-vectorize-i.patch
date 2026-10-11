@@ -1,0 +1,42 @@
+From cc2cb8f4cea024563a1929d1d3c275f410d8cb21 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 03:27:14 +0000
+Subject: [PATCH 53/76] perf(wasm): build release wasm with -O3 -fno-vectorize
+ instead of -Oz
+
+-Oz kept the loop vectorizer off, which matters on WASM (vectorized i64x2
+field loops are slower in V8), but also gave up -O3 inlining/unrolling.
+-O3 -fno-vectorize is 8-9% faster end to end through bb.js (4 threads) at
+the cost of a ~1.7 MB larger gzipped artifact. WASM_RELEASE_OPT selects
+the flags; -DWASM_RELEASE_OPT=-Oz restores the size-optimised build.
+---
+ barretenberg/cpp/src/CMakeLists.txt | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/barretenberg/cpp/src/CMakeLists.txt b/barretenberg/cpp/src/CMakeLists.txt
+index a850530a7..b8402312e 100644
+--- a/barretenberg/cpp/src/CMakeLists.txt
++++ b/barretenberg/cpp/src/CMakeLists.txt
+@@ -43,12 +43,16 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+ endif()
+ 
+ # We enable -O1 level optimsations, even when compiling debug wasm, otherwise we get "local count too large" at runtime.
+-# We prioritize reducing size of final artifacts in release with -Oz.
++# Release wasm is built with -O3 and the loop vectorizer off: the vectorizer turns field-arithmetic loops into i64x2
++# multiplies that V8 lowers to slow sequences (scalar Fr mul 50 ns -> 72 ns), while the rest of -O3 (inlining,
++# unrolling) proves ~8% faster than -Oz end to end. The cost is a larger artifact (gzipped ~3.9 MB -> ~5.6 MB);
++# configure with -DWASM_RELEASE_OPT=-Oz to prioritise size instead.
+ if(WASM)
+     set(CMAKE_CXX_FLAGS_DEBUG "-O1 -g")
+     set(CMAKE_C_FLAGS_DEBUG "-O1 -g")
+-    set(CMAKE_CXX_FLAGS_RELEASE "-Oz -DNDEBUG")
+-    set(CMAKE_C_FLAGS_RELEASE "-Oz -DNDEBUG")
++    set(WASM_RELEASE_OPT "-O3 -fno-vectorize" CACHE STRING "Optimisation flags for release WASM builds")
++    set(CMAKE_CXX_FLAGS_RELEASE "${WASM_RELEASE_OPT} -DNDEBUG")
++    set(CMAKE_C_FLAGS_RELEASE "${WASM_RELEASE_OPT} -DNDEBUG")
+     add_link_options(-Wl,--export-memory,--import-memory,--stack-first,-z,stack-size=1048576,--max-memory=4294967296)
+ endif()
+ 
+-- 
+2.43.0
+

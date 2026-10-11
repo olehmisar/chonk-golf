@@ -1,0 +1,271 @@
+From ec3bae3f63128c254209b9b3fe35937fca4fcb53 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:03:04 +0000
+Subject: [PATCH 63/76] perf(polynomials): AVX-512 IFMA tiles in
+ add_scaled_batch
+
+Each 256-element tile of dst is held in 52-bit limbs while every source is applied (one conversion per
+dst element per tile), all-zero source blocks are skipped, partial blocks use masked loads, unit
+scalars skip the multiplication. Runtime-dispatched with the scalar tile loop as fallback; outputs are
+the same field values.
+---
+ .../barretenberg/ecc/fields/ifma_field.hpp    | 75 +++++++++++++++++++
+ .../ecc/fields/ifma_field.test.cpp            | 40 ++++++++++
+ .../polynomials/fold_stride2.test.cpp         | 33 ++++++++
+ .../barretenberg/polynomials/polynomial.cpp   | 40 +++++++++-
+ 4 files changed, 187 insertions(+), 1 deletion(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
+index 9cf8981ce..629629b25 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
+@@ -332,6 +332,81 @@ BB_FIELD_IFMA_TARGET void fold_stride2(const uint64_t* src, uint64_t* dst, size_
+     }
+ }
+ 
++/**
++ * @brief One source of `add_scaled_batch_tile`: tile elements [begin, end) gain scalar * src, where `data` points at
++ *        the source element for tile index `begin`. A unit scalar (`unit`) adds src without multiplying.
++ */
++struct ScaledSource {
++    const uint64_t* data;
++    size_t begin;
++    size_t end;
++    const uint64_t* scalar;
++    bool unit;
++};
++
++/**
++ * @brief dst[i] += sum over sources of scalar * src[i] for a tile of n <= MAX_TILE elements (n a multiple of 8), on raw
++ *        4-limb elements in [0, 2p). Outputs are in [0, p).
++ *
++ * @details The tile is held in 52-bit form for the whole batch, so every dst element is converted once. Blocks of
++ *          eight source elements that are all zero (selector columns) are skipped, as are the lanes of a block outside
++ *          the source's range (masked loads, which also never touch memory outside it). Each block is reduced after
++ *          every third term, keeping it below 2p + 3 * 2p < 9p as `canonical` needs.
++ */
++inline constexpr size_t MAX_TILE = 256;
++
++template <typename Params>
++BB_FIELD_IFMA_TARGET void add_scaled_batch_tile(uint64_t* dst,
++                                                size_t n,
++                                                const ScaledSource* sources,
++                                                size_t num_sources)
++{
++    const size_t num_blocks = n / 8;
++    V5 acc[MAX_TILE / 8];
++    uint8_t terms[MAX_TILE / 8];
++    for (size_t b = 0; b < num_blocks; ++b) {
++        acc[b] = load8(dst + (32 * b));
++        terms[b] = 0;
++    }
++    for (size_t s = 0; s < num_sources; ++s) {
++        const ScaledSource& src = sources[s];
++        const V5 scalar = broadcast(src.scalar);
++        for (size_t b = src.begin / 8; b * 8 < src.end; ++b) {
++            const size_t lo = b * 8;
++            // Mask of the 64-bit words of the block's eight elements that lie in [begin, end).
++            const size_t first = (src.begin > lo) ? src.begin - lo : 0;
++            const size_t last = std::min<size_t>(8, src.end - lo);
++            const uint32_t elements = ((1U << last) - 1U) & ~((1U << first) - 1U);
++            // Element pointer arithmetic stays within the source when every lane is live.
++            const uint64_t* base = src.data - (4 * src.begin) + (4 * lo);
++            __m512i z[4];
++            __m512i any = _mm512_setzero_si512();
++            for (size_t j = 0; j < 4; ++j) {
++                const uint32_t pair = (elements >> (2 * j)) & 3U;
++                const __mmask8 words =
++                    static_cast<__mmask8>(((pair & 1U) != 0 ? 0x0FU : 0U) | ((pair & 2U) != 0 ? 0xF0U : 0U));
++                z[j] = _mm512_maskz_loadu_epi64(words, base + (8 * j));
++                any = _mm512_or_si512(any, z[j]);
++            }
++            if (_mm512_test_epi64_mask(any, any) == 0) {
++                continue;
++            }
++            V5 v = transpose_in(z[0], z[1], z[2], z[3]);
++            if (!src.unit) {
++                v = mont_mul<Params>(v, scalar);
++            }
++            acc[b] = add(acc[b], v);
++            if (++terms[b] == 3) {
++                acc[b] = canonical<Params>(acc[b]);
++                terms[b] = 0;
++            }
++        }
++    }
++    for (size_t b = 0; b < num_blocks; ++b) {
++        store8(canonical<Params>(acc[b]), dst + (32 * b));
++    }
++}
++
+ } // namespace bb::field_ifma
+ 
+ // NOLINTEND(cppcoreguidelines-avoid-c-arrays, cppcoreguidelines-pro-bounds-constant-array-index)
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
+index a5b805e30..82b955517 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
+@@ -99,4 +99,44 @@ TEST_F(FieldIfma, FoldStride2MatchesScalar)
+     }
+ }
+ 
++TEST_F(FieldIfma, AddScaledBatchTileMatchesScalar)
++{
++    constexpr size_t TILE = field_ifma::MAX_TILE;
++    constexpr size_t NUM_SOURCES = 23;
++    std::vector<std::vector<fr>> sources(NUM_SOURCES, std::vector<fr>(TILE));
++    std::vector<fr> scalars(NUM_SOURCES);
++    std::vector<size_t> begins(NUM_SOURCES);
++    std::vector<size_t> ends(NUM_SOURCES);
++    for (size_t k = 0; k < NUM_SOURCES; ++k) {
++        for (size_t i = 0; i < TILE; ++i) {
++            // Every fourth source is zero over most of the tile (selector-like), exercising the zero-block skip.
++            sources[k][i] = (k % 4 == 0 && i < 200) ? fr::zero() : edge_or_random(i + k);
++        }
++        scalars[k] = (k % 5 == 0) ? fr::one() : edge_or_random(k);
++        // Ranges with unaligned and empty-tail ends, including the full tile.
++        begins[k] = (k == 0) ? 0 : (k * 13) % 61;
++        ends[k] = (k == 1) ? TILE : TILE - ((k * 7) % 53);
++    }
++    std::vector<fr> dst(TILE);
++    for (size_t i = 0; i < TILE; ++i) {
++        dst[i] = edge_or_random(i + 3);
++    }
++    std::vector<fr> expected = dst;
++    std::vector<field_ifma::ScaledSource> scaled;
++    for (size_t k = 0; k < NUM_SOURCES; ++k) {
++        for (size_t i = begins[k]; i < ends[k]; ++i) {
++            expected[i] += scalars[k] * sources[k][i];
++        }
++        scaled.push_back({ .data = &sources[k][begins[k]].data[0],
++                           .begin = begins[k],
++                           .end = ends[k],
++                           .scalar = &scalars[k].data[0],
++                           .unit = scalars[k] == fr::one() });
++    }
++    field_ifma::add_scaled_batch_tile<fr::Params>(&dst[0].data[0], TILE, scaled.data(), scaled.size());
++    for (size_t i = 0; i < TILE; ++i) {
++        expect_reduced_equal(expected[i], dst[i]);
++    }
++}
++
+ #endif // BB_FIELD_IFMA
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.test.cpp b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.test.cpp
+index ccfccd741..5f3c7dd20 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.test.cpp
+@@ -57,3 +57,36 @@ TEST(FoldStride2, MatchesFormula)
+         }
+     }
+ }
++
++TEST(AddScaledBatch, MatchesSequentialAddScaled)
++{
++    const size_t n = 3000;
++    std::vector<Polynomial<fr>> sources;
++    std::vector<fr> scalars;
++    for (size_t k = 0; k < 9; ++k) {
++        const size_t start = (k * 37) % 300;
++        const size_t size = n - start - ((k * 101) % 700);
++        Polynomial<fr> p(size, n, start);
++        for (size_t i = start; i < start + size; ++i) {
++            // Zero stretches like selector columns.
++            p.at(i) = (k % 3 == 0 && (i / 64) % 2 == 0) ? fr::zero() : fr::random_element(&engine);
++        }
++        sources.push_back(std::move(p));
++        scalars.push_back(k == 0 ? fr::one() : fr::random_element(&engine));
++    }
++    Polynomial<fr> dst(n, n);
++    for (size_t i = 0; i < n; ++i) {
++        dst.at(i) = fr::random_element(&engine);
++    }
++    std::vector<fr> expected(n);
++    for (size_t i = 0; i < n; ++i) {
++        expected[i] = dst[i];
++        for (size_t k = 0; k < sources.size(); ++k) {
++            expected[i] += scalars[k] * sources[k][i];
++        }
++    }
++    add_scaled_batch(dst, sources, std::span<const fr>(scalars));
++    for (size_t i = 0; i < n; ++i) {
++        EXPECT_EQ(dst[i], expected[i]) << i;
++    }
++}
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
+index 5c0487089..c741718f3 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
+@@ -8,11 +8,13 @@
+ #include "barretenberg/common/assert.hpp"
+ #include "barretenberg/common/bb_bench.hpp"
+ #include "barretenberg/common/thread.hpp"
++#include "barretenberg/ecc/fields/ifma_field.hpp"
+ #include "barretenberg/numeric/bitop/get_msb.hpp"
+ #include "barretenberg/numeric/bitop/pow.hpp"
+ #include "barretenberg/polynomials/backing_memory.hpp"
+ #include "barretenberg/polynomials/shared_shifted_virtual_zeroes_array.hpp"
+ #include "polynomial_arithmetic.hpp"
++#include <algorithm>
+ #include <cstddef>
+ #include <fcntl.h>
+ #include <list>
+@@ -23,6 +25,7 @@
+ #include <type_traits>
+ #include <unordered_map>
+ #include <utility>
++#include <vector>
+ 
+ namespace bb {
+ 
+@@ -299,12 +302,47 @@ void add_scaled_batch(Polynomial<Fr>& dst,
+         // Walk the chunk in L1-sized tiles and apply every source to a tile before moving on, so each dst
+         // element is loaded and stored once per tile rather than once per source.
+         constexpr size_t TILE_SIZE = 256;
++#ifdef BB_FIELD_IFMA
++        constexpr bool ifma_supported = field_ifma::Consts<typename Fr::Params>::supported;
++        static_assert(!ifma_supported || TILE_SIZE <= field_ifma::MAX_TILE);
++        const bool use_ifma = ifma_supported && field_ifma::available();
++        std::vector<field_ifma::ScaledSource> tile_sources;
++        if (use_ifma) {
++            tile_sources.reserve(sources.size());
++        }
++#endif
+         for (size_t tile_start = chunk_start; tile_start < chunk_end; tile_start += TILE_SIZE) {
+             const size_t tile_end = std::min(tile_start + TILE_SIZE, chunk_end);
++            // Elements of the tile before `scalar_start` are already done by the IFMA kernel.
++            size_t scalar_start = tile_start;
++#ifdef BB_FIELD_IFMA
++            if constexpr (ifma_supported) {
++                const size_t vector_size = (tile_end - tile_start) & ~size_t{ 7 };
++                if (use_ifma && vector_size != 0) {
++                    const size_t vector_end = tile_start + vector_size;
++                    tile_sources.clear();
++                    for (size_t k = 0; k < sources.size(); ++k) {
++                        const auto& src = sources[k];
++                        const size_t idx_start = std::max(tile_start, src.start_index);
++                        const size_t idx_end = std::min(vector_end, src.end_index());
++                        if (idx_start < idx_end) {
++                            tile_sources.push_back({ .data = &src[idx_start].data[0],
++                                                     .begin = idx_start - tile_start,
++                                                     .end = idx_end - tile_start,
++                                                     .scalar = &scalars[k].data[0],
++                                                     .unit = scalars[k] == Fr::one() });
++                        }
++                    }
++                    field_ifma::add_scaled_batch_tile<typename Fr::Params>(
++                        &dst.at(tile_start).data[0], vector_size, tile_sources.data(), tile_sources.size());
++                    scalar_start = vector_end;
++                }
++            }
++#endif
+             for (size_t k = 0; k < sources.size(); ++k) {
+                 const auto& src = sources[k];
+                 const Fr& c = scalars[k];
+-                const size_t idx_start = std::max(tile_start, src.start_index);
++                const size_t idx_start = std::max(scalar_start, src.start_index);
+                 const size_t idx_end = std::min(tile_end, src.end_index());
+ 
+                 // A unit scalar needs no multiplication
+-- 
+2.43.0
+

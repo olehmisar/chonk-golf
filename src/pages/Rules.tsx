@@ -117,7 +117,7 @@ export function Rules() {
             </a>{" "}
             Token (<code>{HEADLINE_FLOW}</code>), with time and peak RAM side by side. Two
             neighbouring Token flows (mint to private, transfer private → public) are reported with
-            it. The 5/11 pinned-flow totals stay on the board as secondary columns.
+            it. Totals over all 14 flows (11 pinned + 3 aztec-standards) are secondary columns.
           </p>
           <p>
             The flows were captured with aztec-standards' own <strong>6.0.0-rc.1</strong> toolchain

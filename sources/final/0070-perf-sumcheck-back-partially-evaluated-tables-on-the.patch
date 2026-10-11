@@ -1,0 +1,205 @@
+From 86eea94ed6fe4ab9f4c181d6f530cf6846a978aa Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:07:37 +0000
+Subject: [PATCH 70/76] perf(sumcheck): back partially evaluated tables on the
+ folded support only
+
+The partially evaluated multivariates were allocated over [0, ceil(end/2)) for every polynomial,
+also for selectors and other columns whose backed range starts deep inside the trace. Back them on
+[floor(start/2), ceil(end/2)) instead, and move the backed range down in place on later rounds
+(Polynomial::rebase_backed_range), so the tables never hold the leading virtual zeroes.
+---
+ .../batched_honk_translator_prover.cpp        |  8 ++---
+ .../partially_evaluated_multivariates.hpp     | 13 +++----
+ .../barretenberg/polynomials/fold_stride2.hpp | 36 +++++++++++++++++++
+ .../barretenberg/polynomials/polynomial.cpp   |  8 +++++
+ .../barretenberg/polynomials/polynomial.hpp   |  7 ++++
+ .../src/barretenberg/sumcheck/sumcheck.hpp    | 15 +++-----
+ 6 files changed, 66 insertions(+), 21 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp b/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
+index e44ad74e3..5f9c13a53 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
+@@ -48,9 +48,8 @@ void joint_partially_evaluate(MegaZKSource& mega_zk_source,
+     std::vector<FoldJob> jobs;
+     auto add_jobs = [&](auto& source, auto& dest) {
+         for (auto [source_poly, dest_poly] : zip_view(source.get_all(), dest.get_all())) {
+-            // One output per source pair (2k, 2k+1); an odd trailing slot folds against an implicit zero.
+-            const size_t limit = source_poly.end_index();
+-            jobs.push_back({ &source_poly, &dest_poly, (limit / 2) + (limit % 2) });
++            const auto [begin, end] = folded_backed_range(source_poly);
++            jobs.push_back({ &source_poly, &dest_poly, end - begin });
+         }
+     };
+     add_jobs(mega_zk_source, mega_zk_dest);
+@@ -60,8 +59,7 @@ void joint_partially_evaluate(MegaZKSource& mega_zk_source,
+ 
+     parallel_for(jobs.size(), [&](size_t j) {
+         const FoldJob& job = jobs[j];
+-        fold_stride2(*job.source, *job.dest, /*begin=*/0, /*end=*/job.num_outputs, round_challenge);
+-        job.dest->shrink_end_index(job.num_outputs);
++        fold_stride2_backed(*job.source, *job.dest, round_challenge);
+     });
+ 
+     // Halve the active-row prefix to track the folded trace (only tables that carry it).
+diff --git a/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp b/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
+index 07db6c3ba..a829c7b1d 100644
+--- a/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
++++ b/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
+@@ -6,6 +6,7 @@
+ #pragma once
+ 
+ #include "barretenberg/common/zip_view.hpp"
++#include "barretenberg/polynomials/fold_stride2.hpp"
+ #include "barretenberg/polynomials/polynomial.hpp"
+ 
+ namespace bb {
+@@ -30,16 +31,16 @@ class PartiallyEvaluatedMultivariatesBase : public AllEntitiesBase {
+     size_t row_skip_active_prefix_end = 0;
+ 
+     /**
+-     * @brief Construct from full polynomials, allocating based on their actual sizes.
+-     * @details After the initial sumcheck round, the new size is CEIL(size/2).
++     * @brief Construct from full polynomials, allocating based on their actual backed ranges.
++     * @details After the initial sumcheck round, a polynomial backed on [start, end) is backed on
++     * [FLOOR(start/2), CEIL(end/2)).
+      */
+     PartiallyEvaluatedMultivariatesBase(const ProverPolynomialsType& full_polynomials, size_t circuit_size)
+     {
+         for (auto [poly, full_poly] : zip_view(this->get_all(), full_polynomials.get_all())) {
+-            // After the initial sumcheck round, the new size is CEIL(size/2).
+-            size_t desired_size = (full_poly.end_index() / 2) + (full_poly.end_index() % 2);
+-            // partially_evaluate writes to [0, desired_size) before any read; backing memory can be left uninitialized.
+-            poly = Polynomial(desired_size, circuit_size / 2, 0, Polynomial::DontZeroMemory::FLAG);
++            const auto [start, end] = folded_backed_range(full_poly);
++            // partially_evaluate writes to [start, end) before any read; backing memory can be left uninitialized.
++            poly = Polynomial(end - start, circuit_size / 2, start, Polynomial::DontZeroMemory::FLAG);
+         }
+         if constexpr (requires { full_polynomials.row_skip_active_prefix_end; }) {
+             row_skip_active_prefix_end =
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+index 262abe690..1ed4ba0f2 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+@@ -9,6 +9,7 @@
+ #include <array>
+ #include <cstddef>
+ #include <cstdint>
++#include <utility>
+ 
+ namespace bb {
+ 
+@@ -115,4 +116,39 @@ void fold_stride2(
+     fold_scalar(k, end);
+ }
+ 
++/**
++ * @brief Backed range [⌊start/2⌋, ⌈end/2⌉) of the fold of a polynomial backed on [start, end); empty if the source is.
++ */
++template <typename Fr> std::pair<size_t, size_t> folded_backed_range(const Polynomial<Fr>& src)
++{
++    if (src.size() == 0) {
++        return { 0, 0 };
++    }
++    return { src.start_index() / 2, (src.end_index() / 2) + (src.end_index() % 2) };
++}
++
++/**
++ * @brief Fold `src` at `challenge` over its whole support: writes `dst[k]` for k in `folded_backed_range(src)`.
++ * @details `dst` is either a distinct polynomial backed on a range that starts at the folded start and covers the
++ * folded end (its end index is shrunk to the folded end), or `src` itself. In the in-place case the backed range is
++ * moved down to the folded range over the same buffer: output k is stored at offset k - ⌊start/2⌋ while iteration k
++ * reads offsets 2k - start and 2k + 1 - start, and k - ⌊start/2⌋ < 2k - start + 2 for every k >= ⌊start/2⌋, so no
++ * output overwrites a source slot a later iteration still reads.
++ */
++template <typename Fr> void fold_stride2_backed(const Polynomial<Fr>& src, Polynomial<Fr>& dst, const Fr& challenge)
++{
++    const auto [begin, end] = folded_backed_range(src);
++    if (&src == &dst) {
++        const Polynomial<Fr> source = src.share();
++        dst.rebase_backed_range(begin, end);
++        fold_stride2(source, dst, begin, end, challenge);
++        return;
++    }
++    if (begin == end) {
++        return;
++    }
++    fold_stride2(src, dst, begin, end, challenge);
++    dst.shrink_end_index(end);
++}
++
+ } // namespace bb
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
+index c741718f3..9b604b29c 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
+@@ -208,6 +208,14 @@ template <typename Fr> void Polynomial<Fr>::shrink_end_index(const size_t new_en
+     coefficients_.end_ = new_end_index;
+ }
+ 
++template <typename Fr> void Polynomial<Fr>::rebase_backed_range(const size_t new_start, const size_t new_end)
++{
++    BB_ASSERT_LTE(new_start, new_end);
++    BB_ASSERT_LTE(new_end - new_start, size());
++    coefficients_.start_ = new_start;
++    coefficients_.end_ = new_end;
++}
++
+ template <typename Fr> Polynomial<Fr> Polynomial<Fr>::full() const
+ {
+     Polynomial result;
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
+index ab11540c1..624125a68 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
+@@ -579,6 +579,13 @@ template <typename Fr> class Polynomial {
+      */
+     void shrink_end_index(const size_t new_end_index);
+ 
++    /**
++     * @brief Move the memory-backed range to [new_start, new_end) without moving any data: the element stored at
++     *        offset i now represents index new_start + i. The new range must fit in the current backed size.
++     * @details Lets an in-place fold write its outputs, which occupy a lower index range, over the same buffer.
++     */
++    void rebase_backed_range(const size_t new_start, const size_t new_end);
++
+     /**
+      * @brief Copys the polynomial, but with the whole address space usable.
+      * The value of the polynomial remains the same, but defined memory region differs.
+diff --git a/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck.hpp b/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck.hpp
+index 1565ac393..678db7cf5 100644
+--- a/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck.hpp
++++ b/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck.hpp
+@@ -654,8 +654,8 @@ template <typename Flavor> class SumcheckProver {
+      *
+      * Per polynomial, output k folds the adjacent source pair: dst[k] = src[2k] + r * (src[2k+1] - src[2k]).
+      * The per-output kernel (scalar tail + WASM SIMD bulk, virtual-zero prefix handling, in-place aliasing)
+-     * lives in `bb::fold_stride2`; this method just halves each polynomial's active extent around it. The
+-     * number of outputs is ceil(limit/2) = (limit / 2) + (limit % 2), matching the shrunk end index.
++     * lives in `bb::fold_stride2`; this method just halves each polynomial's backed range [start, end) to
++     * [floor(start/2), ceil(end/2)) around it (see `bb::fold_stride2_backed`).
+      */
+     static void partially_evaluate(auto& source_polynomials,
+                                    PartiallyEvaluatedMultivariates& dest_polynomials,
+@@ -665,14 +665,9 @@ template <typename Flavor> class SumcheckProver {
+         auto dest_view = dest_polynomials.get_all();
+         parallel_for(source_view.size(), [&](size_t j) {
+             BB_BENCH_TRACY_NAME("Sumcheck::partially_evaluate");
+-            const auto& poly = source_view[j];
+-            auto& dest = dest_view[j];
+-            const size_t limit = poly.end_index();
+-            // One output per source pair (2k, 2k+1); when limit is odd the last source slot is unpaired
+-            // and folds against an implicit zero, so we round up: ceil(limit / 2).
+-            const size_t num_outputs = (limit / 2) + (limit % 2);
+-            fold_stride2(poly, dest, /*begin=*/0, /*end=*/num_outputs, round_challenge);
+-            dest.shrink_end_index(num_outputs);
++            // One output per source pair (2k, 2k+1); an unpaired slot at either end of the backed range folds
++            // against an implicit zero.
++            fold_stride2_backed(source_view[j], dest_view[j], round_challenge);
+         });
+         // Halve the active-row prefix to track the folded trace; the loop above leaves the member untouched, so this
+         // reads the pre-round value even when source and dest alias (see partially_evaluate_in_place).
+-- 
+2.43.0
+

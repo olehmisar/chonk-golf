@@ -4,7 +4,7 @@ import { PlayCard } from "../components/PlayCard.tsx";
 import { Segmented } from "../components/Segmented.tsx";
 import { ALL, BY_ID } from "../data.ts";
 import { href } from "../router.ts";
-import { FLOW_COUNT, FLOWS, HEADLINE_LABEL, type FlowName } from "../schema.ts";
+import { FLOWS, HEADLINE_LABEL, TOTAL_FLOWS, type FlowName } from "../schema.ts";
 import {
   holeNumber,
   isRamRegression,
@@ -62,15 +62,15 @@ const COLUMNS: {
   },
   {
     key: "at",
-    label: "Pinned time",
-    hint: "Total wall time over the measured pinned flows vs par",
+    label: "All-flows time",
+    hint: "Total wall time over all measured flows (up to 14: 11 pinned + 3 aztec-standards) vs par",
     metric: "time",
     scope: "aggregate",
   },
   {
     key: "ar",
-    label: "Pinned RAM",
-    hint: "Peak RSS over the measured pinned flows vs par",
+    label: "All-flows RAM",
+    hint: "Peak RSS summed over all measured flows vs par",
     metric: "ram",
     scope: "aggregate",
   },
@@ -178,7 +178,7 @@ function Hero({ leader }: { leader: Scored | undefined }) {
                   </span>
                 </div>
                 <p className="num mt-2 text-xs text-[#3f5246]">
-                  Pinned flows: time {pctDelta(leader.timeRatio)}
+                  All flows: time {pctDelta(leader.timeRatio)}
                   {leader.timeFlows ? ` (${leader.timeFlows} flows)` : ""} · RAM{" "}
                   {pctDelta(leader.ramRatio)}
                 </p>
@@ -240,7 +240,7 @@ export function Leaderboard() {
           ? x.verdict === "verified"
           : x.verdict !== "unverified" && x.verdict !== "failed",
     );
-    // Nobody in this pool measured the headline flow yet: rank by the pinned-flow aggregate instead.
+    // Nobody in this pool measured the headline flow yet: rank by the all-flows aggregate instead.
     const effective: Scope =
       scope === "headline" &&
       !pool.some((x) => x.s.kind !== "reference" && metricValue(x, metric, "headline") !== null)
@@ -293,7 +293,11 @@ export function Leaderboard() {
                 label: "⛳ Headline flow",
                 hint: `${HEADLINE_LABEL} (aztec-standards)`,
               },
-              { value: "aggregate", label: "Pinned flows", hint: "5/11 pinned Chonk flows, total" },
+              {
+                value: "aggregate",
+                label: "All flows",
+                hint: "Total over all measured flows (11 pinned + 3 aztec-standards)",
+              },
             ]}
           />
           <Segmented<Metric>
@@ -337,7 +341,7 @@ export function Leaderboard() {
         {scope === "headline" && rows.effective === "aggregate" && (
           <p className="rounded-lg border border-dashed border-line px-4 py-3 text-sm text-muted">
             No card on this board has been measured on the headline flow yet, so it is ranked by the
-            pinned-flow aggregate.
+            all-flows aggregate.
           </p>
         )}
         {metric === "ram" &&
@@ -367,7 +371,10 @@ export function Leaderboard() {
                   );
                 })}
                 <th className="px-3 py-2">Correctness</th>
-                <th className="px-3 py-2 text-right" title="Pinned flows measured">
+                <th
+                  className="px-3 py-2 text-right"
+                  title="Flows measured (of 11 pinned + 3 aztec-standards)"
+                >
                   Flows
                 </th>
                 {holes &&
@@ -421,6 +428,14 @@ export function Leaderboard() {
                           </span>
                         )}
                         <RamRegressionChip ratio={x.headlineRam ?? x.ramRatio} />
+                        {x.s.caveats?.length ? (
+                          <span
+                            title={x.s.caveats.join("\n")}
+                            className="rounded border border-warn/50 bg-sand/40 px-1.5 py-px text-[11px] font-semibold text-warn uppercase"
+                          >
+                            ⚠ {x.s.caveats.length} caveat{x.s.caveats.length > 1 ? "s" : ""}
+                          </span>
+                        ) : null}
                         {tab === "range" && against && <span>vs {against}</span>}
                       </div>
                     </td>
@@ -453,7 +468,7 @@ export function Leaderboard() {
                     </td>
                     <td className="num px-3 py-3 text-right text-xs text-muted">
                       {metric === "time" ? (x.timeFlows ?? "—") : x.ramFlows || "—"}
-                      {(metric === "time" ? x.timeFlows : x.ramFlows) ? `/${FLOW_COUNT}` : ""}
+                      {(metric === "time" ? x.timeFlows : x.ramFlows) ? `/${TOTAL_FLOWS}` : ""}
                     </td>
                     {holes &&
                       flowCols.map((f) => {
@@ -495,9 +510,11 @@ export function Leaderboard() {
         <p className="text-xs text-muted">
           ⛳ Headline = {HEADLINE_LABEL}, the aztec-standards Token flow (see the rules). WASM = the
           same flow proved by the card's WASM build through stock bb.js (peak RSS of the Node
-          process, WASM memory included). Pinned = total over the measured pinned Chonk flows. Cells
-          show per-hole ratio vs par (lower is better); <span className="text-muted/60">·</span> =
-          not reported. Cards without a reported total sort to the bottom. Holes:{" "}
+          process, WASM memory included). All flows = total over every measured flow (11 pinned + 3
+          aztec-standards). Cards whose peak RAM grew rank after the cards that kept it (RAM must
+          not grow). Cells show per-hole ratio vs par (lower is better);{" "}
+          <span className="text-muted/60">·</span> = not reported. Cards without a reported total
+          sort to the bottom. Holes:{" "}
           {flowCols.map((f) => `H${holeNumber(f)} ${SHORT_FLOW[f]}`).join(" · ")}.
         </p>
       </section>

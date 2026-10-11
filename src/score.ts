@@ -81,12 +81,17 @@ function wasmAggregate(s: Submission) {
   };
 }
 
+/** Pinned flows plus the aztec-standards flows: the all-flows aggregate covers both (up to 14). */
+export function allFlows(s: Submission): Metrics[] {
+  return [...s.flows, ...(s.standards?.flows ?? [])];
+}
+
 export function timeRatio(s: Submission): { ratio: number | null; flows: number | null } {
   const { summary } = s;
   if (has(summary.wall_ratio)) return { ratio: summary.wall_ratio, flows: summary.flows_measured };
   if (has(summary.wall_s) && has(summary.baseline_wall_s) && summary.baseline_wall_s > 0)
     return { ratio: summary.wall_s / summary.baseline_wall_s, flows: summary.flows_measured };
-  const timed = s.flows.filter((f) => has(f.wall_s) && has(f.baseline_wall_s));
+  const timed = allFlows(s).filter((f) => has(f.wall_s) && has(f.baseline_wall_s));
   if (!timed.length) return { ratio: null, flows: null };
   const a = timed.reduce((t, f) => t + (f.baseline_wall_s ?? 0), 0);
   const b = timed.reduce((t, f) => t + (f.wall_s ?? 0), 0);
@@ -94,7 +99,7 @@ export function timeRatio(s: Submission): { ratio: number | null; flows: number 
 }
 
 export function ramRatio(s: Submission): { ratio: number | null; flows: number } {
-  const m = s.flows.filter((f) => has(f.peak_rss_mib) && has(f.baseline_peak_rss_mib));
+  const m = allFlows(s).filter((f) => has(f.peak_rss_mib) && has(f.baseline_peak_rss_mib));
   if (!m.length) return { ratio: null, flows: 0 };
   const a = m.reduce((t, f) => t + (f.baseline_peak_rss_mib ?? 0), 0);
   const b = m.reduce((t, f) => t + (f.peak_rss_mib ?? 0), 0);
@@ -172,6 +177,9 @@ export function metricValue(
  * Sort ascending by ratio (lower = better). Cards without the metric sink to the bottom; among those (and on ties)
  * the aggregate of the same metric decides, then the title.
  */
+/** RAM must not grow: a card whose peak RAM regressed (headline RAM when measured, else all-flows RAM). */
+export const ramRegressed = (x: Scored) => isRamRegression(x.headlineRam ?? x.ramRatio);
+
 export function rank(items: Scored[], metric: Metric, scope: Scope = "aggregate"): Scored[] {
   const cmp = (ka: number | null, kb: number | null) => {
     if (ka === null && kb === null) return 0;
@@ -179,8 +187,13 @@ export function rank(items: Scored[], metric: Metric, scope: Scope = "aggregate"
     if (kb === null) return -1;
     return ka - kb;
   };
+  // Groups: measured and RAM-clean, then measured but RAM grew (they keep their flag and numbers; RAM must not
+  // grow), then not measured on this metric.
+  const group = (x: Scored) =>
+    metricValue(x, metric, scope) === null ? 2 : metric === "time" && ramRegressed(x) ? 1 : 0;
   return [...items].sort(
     (a, b) =>
+      group(a) - group(b) ||
       cmp(metricValue(a, metric, scope), metricValue(b, metric, scope)) ||
       cmp(metricValue(a, metric, "aggregate"), metricValue(b, metric, "aggregate")) ||
       a.s.title.localeCompare(b.s.title),

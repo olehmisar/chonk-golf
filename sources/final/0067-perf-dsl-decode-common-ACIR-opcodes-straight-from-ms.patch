@@ -1,0 +1,638 @@
+From ac3a78f4bb081fde9fb2b6049c473a49728c916c Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:04:00 +0000
+Subject: [PATCH 67/76] perf(dsl): decode common ACIR opcodes straight from
+ msgpack-compact bytes
+
+The streaming program decoder unpacked every opcode into a msgpack object
+tree and converted that into Acir:: structs. AssertZero, RANGE, MemoryOp and
+BrilligCall (about 98% of the opcodes of the pinned flows) are now read
+directly from the bytes: AssertZero into a reused Acir::Opcode::AssertZero
+whose coefficient buffers are recycled between opcodes, RANGE and MemoryOp
+into their Acir:: values, and BrilligCall only for the witness indices that
+update the maximum witness index. Any other opcode or unexpected layout falls
+back to the generic decoder. The conversion into AcirFormat is unchanged.
+
+ChonkLoad: ~100 -> ~45 ms on transfer_1_recursions+private_fpc.
+---
+ .../acir_format/acir_compact_decoder.test.cpp | 217 +++++++++++
+ .../acir_format/acir_to_constraint_buf.cpp    | 347 ++++++++++++++++++
+ 2 files changed, 564 insertions(+)
+ create mode 100644 barretenberg/cpp/src/barretenberg/dsl/acir_format/acir_compact_decoder.test.cpp
+
+diff --git a/barretenberg/cpp/src/barretenberg/dsl/acir_format/acir_compact_decoder.test.cpp b/barretenberg/cpp/src/barretenberg/dsl/acir_format/acir_compact_decoder.test.cpp
+new file mode 100644
+index 000000000..1f164d957
+--- /dev/null
++++ b/barretenberg/cpp/src/barretenberg/dsl/acir_format/acir_compact_decoder.test.cpp
+@@ -0,0 +1,217 @@
++/**
++ * @file acir_compact_decoder.test.cpp
++ * @brief The streaming msgpack-compact program decoder (circuit_buf_to_acir_format) must produce the same AcirFormat
++ * as converting the Acir::Circuit it encodes (circuit_serde_to_acir_format).
++ */
++
++#include <gtest/gtest.h>
++#include <vector>
++
++#include "acir_to_constraint_buf.hpp"
++#include "barretenberg/common/assert.hpp"
++#include "barretenberg/ecc/curves/bn254/fr.hpp"
++#include "barretenberg/serialize/msgpack_impl.hpp"
++#include "serde/acir.hpp"
++
++using namespace acir_format;
++
++namespace {
++
++std::vector<uint8_t> coefficient(const bb::fr& value)
++{
++    std::vector<uint8_t> bytes(32);
++    bb::fr::serialize_to_buffer(value, bytes.data());
++    return bytes;
++}
++
++Acir::Expression expression(const std::vector<std::tuple<uint64_t, uint32_t, uint32_t>>& mul_terms,
++                            const std::vector<std::pair<uint64_t, uint32_t>>& linear_terms,
++                            uint64_t constant)
++{
++    Acir::Expression expr;
++    for (const auto& [scaling, lhs, rhs] : mul_terms) {
++        expr.mul_terms.emplace_back(coefficient(bb::fr(scaling)), Acir::Witness{ lhs }, Acir::Witness{ rhs });
++    }
++    for (const auto& [scaling, witness] : linear_terms) {
++        expr.linear_combinations.emplace_back(coefficient(-bb::fr(scaling)), Acir::Witness{ witness });
++    }
++    expr.q_c = coefficient(bb::fr(constant));
++    return expr;
++}
++
++Acir::Opcode assert_zero(Acir::Expression expr)
++{
++    return Acir::Opcode{ .value = Acir::Opcode::AssertZero{ .value = std::move(expr) } };
++}
++
++Acir::Opcode range(Acir::FunctionInput input, uint32_t num_bits)
++{
++    return Acir::Opcode{ .value = Acir::Opcode::BlackBoxFuncCall{
++                             .value =
++                                 Acir::BlackBoxFuncCall{ .value = Acir::BlackBoxFuncCall::RANGE{
++                                                             .input = std::move(input), .num_bits = num_bits } } } };
++}
++
++Acir::Opcode memory_op(uint32_t block_id, bool is_write, uint32_t index, uint32_t value)
++{
++    return Acir::Opcode{ .value = Acir::Opcode::MemoryOp{
++                             .block_id = Acir::BlockId{ block_id },
++                             .op = Acir::MemOp{ .read = is_write, .index = { index }, .value = { value } } } };
++}
++
++std::vector<uint8_t> serialize_program(const Acir::Circuit& circuit)
++{
++    msgpack::sbuffer sbuf;
++    msgpack::packer<msgpack::sbuffer> packer(sbuf);
++    // Program = [functions, unconstrained_functions]
++    packer.pack_array(2);
++    packer.pack_array(1);
++    packer.pack(circuit);
++    packer.pack_array(0);
++
++    std::vector<uint8_t> buf;
++    buf.push_back(0x03); // FORMAT_MSGPACK_COMPACT
++    buf.insert(buf.end(), sbuf.data(), sbuf.data() + sbuf.size());
++    return buf;
++}
++
++Acir::Circuit test_circuit()
++{
++    Acir::Circuit circuit;
++    auto& ops = circuit.opcodes;
++
++    // AssertZero opcodes of every gate shape, with growing and shrinking term counts (exercises buffer reuse),
++    // duplicate linear witnesses and witness indices in every msgpack integer width.
++    ops.push_back(assert_zero(expression({}, { { 1, 1 }, { 1, 2 } }, 0)));
++    ops.push_back(assert_zero(expression({ { 1, 1, 2 } }, { { 1, 3 } }, 5)));
++    ops.push_back(assert_zero(expression({ { 2, 1, 2 }, { 3, 2, 4 } }, { { 1, 1 }, { 1, 4 }, { 1, 5 } }, 0)));
++    ops.push_back(assert_zero(expression(
++        { { 2, 1, 2 }, { 3, 3, 4 }, { 4, 5, 6 } }, { { 1, 7 }, { 1, 8 }, { 1, 9 }, { 1, 10 }, { 1, 11 } }, 7)));
++    ops.push_back(assert_zero(expression({}, { { 1, 200 } }, 3)));
++    ops.push_back(assert_zero(expression({ { 1, 300, 300 } }, { { 1, 300 }, { 2, 300 }, { 1, 70000 } }, 0)));
++    ops.push_back(assert_zero(expression({}, { { 1, 12 }, { 1, 13 }, { 1, 14 }, { 1, 15 }, { 1, 16 }, { 1, 17 } }, 1)));
++    ops.push_back(assert_zero(expression({ { 5, 18, 19 } }, {}, 0)));
++    ops.push_back(assert_zero(expression({}, { { 1, 20 }, { 1, 21 } }, 9)));
++
++    // Range constraints on witnesses in different msgpack integer widths.
++    ops.push_back(range(Acir::FunctionInput{ .value = Acir::FunctionInput::Witness{ .value = { 22 } } }, 32));
++    ops.push_back(range(Acir::FunctionInput{ .value = Acir::FunctionInput::Witness{ .value = { 100000 } } }, 254));
++
++    // Memory: MemoryInit goes through the generic decoder, MemoryOp reads and writes are decoded directly.
++    ops.push_back(Acir::Opcode{
++        .value = Acir::Opcode::MemoryInit{ .block_id = { 0 },
++                                           .init = { { 23 }, { 24 }, { 25 } },
++                                           .block_type = Acir::BlockType{ .value = Acir::BlockType::Memory{} } } });
++    ops.push_back(memory_op(0, false, 26, 27));
++    ops.push_back(memory_op(0, true, 28, 29));
++
++    // Brillig calls only contribute their witness indices; the largest index of the circuit is in one.
++    ops.push_back(Acir::Opcode{
++        .value = Acir::Opcode::BrilligCall{
++            .id = 3,
++            .inputs = { Acir::BrilligInputs{ .value =
++                                                 Acir::BrilligInputs::Single{
++                                                     .value = expression({ { 1, 30, 31 } }, { { 1, 32 } }, 0) } },
++                        Acir::BrilligInputs{
++                            .value = Acir::BrilligInputs::Array{ .value = { expression({}, { { 1, 33 } }, 0),
++                                                                            expression(
++                                                                                {}, { { 1, 34 }, { 1, 35 } }, 1) } } },
++                        Acir::BrilligInputs{ .value = Acir::BrilligInputs::MemoryArray{ .value = { 0 } } } },
++            .outputs = { Acir::BrilligOutputs{ .value = Acir::BrilligOutputs::Simple{ .value = { 36 } } },
++                         Acir::BrilligOutputs{ .value =
++                                                   Acir::BrilligOutputs::Array{ .value = { { 37 }, { 5000000 } } } } },
++            .predicate = expression({}, {}, 1) } });
++    ops.push_back(Acir::Opcode{ .value = Acir::Opcode::BrilligCall{
++                                    .id = 0, .inputs = {}, .outputs = {}, .predicate = expression({}, {}, 1) } });
++
++    // An AssertZero after the generic and Brillig paths.
++    ops.push_back(assert_zero(expression({ { 1, 38, 39 } }, { { 1, 40 } }, 0)));
++
++    // Skipped fields: a str8 function name, uint64 error selectors and nested expressions in the assert messages.
++    circuit.function_name = std::string(40, 'f');
++    circuit.assert_messages.emplace_back(
++        Acir::OpcodeLocation{ .value = Acir::OpcodeLocation::Acir{ .value = 3 } },
++        Acir::AssertionPayload{
++            .error_selector = 14990209321349310352ULL,
++            .payload = {
++                Acir::ExpressionOrMemory{
++                    .value = Acir::ExpressionOrMemory::Expression{ .value = expression({}, { { 1, 2 } }, 0) } },
++                Acir::ExpressionOrMemory{ .value = Acir::ExpressionOrMemory::Memory{ .value = { 0 } } } } });
++    circuit.assert_messages.emplace_back(Acir::OpcodeLocation{ .value = Acir::OpcodeLocation::Acir{ .value = 70000 } },
++                                         Acir::AssertionPayload{ .error_selector = 1, .payload = {} });
++    circuit.private_parameters = { { 1 }, { 2 }, { 300 }, { 70000 } };
++    circuit.public_parameters = Acir::PublicInputs{ .value = { { 3 }, { 4 } } };
++    circuit.return_values = Acir::PublicInputs{ .value = { { 40 } } };
++    return circuit;
++}
++
++// mul_quad_, MemOp and BlockConstraint have no operator==, so AcirFormat's defaulted one is not usable.
++auto quad_fields(const QuadConstraint& q)
++{
++    return std::make_tuple(
++        q.a, q.b, q.c, q.d, q.mul_scaling, q.a_scaling, q.b_scaling, q.c_scaling, q.d_scaling, q.const_scaling);
++}
++
++void expect_same_quads(const std::vector<QuadConstraint>& lhs, const std::vector<QuadConstraint>& rhs)
++{
++    ASSERT_EQ(lhs.size(), rhs.size());
++    for (size_t i = 0; i < lhs.size(); ++i) {
++        EXPECT_EQ(quad_fields(lhs[i]), quad_fields(rhs[i]));
++    }
++}
++
++void expect_same_acir_format(const AcirFormat& lhs, const AcirFormat& rhs)
++{
++    EXPECT_EQ(lhs.max_witness_index, rhs.max_witness_index);
++    EXPECT_EQ(lhs.num_acir_opcodes, rhs.num_acir_opcodes);
++    EXPECT_EQ(lhs.public_inputs, rhs.public_inputs);
++    EXPECT_EQ(lhs.range_constraints, rhs.range_constraints);
++    expect_same_quads(lhs.quad_constraints, rhs.quad_constraints);
++    ASSERT_EQ(lhs.big_quad_constraints.size(), rhs.big_quad_constraints.size());
++    for (size_t i = 0; i < lhs.big_quad_constraints.size(); ++i) {
++        expect_same_quads(lhs.big_quad_constraints[i], rhs.big_quad_constraints[i]);
++    }
++    EXPECT_EQ(lhs.bilinear_constraints, rhs.bilinear_constraints);
++    EXPECT_EQ(lhs.batched_eq_check_constraints, rhs.batched_eq_check_constraints);
++    ASSERT_EQ(lhs.block_constraints.size(), rhs.block_constraints.size());
++    for (size_t i = 0; i < lhs.block_constraints.size(); ++i) {
++        const auto& lhs_block = lhs.block_constraints[i];
++        const auto& rhs_block = rhs.block_constraints[i];
++        EXPECT_EQ(lhs_block.init, rhs_block.init);
++        EXPECT_EQ(lhs_block.type, rhs_block.type);
++        EXPECT_EQ(lhs_block.calldata_id, rhs_block.calldata_id);
++        ASSERT_EQ(lhs_block.trace.size(), rhs_block.trace.size());
++        for (size_t j = 0; j < lhs_block.trace.size(); ++j) {
++            EXPECT_EQ(lhs_block.trace[j].access_type, rhs_block.trace[j].access_type);
++            EXPECT_EQ(lhs_block.trace[j].index, rhs_block.trace[j].index);
++            EXPECT_EQ(lhs_block.trace[j].value, rhs_block.trace[j].value);
++        }
++    }
++    EXPECT_EQ(lhs.original_opcode_indices, rhs.original_opcode_indices);
++}
++
++} // namespace
++
++TEST(AcirCompactDecoder, MatchesCircuitConversion)
++{
++    const Acir::Circuit circuit = test_circuit();
++    for (const bool is_mega : { false, true }) {
++        const AcirFormat expected = circuit_serde_to_acir_format(circuit, is_mega);
++        const AcirFormat decoded = circuit_buf_to_acir_format(serialize_program(circuit), is_mega);
++        expect_same_acir_format(decoded, expected);
++        EXPECT_EQ(decoded.max_witness_index, 5000000U);
++        EXPECT_EQ(decoded.num_acir_opcodes, circuit.opcodes.size());
++        EXPECT_FALSE(decoded.quad_constraints.empty());
++        EXPECT_FALSE(decoded.big_quad_constraints.empty());
++        EXPECT_EQ(decoded.range_constraints.size(), 2U);
++        EXPECT_EQ(decoded.block_constraints.size(), 1U);
++    }
++}
++
++TEST(AcirCompactDecoder, RejectsTruncatedAssertMessages)
++{
++    std::vector<uint8_t> buf = serialize_program(test_circuit());
++    // The assert messages are the last field of the circuit; the empty unconstrained function list follows them.
++    buf.resize(buf.size() - 2);
++    EXPECT_THROW_WITH_MESSAGE(circuit_buf_to_acir_format(std::move(buf), /*is_mega=*/true), "malformed msgpack data");
++}
+diff --git a/barretenberg/cpp/src/barretenberg/dsl/acir_format/acir_to_constraint_buf.cpp b/barretenberg/cpp/src/barretenberg/dsl/acir_format/acir_to_constraint_buf.cpp
+index 669c320f0..eb40daf34 100644
+--- a/barretenberg/cpp/src/barretenberg/dsl/acir_format/acir_to_constraint_buf.cpp
++++ b/barretenberg/cpp/src/barretenberg/dsl/acir_format/acir_to_constraint_buf.cpp
+@@ -10,6 +10,7 @@
+ #include <cstdint>
+ #include <map>
+ #include <optional>
++#include <string_view>
+ #include <tuple>
+ #include <utility>
+ 
+@@ -370,6 +371,27 @@ class AcirFormatConverter {
+             gate.value);
+     }
+ 
++    /**
++     * @brief Same as add_opcode for an AssertZero opcode.
++     */
++    void add_assert_zero(const Acir::Opcode::AssertZero& arg)
++    {
++        const size_t i = num_opcodes_++;
++        update_max_witness_index_from_expression(arg.value, af_);
++        assert_zero_to_constraints(arg, af_, i, batched_eq_assert_zeros_, is_mega_);
++    }
++
++    /**
++     * @brief Same as add_opcode for a BrilligCall opcode, given the witness indices it references.
++     */
++    void add_brillig_call(const std::vector<uint32_t>& witness_indices)
++    {
++        num_opcodes_++;
++        for (const uint32_t witness_idx : witness_indices) {
++            update_max_witness_index(witness_idx, af_);
++        }
++    }
++
+     AcirFormat finalize(const Acir::PublicInputs& public_parameters, const Acir::PublicInputs& return_values) &&
+     {
+         BB_ASSERT_LT(
+@@ -510,6 +532,63 @@ class MsgpackReader {
+         obj.convert(value);
+     }
+ 
++    /**
++     * @brief Decode the next opcode straight from the msgpack bytes and add it to `converter`, for the opcodes that
++     * dominate ACIR programs (AssertZero, RANGE, MemoryOp, BrilligCall).
++     *
++     * @details The opcode is decoded into the same Acir:: values the generic decoder produces (the reused AssertZero
++     * keeps its coefficient buffers between opcodes), so the conversion is unchanged. Returns false without advancing
++     * and without touching `converter` if the opcode is of another kind or has an unexpected layout; the caller then
++     * decodes it with read().
++     */
++    bool try_read_common_opcode(AcirFormatConverter& converter)
++    {
++        size_t pos = offset_;
++        std::string_view name;
++        if (!read_map_size(pos, 1) || !read_str(pos, name)) {
++            return false;
++        }
++        if (name == "AssertZero") {
++            if (!read_expression(pos, assert_zero_.value)) {
++                return false;
++            }
++            converter.add_assert_zero(assert_zero_);
++        } else if (name == "BrilligCall") {
++            if (!read_brillig_call_witnesses(pos, witness_indices_)) {
++                return false;
++            }
++            converter.add_brillig_call(witness_indices_);
++        } else if (name == "MemoryOp") {
++            Acir::Opcode::MemoryOp mem_op;
++            if (!read_array_size(pos, 2) || !read_uint(pos, mem_op.block_id.value) || !read_array_size(pos, 3) ||
++                !read_bool(pos, mem_op.op.read) || !read_uint(pos, mem_op.op.index.value) ||
++                !read_uint(pos, mem_op.op.value.value)) {
++                return false;
++            }
++            converter.add_opcode(Acir::Opcode{ .value = std::move(mem_op) });
++        } else if (name == "BlackBoxFuncCall") {
++            Acir::BlackBoxFuncCall::RANGE range;
++            std::string_view func_name;
++            std::string_view input_kind;
++            if (!read_map_size(pos, 1) || !read_str(pos, func_name) || func_name != "RANGE" ||
++                !read_array_size(pos, 2) || !read_map_size(pos, 1) || !read_str(pos, input_kind) ||
++                input_kind != "Witness") {
++                return false;
++            }
++            Acir::FunctionInput::Witness input;
++            if (!read_uint(pos, input.value.value) || !read_uint(pos, range.num_bits)) {
++                return false;
++            }
++            range.input.value = input;
++            converter.add_opcode(Acir::Opcode{
++                .value = Acir::Opcode::BlackBoxFuncCall{ .value = Acir::BlackBoxFuncCall{ .value = range } } });
++        } else {
++            return false;
++        }
++        offset_ = pos;
++        return true;
++    }
++
+     /**
+      * @brief Advance past the next object without materialising it.
+      */
+@@ -554,10 +633,275 @@ class MsgpackReader {
+         return result;
+     }
+ 
++    // Primitive readers for try_read_common_opcode: each reads one object at `pos` and advances past it, or returns
++    // false if the object there is not of the expected type (pos is then unspecified).
++
++    uint8_t marker_at(size_t pos) const { return static_cast<uint8_t>(data_[pos]); }
++
++    bool read_header(size_t& pos, uint8_t fix_marker, uint8_t marker16, uint8_t marker32, uint32_t& length) const
++    {
++        if (pos >= size_) {
++            return false;
++        }
++        const uint8_t marker = marker_at(pos);
++        if ((marker & 0xf0) == fix_marker) {
++            length = marker & 0x0f;
++            pos += 1;
++            return true;
++        }
++        const size_t num_bytes = marker == marker16 ? 2 : marker == marker32 ? 4 : 0;
++        if (num_bytes == 0 || pos + 1 + num_bytes > size_) {
++            return false;
++        }
++        length = read_big_endian(pos + 1, num_bytes);
++        pos += 1 + num_bytes;
++        return true;
++    }
++
++    bool read_array(size_t& pos, uint32_t& length) const { return read_header(pos, 0x90, 0xdc, 0xdd, length); }
++
++    bool read_array_size(size_t& pos, uint32_t expected_length) const
++    {
++        uint32_t length = 0;
++        return read_array(pos, length) && length == expected_length;
++    }
++
++    bool read_map_size(size_t& pos, uint32_t expected_length) const
++    {
++        uint32_t length = 0;
++        return read_header(pos, 0x80, 0xde, 0xdf, length) && length == expected_length;
++    }
++
++    bool read_uint(size_t& pos, uint32_t& value) const
++    {
++        if (pos >= size_) {
++            return false;
++        }
++        const uint8_t marker = marker_at(pos);
++        if (marker <= 0x7f) {
++            value = marker;
++            pos += 1;
++            return true;
++        }
++        const size_t num_bytes = marker == 0xcc ? 1 : marker == 0xcd ? 2 : marker == 0xce ? 4 : 0;
++        if (num_bytes == 0 || pos + 1 + num_bytes > size_) {
++            return false;
++        }
++        value = read_big_endian(pos + 1, num_bytes);
++        pos += 1 + num_bytes;
++        return true;
++    }
++
++    bool read_bool(size_t& pos, bool& value) const
++    {
++        if (pos >= size_ || (marker_at(pos) != 0xc2 && marker_at(pos) != 0xc3)) {
++            return false;
++        }
++        value = marker_at(pos) == 0xc3;
++        pos += 1;
++        return true;
++    }
++
++    bool read_str(size_t& pos, std::string_view& str) const
++    {
++        if (pos >= size_) {
++            return false;
++        }
++        const uint8_t marker = marker_at(pos);
++        size_t length = 0;
++        size_t header = 1;
++        if ((marker & 0xe0) == 0xa0) {
++            length = marker & 0x1f;
++        } else if (marker == 0xd9 && pos + 2 <= size_) {
++            length = marker_at(pos + 1);
++            header = 2;
++        } else {
++            return false;
++        }
++        if (pos + header + length > size_) {
++            return false;
++        }
++        str = std::string_view(&data_[pos + header], length);
++        pos += header + length;
++        return true;
++    }
++
++    bool read_bin(size_t& pos, std::vector<uint8_t>& bytes) const
++    {
++        uint32_t length = 0;
++        size_t header = 0;
++        if (pos + 2 <= size_ && marker_at(pos) == 0xc4) {
++            length = marker_at(pos + 1);
++            header = 2;
++        } else if (pos + 3 <= size_ && marker_at(pos) == 0xc5) {
++            length = read_big_endian(pos + 1, 2);
++            header = 3;
++        } else {
++            return false;
++        }
++        if (pos + header + length > size_) {
++            return false;
++        }
++        const auto* payload = reinterpret_cast<const uint8_t*>(&data_[pos + header]);
++        bytes.assign(payload, payload + length);
++        pos += header + length;
++        return true;
++    }
++
++    /**
++     * @brief Resize `terms`, moving the coefficient buffers of dropped terms to `spare_buffers_` and handing them to
++     * new terms, so that a reused expression stops allocating once it has seen its largest sizes.
++     */
++    template <typename Terms> void resize_terms(Terms& terms, size_t new_size)
++    {
++        for (size_t i = new_size; i < terms.size(); ++i) {
++            spare_buffers_.push_back(std::move(std::get<0>(terms[i])));
++        }
++        const size_t old_size = terms.size();
++        terms.resize(new_size);
++        for (size_t i = old_size; i < new_size && !spare_buffers_.empty(); ++i) {
++            std::get<0>(terms[i]) = std::move(spare_buffers_.back());
++            spare_buffers_.pop_back();
++        }
++    }
++
++    // Expression = [mul_terms: [[coefficient, witness, witness]], linear_combinations: [[coefficient, witness]], q_c]
++    bool read_expression(size_t& pos, Acir::Expression& expr)
++    {
++        uint32_t num_terms = 0;
++        if (!read_array_size(pos, 3) || !read_array(pos, num_terms)) {
++            return false;
++        }
++        resize_terms(expr.mul_terms, num_terms);
++        for (auto& [coefficient, lhs, rhs] : expr.mul_terms) {
++            if (!read_array_size(pos, 3) || !read_bin(pos, coefficient) || !read_uint(pos, lhs.value) ||
++                !read_uint(pos, rhs.value)) {
++                return false;
++            }
++        }
++        if (!read_array(pos, num_terms)) {
++            return false;
++        }
++        resize_terms(expr.linear_combinations, num_terms);
++        for (auto& [coefficient, witness] : expr.linear_combinations) {
++            if (!read_array_size(pos, 2) || !read_bin(pos, coefficient) || !read_uint(pos, witness.value)) {
++                return false;
++            }
++        }
++        return read_bin(pos, expr.q_c);
++    }
++
++    // Collects the witness indices of an Expression, as update_max_witness_index_from_expression visits them.
++    bool read_expression_witnesses(size_t& pos, std::vector<uint32_t>& witness_indices)
++    {
++        uint32_t num_terms = 0;
++        if (!read_array_size(pos, 3) || !read_array(pos, num_terms)) {
++            return false;
++        }
++        for (uint32_t i = 0; i < num_terms; ++i) {
++            uint32_t lhs = 0;
++            uint32_t rhs = 0;
++            if (!read_array_size(pos, 3) || !read_bin(pos, coefficient_) || !read_uint(pos, lhs) ||
++                !read_uint(pos, rhs)) {
++                return false;
++            }
++            witness_indices.push_back(lhs);
++            witness_indices.push_back(rhs);
++        }
++        if (!read_array(pos, num_terms)) {
++            return false;
++        }
++        for (uint32_t i = 0; i < num_terms; ++i) {
++            uint32_t witness = 0;
++            if (!read_array_size(pos, 2) || !read_bin(pos, coefficient_) || !read_uint(pos, witness)) {
++                return false;
++            }
++            witness_indices.push_back(witness);
++        }
++        return read_bin(pos, coefficient_);
++    }
++
++    // BrilligCall = [id, inputs, outputs, predicate]; collects the witness indices that
++    // update_max_witness_index_from_opcode visits.
++    bool read_brillig_call_witnesses(size_t& pos, std::vector<uint32_t>& witness_indices)
++    {
++        witness_indices.clear();
++        uint32_t id = 0;
++        uint32_t num_inputs = 0;
++        if (!read_array_size(pos, 4) || !read_uint(pos, id) || !read_array(pos, num_inputs)) {
++            return false;
++        }
++        for (uint32_t i = 0; i < num_inputs; ++i) {
++            std::string_view kind;
++            if (!read_map_size(pos, 1) || !read_str(pos, kind)) {
++                return false;
++            }
++            if (kind == "Single") {
++                if (!read_expression_witnesses(pos, witness_indices)) {
++                    return false;
++                }
++            } else if (kind == "Array") {
++                uint32_t num_expressions = 0;
++                if (!read_array(pos, num_expressions)) {
++                    return false;
++                }
++                for (uint32_t j = 0; j < num_expressions; ++j) {
++                    if (!read_expression_witnesses(pos, witness_indices)) {
++                        return false;
++                    }
++                }
++            } else if (kind == "MemoryArray") {
++                uint32_t block_id = 0;
++                if (!read_uint(pos, block_id)) {
++                    return false;
++                }
++            } else {
++                return false;
++            }
++        }
++        uint32_t num_outputs = 0;
++        if (!read_array(pos, num_outputs)) {
++            return false;
++        }
++        for (uint32_t i = 0; i < num_outputs; ++i) {
++            std::string_view kind;
++            if (!read_map_size(pos, 1) || !read_str(pos, kind)) {
++                return false;
++            }
++            if (kind == "Simple") {
++                uint32_t witness = 0;
++                if (!read_uint(pos, witness)) {
++                    return false;
++                }
++                witness_indices.push_back(witness);
++            } else if (kind == "Array") {
++                uint32_t num_witnesses = 0;
++                if (!read_array(pos, num_witnesses)) {
++                    return false;
++                }
++                for (uint32_t j = 0; j < num_witnesses; ++j) {
++                    uint32_t witness = 0;
++                    if (!read_uint(pos, witness)) {
++                        return false;
++                    }
++                    witness_indices.push_back(witness);
++                }
++            } else {
++                return false;
++            }
++        }
++        return read_expression_witnesses(pos, witness_indices);
++    }
++
+     const char* data_;
+     size_t size_;
+     size_t offset_ = 0;
+     msgpack::zone zone_;
++    // Reused decoding targets of try_read_common_opcode.
++    Acir::Opcode::AssertZero assert_zero_;
++    std::vector<std::vector<uint8_t>> spare_buffers_;
++    std::vector<uint8_t> coefficient_;
++    std::vector<uint32_t> witness_indices_;
+ };
+ 
+ /**
+@@ -597,6 +941,9 @@ std::optional<AcirFormat> compact_program_to_acir_format(const std::vector<uint8
+             return std::nullopt;
+         }
+         for (uint32_t i = 0; i < *num_opcodes; ++i) {
++            if (reader.try_read_common_opcode(converter)) {
++                continue;
++            }
+             Acir::Opcode opcode;
+             reader.read(opcode);
+             converter.add_opcode(opcode);
+-- 
+2.43.0
+

@@ -1,0 +1,388 @@
+From 735f00e2574be3199a24a169c1f7e24deadab67d Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 03:33:40 +0000
+Subject: [PATCH 34/76] perf(eccvm): narrow rows and zero-tail extension for
+ grand product and log-derivative inverses
+
+The ECCVM grand product and lookup-inverse computations fetched all 119 columns per row via get_row
+and evaluated every one of the 2^15 fixed-size rows, although only 47 / 21 columns are read and every
+row past the active trace (~6.5k rows on real flows) reads zeros.
+
+- ECCVMFlavor lists the entities read by ECCVMSetRelation's numerator/denominator and by
+  ECCVMLookupRelation's inverse computation (the short-monomial relations read the same ones);
+  ProverPolynomials gains get_row_for_grand_product (picked up by the existing dispatch in
+  compute_grand_product) and get_row_for_logderivative_inverse, plus get_grand_product_zero_row_start
+  (first row from which all grand product columns are zero).
+- ECCVMProver::compute_grand_product runs the generic grand product only up to that row
+  (size_override) and extends z_perm over the zero rows by their constant numerator/denominator ratio,
+  z_perm[i] = z_perm[i-1] * r, which is the same field element.
+- The log-derivative inverses are computed through ECCVMFlavor::LogDerivativeInverseView, whose
+  get_row is the narrow row.
+
+No change to the generic honk libraries. Tests: NarrowRowGettersMatchFullRow (all rows, full and short
+relations) and ProverGrandProductAndInversesMatchGeneric.
+---
+ .../cpp/src/barretenberg/eccvm/eccvm.test.cpp |  86 ++++++++++
+ .../src/barretenberg/eccvm/eccvm_flavor.hpp   | 151 ++++++++++++++++++
+ .../src/barretenberg/eccvm/eccvm_prover.cpp   |  45 +++++-
+ .../src/barretenberg/eccvm/eccvm_prover.hpp   |   3 +
+ 4 files changed, 280 insertions(+), 5 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/eccvm/eccvm.test.cpp b/barretenberg/cpp/src/barretenberg/eccvm/eccvm.test.cpp
+index 2c8ce8f1d..3bbc955c0 100644
+--- a/barretenberg/cpp/src/barretenberg/eccvm/eccvm.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/eccvm/eccvm.test.cpp
+@@ -658,3 +658,89 @@ TEST_F(ECCVMTests, WitnessPolynomialsMasked)
+     check_masked(polynomials.z_perm, "z_perm");
+     check_masked(polynomials.lookup_inverses, "lookup_inverses");
+ }
++
++/**
++ * @brief The narrow row getters used by the grand product and log-derivative inverse computations read every column
++ * their relations use (for both the full and the short-monomial relations): on every row they produce the same
++ * relation values as the full get_row, and every row at or beyond the grand product zero-row start produces the values
++ * of that start row.
++ */
++TEST_F(ECCVMTests, NarrowRowGettersMatchFullRow)
++{
++    ECCVMCircuitBuilder builder = generate_circuit(&engine);
++    ECCVMFlavor::ProverPolynomials polynomials(builder);
++    const auto params = RelationParameters<FF>::get_random();
++    const size_t num_rows = polynomials.get_polynomial_size();
++    const size_t zero_row_start = polynomials.get_grand_product_zero_row_start();
++    EXPECT_LT(zero_row_start, num_rows);
++
++    const auto check_relations = [&]<typename SetRelation, typename LookupRelation>() {
++        using SetAccumulator = std::tuple_element_t<0, typename SetRelation::SumcheckArrayOfValuesOverSubrelations>;
++        using LookupAccumulator = typename LookupRelation::ValueAccumulator0;
++        const auto set_values = [&](const auto& row) {
++            return std::array<FF, 2>{
++                SetRelation::template compute_grand_product_numerator<SetAccumulator>(row, params),
++                SetRelation::template compute_grand_product_denominator<SetAccumulator>(row, params)
++            };
++        };
++        const auto lookup_values = [&](const auto& row) {
++            std::array<FF, LookupRelation::NUM_LOOKUP_TERMS + LookupRelation::NUM_TABLE_TERMS + 1> values;
++            values[0] = FF(static_cast<uint64_t>(LookupRelation::operation_exists_at_row(row)));
++            bb::constexpr_for<0, LookupRelation::NUM_LOOKUP_TERMS, 1>([&]<size_t i>() {
++                values[1 + i] = LookupRelation::template compute_lookup_term<LookupAccumulator, i>(row, params);
++            });
++            bb::constexpr_for<0, LookupRelation::NUM_TABLE_TERMS, 1>([&]<size_t i>() {
++                values[1 + LookupRelation::NUM_LOOKUP_TERMS + i] =
++                    LookupRelation::template compute_table_term<LookupAccumulator, i>(row, params);
++            });
++            return values;
++        };
++
++        const auto zero_row_values = set_values(polynomials.get_row_for_grand_product(zero_row_start));
++        for (size_t row_idx = 0; row_idx < num_rows; ++row_idx) {
++            const auto full_row = polynomials.get_row(row_idx);
++            const auto full_set_values = set_values(full_row);
++            ASSERT_EQ(full_set_values, set_values(polynomials.get_row_for_grand_product(row_idx))) << "row " << row_idx;
++            ASSERT_EQ(lookup_values(full_row), lookup_values(polynomials.get_row_for_logderivative_inverse(row_idx)))
++                << "row " << row_idx;
++            if (row_idx >= zero_row_start) {
++                ASSERT_EQ(full_set_values, zero_row_values) << "row " << row_idx;
++            }
++        }
++    };
++    check_relations.template operator()<ECCVMSetRelation<FF>, ECCVMFlavor::LookupRelation>();
++    check_relations.template operator()<ECCVMSetShortRelation<FF>, ECCVMShortMonomialFlavor::LookupRelation>();
++}
++
++/**
++ * @brief The ECCVM prover's grand product and log-derivative inverses (narrow rows, zero-tail extension) equal the
++ * generic full-row computations.
++ */
++TEST_F(ECCVMTests, ProverGrandProductAndInversesMatchGeneric)
++{
++    using Flavor = ECCVMShortMonomialFlavor;
++    ECCVMCircuitBuilder builder = generate_circuit(&engine);
++    Flavor::ProverPolynomials polynomials(builder);
++    auto params = RelationParameters<FF>::get_random();
++    const size_t num_rows = polynomials.get_polynomial_size();
++
++    compute_logderivative_inverse<FF, Flavor::LookupRelation, Flavor::ProverPolynomials, true>(
++        polynomials, params, Flavor::TRACE_OFFSET);
++    const Polynomial<FF> expected_inverses = polynomials.lookup_inverses.full();
++    compute_grand_products<Flavor>(polynomials, params);
++    const Polynomial<FF> expected_z_perm = polynomials.z_perm.full();
++
++    for (size_t i = Flavor::TRACE_OFFSET; i < num_rows; ++i) {
++        polynomials.lookup_inverses.at(i) = 0;
++        polynomials.z_perm.at(i) = 0;
++    }
++    Flavor::LogDerivativeInverseView lookup_view{ polynomials, polynomials.lookup_inverses };
++    compute_logderivative_inverse<FF, Flavor::LookupRelation, Flavor::LogDerivativeInverseView, true>(
++        lookup_view, params, Flavor::TRACE_OFFSET);
++    ECCVMProver::compute_grand_product(polynomials, params);
++
++    for (size_t i = 0; i < num_rows; ++i) {
++        ASSERT_EQ(polynomials.lookup_inverses.get(i), expected_inverses[i]) << "row " << i;
++        ASSERT_EQ(polynomials.z_perm.get(i), expected_z_perm[i]) << "row " << i;
++    }
++}
+diff --git a/barretenberg/cpp/src/barretenberg/eccvm/eccvm_flavor.hpp b/barretenberg/cpp/src/barretenberg/eccvm/eccvm_flavor.hpp
+index c84723d78..42c9e93d5 100644
+--- a/barretenberg/cpp/src/barretenberg/eccvm/eccvm_flavor.hpp
++++ b/barretenberg/cpp/src/barretenberg/eccvm/eccvm_flavor.hpp
+@@ -556,6 +556,105 @@ class ECCVMFlavor {
+      */
+     using ExtendedEdges = ProverUnivariates<MAX_PARTIAL_RELATION_LENGTH>;
+ 
++    /**
++     * @brief The entities read by the numerator and denominator of ECCVMSetRelation.
++     */
++    template <typename Entities> static auto get_grand_product_entities(Entities& entities)
++    {
++        return RefArray{ entities.lagrange_first,
++                         entities.msm_accumulator_x_shift,
++                         entities.msm_accumulator_y_shift,
++                         entities.msm_add1,
++                         entities.msm_add2,
++                         entities.msm_add3,
++                         entities.msm_add4,
++                         entities.msm_count,
++                         entities.msm_pc,
++                         entities.msm_pc_shift,
++                         entities.msm_round,
++                         entities.msm_size_of_msm,
++                         entities.msm_slice1,
++                         entities.msm_slice2,
++                         entities.msm_slice3,
++                         entities.msm_slice4,
++                         entities.msm_transition_shift,
++                         entities.precompute_pc,
++                         entities.precompute_point_transition,
++                         entities.precompute_round,
++                         entities.precompute_s1hi,
++                         entities.precompute_s1lo,
++                         entities.precompute_s2hi,
++                         entities.precompute_s2lo,
++                         entities.precompute_s3hi,
++                         entities.precompute_s3lo,
++                         entities.precompute_s4hi,
++                         entities.precompute_s4lo,
++                         entities.precompute_scalar_sum,
++                         entities.precompute_select,
++                         entities.precompute_skew,
++                         entities.precompute_tx,
++                         entities.precompute_ty,
++                         entities.transcript_Px,
++                         entities.transcript_Py,
++                         entities.transcript_base_infinity,
++                         entities.transcript_msm_count,
++                         entities.transcript_msm_transition,
++                         entities.transcript_msm_x,
++                         entities.transcript_msm_y,
++                         entities.transcript_mul,
++                         entities.transcript_pc,
++                         entities.transcript_pc_shift,
++                         entities.transcript_z1,
++                         entities.transcript_z1zero,
++                         entities.transcript_z2,
++                         entities.transcript_z2zero };
++    }
++
++    /**
++     * @brief The entities read by ECCVMLookupRelation when computing the log-derivative inverses (operation
++     * existence, lookup terms and table terms).
++     */
++    template <typename Entities> static auto get_logderivative_inverse_entities(Entities& entities)
++    {
++        return RefArray{ entities.msm_add,
++                         entities.msm_skew,
++                         entities.msm_pc,
++                         entities.msm_count,
++                         entities.msm_slice1,
++                         entities.msm_slice2,
++                         entities.msm_slice3,
++                         entities.msm_slice4,
++                         entities.msm_x1,
++                         entities.msm_x2,
++                         entities.msm_x3,
++                         entities.msm_x4,
++                         entities.msm_y1,
++                         entities.msm_y2,
++                         entities.msm_y3,
++                         entities.msm_y4,
++                         entities.precompute_select,
++                         entities.precompute_pc,
++                         entities.precompute_tx,
++                         entities.precompute_ty,
++                         entities.precompute_round };
++    }
++
++    /**
++     * @brief Returns the first row index from which every given polynomial is zero.
++     */
++    static size_t get_zero_row_start(const auto& polynomials)
++    {
++        size_t zero_row_start = 0;
++        for (const Polynomial& polynomial : polynomials) {
++            size_t end = polynomial.end_index();
++            while (end > zero_row_start && end > polynomial.start_index() && polynomial.get(end - 1).is_zero()) {
++                --end;
++            }
++            zero_row_start = std::max(zero_row_start, end);
++        }
++        return zero_row_start;
++    }
++
+     /**
+      * @brief A container for the prover polynomials.
+      */
+@@ -585,6 +684,44 @@ class ECCVMFlavor {
+             }
+             return result;
+         }
++        /**
++         * @brief Returns, at one point of the boolean hypercube, only the evaluations read by the numerator and
++         * denominator of ECCVMSetRelation (the grand product computation). All other entries of the returned AllValues
++         * are left uninitialized.
++         */
++        [[nodiscard]] AllValues get_row_for_grand_product(const size_t row_idx) const
++        {
++            AllValues result;
++            for (auto [result_field, polynomial] :
++                 zip_view(get_grand_product_entities(result), get_grand_product_entities(*this))) {
++                result_field = polynomial.get(row_idx);
++            }
++            return result;
++        }
++
++        /**
++         * @brief Returns the first row index from which every polynomial read by get_row_for_grand_product is zero.
++         * All rows at or beyond it are identical, so they share one grand product numerator and denominator.
++         */
++        [[nodiscard]] size_t get_grand_product_zero_row_start() const
++        {
++            return get_zero_row_start(get_grand_product_entities(*this));
++        }
++
++        /**
++         * @brief Returns, at one point of the boolean hypercube, only the evaluations read by ECCVMLookupRelation when
++         * computing the log-derivative inverses. All other entries of the returned AllValues are left uninitialized.
++         */
++        [[nodiscard]] AllValues get_row_for_logderivative_inverse(const size_t row_idx) const
++        {
++            AllValues result;
++            for (auto [result_field, polynomial] :
++                 zip_view(get_logderivative_inverse_entities(result), get_logderivative_inverse_entities(*this))) {
++                result_field = polynomial.get(row_idx);
++            }
++            return result;
++        }
++
+         // Set all shifted polynomials based on their to-be-shifted counterpart
+         void set_shifted()
+         {
+@@ -938,6 +1075,20 @@ class ECCVMFlavor {
+         }
+     };
+ 
++    /**
++     * @brief The prover polynomials as seen by compute_logderivative_inverse: rows carry only the columns that
++     * ECCVMLookupRelation reads to compute the inverses.
++     */
++    struct LogDerivativeInverseView {
++        const ProverPolynomials& polynomials;
++        Polynomial& lookup_inverses;
++
++        [[nodiscard]] AllValues get_row(const size_t row_idx) const
++        {
++            return polynomials.get_row_for_logderivative_inverse(row_idx);
++        }
++    };
++
+     /**
+      * @brief A container for storing the partially evaluated multivariates produced by sumcheck.
+      */
+diff --git a/barretenberg/cpp/src/barretenberg/eccvm/eccvm_prover.cpp b/barretenberg/cpp/src/barretenberg/eccvm/eccvm_prover.cpp
+index 1d38bc03f..a51b043dc 100644
+--- a/barretenberg/cpp/src/barretenberg/eccvm/eccvm_prover.cpp
++++ b/barretenberg/cpp/src/barretenberg/eccvm/eccvm_prover.cpp
+@@ -112,12 +112,13 @@ void ECCVMProver::execute_log_derivative_commitments_round()
+                                                       (gamma + beta_sqr + beta_sqr + first_term_tag) *
+                                                       (gamma + beta_sqr + beta_sqr + beta_sqr + first_term_tag);
+     relation_parameters.eccvm_set_permutation_delta = relation_parameters.eccvm_set_permutation_delta.invert();
+-    // Compute inverse polynomial for our logarithmic-derivative lookup method
+-    // Skip the disabled head region to preserve masking values
++    // Compute inverse polynomial for our logarithmic-derivative lookup method, fetching only the columns the lookup
++    // relation reads. Skip the disabled head region to preserve masking values
++    typename Flavor::LogDerivativeInverseView lookup_view{ key->polynomials, key->polynomials.lookup_inverses };
+     compute_logderivative_inverse<typename Flavor::FF,
+                                   typename Flavor::LookupRelation,
+-                                  typename Flavor::ProverPolynomials,
+-                                  true>(key->polynomials, relation_parameters, Flavor::TRACE_OFFSET);
++                                  typename Flavor::LogDerivativeInverseView,
++                                  true>(lookup_view, relation_parameters, Flavor::TRACE_OFFSET);
+     auto& li = key->polynomials.lookup_inverses;
+     commitments.lookup_inverses = key->commitment_key.commit(li);
+     transcript->send_to_verifier(commitment_labels.lookup_inverses, commitments.lookup_inverses);
+@@ -131,13 +132,47 @@ void ECCVMProver::execute_grand_product_computation_round()
+ {
+     BB_BENCH_NAME("ECCVMProver::execute_grand_product_computation_round");
+     // Compute permutation grand product (starts after disabled head region via gp_start)
+-    compute_grand_products<Flavor>(key->polynomials, relation_parameters);
++    compute_grand_product(key->polynomials, relation_parameters);
+     auto& zp = key->polynomials.z_perm;
+     // set has_duplicates_hint for Z_PERM (empty row = duplicate Z value)
+     commitments.z_perm = key->commitment_key.commit(zp, /*has_duplicates_hint=*/true);
+     transcript->send_to_verifier(commitment_labels.z_perm, commitments.z_perm);
+ }
+ 
++/**
++ * @brief Compute the z_perm grand product of the ECCVMSetRelation.
++ * @details Every row from `get_grand_product_zero_row_start()` on reads only zeros, so all of them share one
++ * numerator/denominator ratio r. The generic grand product is computed up to the first such row, and the rest of z_perm
++ * is extended from there by z_perm[i] = z_perm[i - 1] * r, which is the same field element the generic computation
++ * produces.
++ */
++void ECCVMProver::compute_grand_product(Flavor::ProverPolynomials& polynomials,
++                                        bb::RelationParameters<FF>& relation_parameters)
++{
++    using GrandProductRelation = std::tuple_element_t<0, Flavor::GrandProductRelations>;
++    using Accumulator = std::tuple_element_t<0, typename GrandProductRelation::SumcheckArrayOfValuesOverSubrelations>;
++    static_assert(std::tuple_size_v<Flavor::GrandProductRelations> == 1);
++
++    const size_t domain_size = polynomials.get_polynomial_size();
++    const size_t zero_row_start = std::max(polynomials.get_grand_product_zero_row_start(), Flavor::TRACE_OFFSET + 1);
++    if (zero_row_start + 1 >= domain_size) {
++        compute_grand_products<Flavor>(polynomials, relation_parameters);
++        return;
++    }
++    // z_perm[i] is fixed by rows < i, so z_perm[0..zero_row_start] needs only rows before the zero rows.
++    compute_grand_products<Flavor>(polynomials, relation_parameters, /*size_override=*/zero_row_start + 1);
++
++    const auto zero_row = polynomials.get_row_for_grand_product(zero_row_start);
++    const FF ratio =
++        GrandProductRelation::template compute_grand_product_numerator<Accumulator>(zero_row, relation_parameters) *
++        GrandProductRelation::template compute_grand_product_denominator<Accumulator>(zero_row, relation_parameters)
++            .invert();
++    auto& z_perm = polynomials.z_perm;
++    for (size_t i = zero_row_start + 1; i < domain_size; ++i) {
++        z_perm.at(i) = z_perm[i - 1] * ratio;
++    }
++}
++
+ /**
+  * @brief Run Sumcheck resulting in u = (u_1,...,u_d) challenges and all evaluations at u being calculated.
+  *
+diff --git a/barretenberg/cpp/src/barretenberg/eccvm/eccvm_prover.hpp b/barretenberg/cpp/src/barretenberg/eccvm/eccvm_prover.hpp
+index 03bd00edf..822cb6481 100644
+--- a/barretenberg/cpp/src/barretenberg/eccvm/eccvm_prover.hpp
++++ b/barretenberg/cpp/src/barretenberg/eccvm/eccvm_prover.hpp
+@@ -53,6 +53,9 @@ class ECCVMProver {
+     Proof export_proof();
+     Proof construct_proof();
+ 
++    static void compute_grand_product(Flavor::ProverPolynomials& polynomials,
++                                      bb::RelationParameters<FF>& relation_parameters);
++
+     // The ECCVM PCS pipeline collects all univariate opening claims, reduces them with one Shplonk, then opens the
+     // sumcheck multilinears and reduced univariate claim with TripleIPA.
+     void append_libra_opening_claims();
+-- 
+2.43.0
+

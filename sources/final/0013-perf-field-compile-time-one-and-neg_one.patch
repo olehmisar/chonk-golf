@@ -1,0 +1,41 @@
+From 7331cba7cdd9db2d8c8d45d14d7e28776c592b29 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:04:02 +0000
+Subject: [PATCH 13/76] perf(field): compile-time one() and neg_one()
+
+field::one() returned field(1), which performs the Montgomery conversion (a full modular
+multiplication) at runtime on every call; neg_one() additionally negated. Both now return a
+constexpr local, so the value is computed at compile time. stdlib::field_t calls fr::one() in every
+constructor and in is_normalized(), so this is hot during circuit construction.
+---
+ .../barretenberg/ecc/fields/field_declarations.hpp | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/fields/field_declarations.hpp b/barretenberg/cpp/src/barretenberg/ecc/fields/field_declarations.hpp
+index 04ca66052..0a06e0704 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/fields/field_declarations.hpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/fields/field_declarations.hpp
+@@ -275,8 +275,18 @@ template <class Params_> struct alignas(32) field {
+     }
+ 
+     static constexpr field zero() { return field(0, 0, 0, 0); }
+-    static constexpr field neg_one() { return -field(1); }
+-    static constexpr field one() { return field(1); }
++    // The constexpr locals force the Montgomery conversion to happen at compile time; returning field(1) directly
++    // performs it at runtime on every call.
++    static constexpr field neg_one()
++    {
++        constexpr field result = -field(1);
++        return result;
++    }
++    static constexpr field one()
++    {
++        constexpr field result(1);
++        return result;
++    }
+ 
+     static constexpr field coset_generator()
+     {
+-- 
+2.43.0
+

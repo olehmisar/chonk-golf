@@ -1,0 +1,389 @@
+From aeb4ebcd5229188669fd7cefe42c945d232e653d Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:46:51 +0000
+Subject: [PATCH 28/76] perf(pcs): parallel batched linear quotients for
+ Shplonk and KZG
+
+Shplonk's batched quotient Q(X) = sum_j nu^j (f_j(X) - v_j)/(X - x_j) was built by copying each
+claim polynomial, dividing it serially with factor_roots and add_scaled-ing it into Q. KZG's
+quotient was a copy plus a serial factor_roots.
+
+add_batched_linear_quotients computes the same polynomial with the descending synthetic-division
+recurrence q_i = p_{i+1} + x q_{i+1}, split into work-balanced chunks: a Horner pass gives each
+chunk's boundary value, then every chunk runs the recurrence and accumulates nu_j q_i directly
+into the output, with no per-claim copies. Exact division is still asserted (p_0 - v + x q_0 = 0).
+
+Shplonk's partially evaluated quotient G = Q - sum_j s_j f_j is applied in one add_scaled_batch
+pass, a Gemini fold polynomial opened at +-r^{2^l} entering once with the sum of its two factors,
+and G is moved rather than copied into the returned claim.
+---
+ .../batched_linear_quotient.hpp               | 147 ++++++++++++++++++
+ .../commitment_schemes/kzg/kzg.hpp            |  16 +-
+ .../commitment_schemes/shplonk/shplonk.hpp    | 103 ++++++------
+ 3 files changed, 206 insertions(+), 60 deletions(-)
+ create mode 100644 barretenberg/cpp/src/barretenberg/commitment_schemes/batched_linear_quotient.hpp
+
+diff --git a/barretenberg/cpp/src/barretenberg/commitment_schemes/batched_linear_quotient.hpp b/barretenberg/cpp/src/barretenberg/commitment_schemes/batched_linear_quotient.hpp
+new file mode 100644
+index 000000000..3f2f60f25
+--- /dev/null
++++ b/barretenberg/cpp/src/barretenberg/commitment_schemes/batched_linear_quotient.hpp
+@@ -0,0 +1,147 @@
++#pragma once
++#include "barretenberg/common/assert.hpp"
++#include "barretenberg/common/thread.hpp"
++
++#include <algorithm>
++#include <cstddef>
++#include <span>
++#include <vector>
++
++namespace bb {
++
++/**
++ * @brief One term ν⋅(p(X) − v)/(X − x) of a batched linear quotient, where v = p(x).
++ */
++template <typename Fr> struct LinearQuotientTerm {
++    std::span<const Fr> coefficients; // p(X) = ∑ᵢ pᵢ⋅Xⁱ, starting from X⁰
++    Fr root;                          // x
++    Fr evaluation;                    // v
++    Fr scalar;                        // ν
++};
++
++/**
++ * @brief Adds ∑ⱼ νⱼ⋅(pⱼ(X) − vⱼ)/(X − xⱼ) to `quotient`, asserting that every division is exact (pⱼ(xⱼ) = vⱼ).
++ *
++ * @details For p of size s, the quotient q(X) = ∑ᵢ qᵢ⋅Xⁱ of (p(X) − v) by (X − x) has q_{s−1} = 0 and
++ * qᵢ = pᵢ₊₁ + x⋅qᵢ₊₁, i.e. qᵢ = ∑_{k>i} pₖ⋅x^{k−i−1}; v only enters the remainder p₀ − v + x⋅q₀, which must vanish.
++ * The quotient index range is split into chunks that are processed in parallel:
++ *   1. every chunk except the lowest Horner-evaluates its own coefficients, Hᶜ = ∑_{lo<k≤hi} pₖ⋅x^{k−lo−1};
++ *   2. the values of q at the chunk boundaries follow serially from the top, q_lo = Hᶜ + x^{hi−lo}⋅q_hi;
++ *   3. every chunk runs the descending recurrence from its upper boundary value and accumulates νⱼ⋅qᵢ.
++ * The result is the same polynomial as dividing each term separately with `factor_roots` and summing.
++ *
++ * @param quotient Output coefficients; must hold at least max(sⱼ) − 1 entries.
++ */
++template <typename Fr>
++void add_batched_linear_quotients(std::span<Fr> quotient, std::span<const LinearQuotientTerm<Fr>> terms)
++{
++    // Coefficient count of the quotient of each term
++    auto quotient_size = [](const LinearQuotientTerm<Fr>& term) {
++        return term.coefficients.empty() ? size_t{ 0 } : term.coefficients.size() - 1;
++    };
++
++    size_t length = 0;
++    for (const auto& term : terms) {
++        length = std::max(length, quotient_size(term));
++    }
++    BB_ASSERT_LTE(length, quotient.size());
++
++    // Work below index i, counted in quotient coefficients over all terms
++    auto work_below = [&](size_t i) {
++        size_t work = 0;
++        for (const auto& term : terms) {
++            work += std::min(i, quotient_size(term));
++        }
++        return work;
++    };
++    const size_t total_work = work_below(length);
++
++    // Chunks with less work than this are not worth the extra Horner pass of the parallel split
++    constexpr size_t MIN_CHUNK_WORK = size_t{ 1 } << 13;
++    const size_t num_chunks = std::clamp<size_t>(total_work / MIN_CHUNK_WORK, 1, get_num_cpus());
++    // Chunk boundaries split the total work evenly; terms are of different sizes, so the low indices carry more.
++    std::vector<size_t> chunk_starts(num_chunks + 1, length);
++    chunk_starts[0] = 0;
++    for (size_t chunk = 1; chunk < num_chunks; ++chunk) {
++        const size_t target = (total_work / num_chunks) * chunk;
++        size_t lo = chunk_starts[chunk - 1];
++        size_t hi = length;
++        while (lo < hi) {
++            const size_t mid = lo + ((hi - lo) / 2);
++            if (work_below(mid) < target) {
++                lo = mid + 1;
++            } else {
++                hi = mid;
++            }
++        }
++        chunk_starts[chunk] = lo;
++    }
++    auto chunk_start = [&](size_t chunk) { return chunk_starts[chunk]; };
++
++    const size_t num_terms = terms.size();
++    // boundary_values[chunk * num_terms + j] = q⁽ʲ⁾ at the upper boundary of the chunk
++    std::vector<Fr> boundary_values(num_chunks * num_terms, Fr::zero());
++    if (num_chunks > 1) {
++        std::vector<Fr> chunk_horner(num_chunks * num_terms, Fr::zero());
++        parallel_for(num_chunks - 1, [&](size_t idx) {
++            const size_t chunk = idx + 1;
++            const size_t lo = chunk_start(chunk);
++            const size_t hi = chunk_start(chunk + 1);
++            for (size_t j = 0; j < num_terms; ++j) {
++                const auto& term = terms[j];
++                const size_t end = std::min(hi, quotient_size(term));
++                Fr acc = Fr::zero();
++                for (size_t k = end; k > lo; --k) {
++                    acc = acc * term.root + term.coefficients[k];
++                }
++                chunk_horner[(chunk * num_terms) + j] = acc;
++            }
++        });
++        for (size_t j = 0; j < num_terms; ++j) {
++            const Fr& root = terms[j].root;
++            for (size_t chunk = num_chunks - 1; chunk > 0; --chunk) {
++                const size_t lo = chunk_start(chunk);
++                const size_t hi = chunk_start(chunk + 1);
++                boundary_values[((chunk - 1) * num_terms) + j] =
++                    chunk_horner[(chunk * num_terms) + j] +
++                    (root.pow(hi - lo) * boundary_values[(chunk * num_terms) + j]);
++            }
++        }
++    }
++
++    // q⁽ʲ⁾₀ for the remainder check
++    std::vector<Fr> lowest_coefficients(num_terms, Fr::zero());
++    parallel_for(num_chunks, [&](size_t chunk) {
++        const size_t lo = chunk_start(chunk);
++        const size_t hi = chunk_start(chunk + 1);
++        for (size_t j = 0; j < num_terms; ++j) {
++            const auto& term = terms[j];
++            const size_t end = std::min(hi, quotient_size(term));
++            Fr q = boundary_values[(chunk * num_terms) + j];
++            if (term.scalar == Fr::one()) {
++                for (size_t i = end; i > lo; --i) {
++                    q = q * term.root + term.coefficients[i];
++                    quotient[i - 1] += q;
++                }
++            } else {
++                for (size_t i = end; i > lo; --i) {
++                    q = q * term.root + term.coefficients[i];
++                    quotient[i - 1] += term.scalar * q;
++                }
++            }
++            if (chunk == 0) {
++                lowest_coefficients[j] = q;
++            }
++        }
++    });
++
++    for (size_t j = 0; j < num_terms; ++j) {
++        const auto& term = terms[j];
++        if (!term.coefficients.empty() && !term.root.is_zero()) {
++            // Exact-division precondition: p(X) − v = (X − x)⋅q(X), i.e. p₀ − v + x⋅q₀ = 0
++            BB_ASSERT(term.coefficients[0] - term.evaluation + (term.root * lowest_coefficients[j]) == Fr::zero());
++        }
++    }
++}
++
++} // namespace bb
+diff --git a/barretenberg/cpp/src/barretenberg/commitment_schemes/kzg/kzg.hpp b/barretenberg/cpp/src/barretenberg/commitment_schemes/kzg/kzg.hpp
+index fd7c25dc9..b0cadd1fd 100644
+--- a/barretenberg/cpp/src/barretenberg/commitment_schemes/kzg/kzg.hpp
++++ b/barretenberg/cpp/src/barretenberg/commitment_schemes/kzg/kzg.hpp
+@@ -6,6 +6,7 @@
+ 
+ #pragma once
+ 
++#include "barretenberg/commitment_schemes/batched_linear_quotient.hpp"
+ #include "barretenberg/commitment_schemes/claim.hpp"
+ #include "barretenberg/commitment_schemes/commitment_key.hpp"
+ #include "barretenberg/commitment_schemes/pairing_points.hpp"
+@@ -46,17 +47,22 @@ template <typename Curve_> class KZG {
+                                       const std::shared_ptr<Transcript>& prover_trancript)
+     {
+         BB_BENCH_NAME("KZG::compute_opening_proof");
+-        Polynomial quotient = opening_claim.polynomial;
++        const Polynomial& polynomial = opening_claim.polynomial;
+         OpeningPair<Curve> pair = opening_claim.opening_pair;
+         Commitment quotient_commitment;
+ 
+-        if (opening_claim.polynomial.is_empty()) {
++        if (polynomial.is_empty()) {
+             // We treat the empty polynomial as the zero polynomial
+             quotient_commitment = Commitment::infinity();
+         } else {
+-            quotient.at(0) = quotient[0] - pair.evaluation;
+-            // Computes the coefficients for the quotient polynomial q(X) = (p(X) - v) / (X - r) through an FFT
+-            quotient.factor_roots(pair.challenge);
++            BB_ASSERT_EQ(polynomial.start_index(), size_t{ 0 });
++            // Computes the coefficients for the quotient polynomial q(X) = (p(X) - v) / (X - r)
++            Polynomial quotient(polynomial.size());
++            const std::array<LinearQuotientTerm<Fr>, 1> terms{ { { .coefficients = polynomial.coeffs(),
++                                                                   .root = pair.challenge,
++                                                                   .evaluation = pair.evaluation,
++                                                                   .scalar = Fr::one() } } };
++            add_batched_linear_quotients(quotient.coeffs(), std::span<const LinearQuotientTerm<Fr>>(terms));
+             quotient_commitment = ck.commit(quotient);
+         }
+ 
+diff --git a/barretenberg/cpp/src/barretenberg/commitment_schemes/shplonk/shplonk.hpp b/barretenberg/cpp/src/barretenberg/commitment_schemes/shplonk/shplonk.hpp
+index 1533aba38..ba12b2a57 100644
+--- a/barretenberg/cpp/src/barretenberg/commitment_schemes/shplonk/shplonk.hpp
++++ b/barretenberg/cpp/src/barretenberg/commitment_schemes/shplonk/shplonk.hpp
+@@ -5,6 +5,7 @@
+ // =====================
+ 
+ #pragma once
++#include "barretenberg/commitment_schemes/batched_linear_quotient.hpp"
+ #include "barretenberg/commitment_schemes/claim.hpp"
+ #include "barretenberg/commitment_schemes/commitment_key.hpp"
+ #include "barretenberg/commitment_schemes/small_subgroup_ipa/small_subgroup_ipa_utils.hpp"
+@@ -72,30 +73,28 @@ template <typename Curve> class ShplonkProver_ {
+         }
+         // Q(X) = ∑ⱼ νʲ ⋅ ( fⱼ(X) − vⱼ) / ( X − xⱼ )
+         Polynomial Q(max_poly_size);
+-        Polynomial tmp(max_poly_size);
++
++        std::vector<LinearQuotientTerm<Fr>> terms;
++        terms.reserve((2 * opening_claims.size()) + libra_opening_claims.size() + sumcheck_round_claims.size());
++        auto add_term =
++            [&](const ProverOpeningClaim<Curve>& claim, const Fr& root, const Fr& evaluation, Fr& nu_power) {
++                BB_ASSERT_EQ(claim.polynomial.start_index(), size_t{ 0 });
++                terms.push_back({ .coefficients = claim.polynomial.coeffs(),
++                                  .root = root,
++                                  .evaluation = evaluation,
++                                  .scalar = nu_power });
++                nu_power *= nu;
++            };
+ 
+         Fr current_nu = Fr::one();
+ 
+         size_t fold_idx = 0;
+         for (const auto& claim : opening_claims) {
+-
+             // Gemini Fold Polynomials have to be opened at -r^{2^j} and r^{2^j}.
+             if (claim.gemini_fold) {
+-                tmp = claim.polynomial;
+-                tmp.at(0) = tmp[0] - gemini_fold_pos_evaluations[fold_idx++];
+-                tmp.factor_roots(-claim.opening_pair.challenge);
+-                // Add the claim quotient to the batched quotient polynomial
+-                Q.add_scaled(tmp, current_nu);
+-                current_nu *= nu;
++                add_term(claim, -claim.opening_pair.challenge, gemini_fold_pos_evaluations[fold_idx++], current_nu);
+             }
+-
+-            // Compute individual claim quotient tmp = ( fⱼ(X) − vⱼ) / ( X − xⱼ )
+-            tmp = claim.polynomial;
+-            tmp.at(0) = tmp[0] - claim.opening_pair.evaluation;
+-            tmp.factor_roots(claim.opening_pair.challenge);
+-            // Add the claim quotient to the batched quotient polynomial
+-            Q.add_scaled(tmp, current_nu);
+-            current_nu *= nu;
++            add_term(claim, claim.opening_pair.challenge, claim.opening_pair.evaluation, current_nu);
+         }
+         // Libra and sumcheck opening claims are batched immediately after the Gemini fold claims, reusing the same
+         // batching challenge nu. They start at nu^{2 * virtual_log_n}.  Guard on either Libra or sumcheck claims being
+@@ -105,29 +104,13 @@ template <typename Curve> class ShplonkProver_ {
+             // rounds, each opened at two points (±r^{2^i}), including the dummy padding folds.
+             current_nu = nu.pow(2 * virtual_log_n);
+         }
+-
+-        for (const auto& claim : libra_opening_claims) {
+-            // Compute individual claim quotient tmp = ( fⱼ(X) − vⱼ) / ( X − xⱼ )
+-            tmp = claim.polynomial;
+-            tmp.at(0) = tmp[0] - claim.opening_pair.evaluation;
+-            tmp.factor_roots(claim.opening_pair.challenge);
+-
+-            // Add the claim quotient to the batched quotient polynomial
+-            Q.add_scaled(tmp, current_nu);
+-            current_nu *= nu;
++        for (const auto& claim_set : { libra_opening_claims, sumcheck_round_claims }) {
++            for (const auto& claim : claim_set) {
++                add_term(claim, claim.opening_pair.challenge, claim.opening_pair.evaluation, current_nu);
++            }
+         }
+ 
+-        for (const auto& claim : sumcheck_round_claims) {
+-
+-            // Compute individual claim quotient tmp = ( fⱼ(X) − vⱼ) / ( X − xⱼ )
+-            tmp = claim.polynomial;
+-            tmp.at(0) = tmp[0] - claim.opening_pair.evaluation;
+-            tmp.factor_roots(claim.opening_pair.challenge);
+-
+-            // Add the claim quotient to the batched quotient polynomial
+-            Q.add_scaled(tmp, current_nu);
+-            current_nu *= nu;
+-        }
++        add_batched_linear_quotients(Q.coeffs(), std::span<const LinearQuotientTerm<Fr>>(terms));
+         // Return batched quotient polynomial Q(X)
+         return Q;
+     };
+@@ -182,24 +165,34 @@ template <typename Curve> class ShplonkProver_ {
+         // s.t. G(r) = 0
+         Polynomial G(std::move(batched_quotient_Q)); // G(X) = Q(X)
+ 
++        // G -= ∑ⱼ sⱼ⋅fⱼ(X) is applied in one batched pass; the constant ∑ⱼ sⱼ⋅vⱼ is accumulated separately. A Gemini
++        // fold polynomial opened at both ±r^{2^j} enters once, with the sum of its two scaling factors.
++        std::vector<PolynomialSpan<const Fr>> sources;
++        std::vector<Fr> scalars;
++        sources.reserve(num_opening_claims);
++        scalars.reserve(num_opening_claims);
++        Fr constant_term = Fr::zero();
++
+         Fr current_nu = Fr::one();
+         size_t idx = 0;
+ 
+         size_t fold_idx = 0;
+         for (const auto& claim : opening_claims) {
+-
++            Fr claim_scaling_factor = Fr::zero();
+             if (claim.gemini_fold) {
+                 // G -= νʲ ⋅ ( fⱼ(X) − vⱼ₊) / ( z + xⱼ ), where vⱼ₊ is the positive fold evaluation
+                 Fr scaling_factor = current_nu * inverse_vanishing_evals[idx++]; // = νʲ / (z + xⱼ )
+-                G.add_scaled(claim.polynomial, -scaling_factor);
+-                G.at(0) = G[0] + scaling_factor * gemini_fold_pos_evaluations[fold_idx++];
++                claim_scaling_factor += scaling_factor;
++                constant_term += scaling_factor * gemini_fold_pos_evaluations[fold_idx++];
+ 
+                 current_nu *= nu_challenge;
+             }
+             // G -= νʲ ⋅ ( fⱼ(X) − vⱼ) / ( z − xⱼ )
+             Fr scaling_factor = current_nu * inverse_vanishing_evals[idx++]; // = νʲ / (z − xⱼ )
+-            G.add_scaled(claim.polynomial, -scaling_factor);
+-            G.at(0) = G[0] + scaling_factor * claim.opening_pair.evaluation;
++            claim_scaling_factor += scaling_factor;
++            constant_term += scaling_factor * claim.opening_pair.evaluation;
++            sources.emplace_back(claim.polynomial);
++            scalars.emplace_back(-claim_scaling_factor);
+ 
+             current_nu *= nu_challenge;
+         }
+@@ -213,22 +206,22 @@ template <typename Curve> class ShplonkProver_ {
+             current_nu = nu_challenge.pow(2 * virtual_log_n);
+         }
+ 
+-        for (const auto& claim : libra_opening_claims) {
+-            // G -= νʲ ⋅ ( fⱼ(X) − vⱼ) / ( z − xⱼ )
+-            Fr scaling_factor = current_nu * inverse_vanishing_evals[idx++]; // = νʲ / (z − xⱼ )
+-            G.add_scaled(claim.polynomial, -scaling_factor);
+-            G.at(0) = G[0] + scaling_factor * claim.opening_pair.evaluation;
+-            current_nu *= nu_challenge;
++        for (const auto& claim_set : { libra_opening_claims, sumcheck_opening_claims }) {
++            for (const auto& claim : claim_set) {
++                // G -= νʲ ⋅ ( fⱼ(X) − vⱼ) / ( z − xⱼ )
++                Fr scaling_factor = current_nu * inverse_vanishing_evals[idx++]; // = νʲ / (z − xⱼ )
++                constant_term += scaling_factor * claim.opening_pair.evaluation;
++                sources.emplace_back(claim.polynomial);
++                scalars.emplace_back(-scaling_factor);
++                current_nu *= nu_challenge;
++            }
+         }
+ 
+-        for (const auto& claim : sumcheck_opening_claims) {
+-            Fr scaling_factor = current_nu * inverse_vanishing_evals[idx++]; // = νʲ / (z − xⱼ )
+-            G.add_scaled(claim.polynomial, -scaling_factor);
+-            G.at(0) = G[0] + scaling_factor * claim.opening_pair.evaluation;
+-            current_nu *= nu_challenge;
+-        }
++        add_scaled_batch(G, std::span<const PolynomialSpan<const Fr>>(sources), std::span<const Fr>(scalars));
++        G.at(0) = G[0] + constant_term;
++
+         // Return opening pair (z, 0) and polynomial G(X) = Q(X) - Q_z(X)
+-        return { .polynomial = G, .opening_pair = { .challenge = z_challenge, .evaluation = Fr::zero() } };
++        return { .polynomial = std::move(G), .opening_pair = { .challenge = z_challenge, .evaluation = Fr::zero() } };
+     };
+     /**
+      * @brief Compute evaluations of fold polynomials Fold_i at r^{2^i} for i>0.
+-- 
+2.43.0
+

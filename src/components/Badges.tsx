@@ -105,27 +105,40 @@ function Check({ state, label, detail }: { state: CheckState; label: string; det
   );
 }
 
-const flowsState = (n: number | null): CheckState =>
-  n === null ? "unknown" : n === FLOW_COUNT ? "pass" : "fail";
 const boolState = (b: boolean | null): CheckState => (b === null ? "unknown" : b ? "pass" : "fail");
+
+/** Pinned-flow count plus the aztec-standards flows when those were checked too (e.g. 14/14). */
+function combined(pinned: number | null, std: number | null | undefined, stdTotal: number) {
+  if (pinned === null) return { n: null, of: FLOW_COUNT };
+  if (std === undefined) return { n: pinned, of: FLOW_COUNT };
+  if (std === null)
+    return { n: pinned, of: FLOW_COUNT, note: "pinned flows; aztec-standards not reported" };
+  return { n: pinned + std, of: FLOW_COUNT + stdTotal };
+}
 
 export function CorrectnessList({ s }: { s: Submission }) {
   const c = s.correctness;
-  const n = (x: number | null) => (x === null ? "not reported" : `${x}/${FLOW_COUNT}`);
+  const sc = s.standards?.correctness;
+  const ident = combined(
+    c.identical_flows,
+    sc ? sc.identical_flows : undefined,
+    sc?.flows_total ?? 0,
+  );
+  const bbjs = combined(
+    c.stock_bbjs_verified_flows,
+    sc ? sc.stock_bbjs_verified_flows : undefined,
+    sc?.flows_total ?? 0,
+  );
+  const state = (x: { n: number | null; of: number }): CheckState =>
+    x.n === null ? "unknown" : x.n === x.of ? "pass" : "fail";
+  const n = (x: { n: number | null; of: number; note?: string }) =>
+    x.n === null ? "not reported" : `${x.n}/${x.of}${x.note ? ` (${x.note})` : ""}`;
   const b = (x: boolean | null) => (x === null ? "not reported" : x ? "yes" : "no");
   return (
     <div>
       <ul className="grid gap-2 sm:grid-cols-2">
-        <Check
-          state={flowsState(c.identical_flows)}
-          label="Byte-identical proof + VK"
-          detail={n(c.identical_flows)}
-        />
-        <Check
-          state={flowsState(c.stock_bbjs_verified_flows)}
-          label="Stock bb.js accepts"
-          detail={n(c.stock_bbjs_verified_flows)}
-        />
+        <Check state={state(ident)} label="Byte-identical proof + VK" detail={n(ident)} />
+        <Check state={state(bbjs)} label="Stock bb.js accepts" detail={n(bbjs)} />
         <Check
           state={boolState(c.tampered_rejected)}
           label="Tampered proofs rejected"

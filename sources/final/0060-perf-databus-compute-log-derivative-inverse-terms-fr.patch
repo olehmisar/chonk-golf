@@ -1,0 +1,50 @@
+From 7755a8efa4ad35251f99452112980001282261d8 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:03:10 +0000
+Subject: [PATCH 60/76] perf(databus): compute log-derivative inverse terms
+ from the four columns
+
+compute_logderivative_inverse built a full AllValues row (every prover
+polynomial) per active row to evaluate the read and table terms, which read
+only w_l, w_r, databus_id and the bus value column. Evaluate the same terms
+directly from those columns.
+---
+ .../relations/databus_lookup_relation.hpp         | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/relations/databus_lookup_relation.hpp b/barretenberg/cpp/src/barretenberg/relations/databus_lookup_relation.hpp
+index 415ef5982..3e8fe30a1 100644
+--- a/barretenberg/cpp/src/barretenberg/relations/databus_lookup_relation.hpp
++++ b/barretenberg/cpp/src/barretenberg/relations/databus_lookup_relation.hpp
+@@ -129,6 +129,12 @@ class SingleBusLookupRelationImpl {
+         const auto& read_counts = polynomials[ReadCountsId];
+ 
+         const auto& q_busread = polynomials.q_busread();
++        const auto& w_l = polynomials.w_l();
++        const auto& w_r = polynomials.w_r();
++        const auto& databus_id = polynomials.databus_id();
++        const auto& value_column = polynomials[ValueId];
++        const FF& gamma = relation_parameters.gamma;
++        const FF& beta = relation_parameters.beta;
+ 
+         // A row needs an inverse only if it is a read gate (q_busread != 0) or has a non-zero read count, so only
+         // rows inside the backing ranges of q_busread and read_counts are visited; both are zero elsewhere. Each
+@@ -154,11 +160,10 @@ class SingleBusLookupRelationImpl {
+                 const bool is_read = q_busread[i] == 1 && column_selector[i] == 1;
+                 const bool nonzero_read_count = read_counts[i] > 0;
+                 if (is_read || nonzero_read_count) {
+-                    // TODO(https://github.com/AztecProtocol/barretenberg/issues/940): avoid get_row if possible.
+-                    auto row = polynomials.get_row(i);
+-                    auto value = compute_lookup_term<FF>(row, relation_parameters) *
+-                                 compute_table_term<FF>(row, relation_parameters);
+-                    inverse_polynomial.at(i) = value;
++                    // compute_lookup_term · compute_table_term at row i, reading only the four columns they use
++                    const FF lookup_term = (w_r[i] * beta) + w_l[i] + gamma;
++                    const FF table_term = (databus_id[i] * beta) + value_column[i] + gamma;
++                    inverse_polynomial.at(i) = lookup_term * table_term;
+                 }
+             };
+             const size_t read_begin = std::max(row_begin, q_busread.start_index());
+-- 
+2.43.0
+

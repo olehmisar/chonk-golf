@@ -25,17 +25,33 @@ describe("seed data", () => {
     expect(onDisk).toEqual(JSON.parse(JSON.stringify(submissionJsonSchema())));
   });
 
-  test("integ5 leads the championship on time", () => {
+  test("final leads the championship on time", () => {
     const series = submissions.filter((s) => s.kind === "series").map(score);
-    expect(rank(series, "time")[0]?.s.id).toBe("integ5");
+    expect(rank(series, "time")[0]?.s.id).toBe("final");
   });
 
-  test("integ5 leads on the headline flow; older cards are not measured there", () => {
+  test("final leads on the headline flow; RAM-regressed cards rank after RAM-clean ones", () => {
     const series = submissions.filter((s) => s.kind === "series").map(score);
-    expect(rank(series, "time", "headline")[0]?.s.id).toBe("integ5");
-    const integ4 = series.find((x) => x.s.id === "integ4")!;
-    expect(integ4.headlineTime).toBeNull();
-    expect(integ4.headlineRam).toBeNull();
+    const ranked = rank(series, "time", "headline");
+    expect(ranked[0]?.s.id).toBe("final");
+    // integ4 is faster on headline time but grew peak RAM, so it ranks below every RAM-clean card.
+    const integ4 = ranked.findIndex((x) => x.s.id === "integ4");
+    expect(series.find((x) => x.s.id === "integ4")!.headlineTime!).toBeLessThan(
+      ranked[0]!.headlineTime!,
+    );
+    expect(integ4).toBeGreaterThan(ranked.findIndex((x) => x.s.id === "integ1"));
+  });
+
+  test("every series card is measured on all 14 flows in the common run", () => {
+    for (const id of ["baseline", "integ1", "integ2", "integ3", "integ4", "integ5", "final"]) {
+      const x = score(submissions.find((s) => s.id === id)!);
+      expect(x.timeFlows, id).toBe(14);
+      expect(x.ramFlows, id).toBe(14);
+      expect(x.headlineTime, id).not.toBeNull();
+    }
+    const fin = score(submissions.find((s) => s.id === "final")!);
+    expect(fin.timeRatio!).toBeCloseTo(83.34 / 120.27, 3);
+    expect(fin.ramRatio!).toBeCloseTo(3555 / 4954, 3);
   });
 
   test("baseline is par", () => {

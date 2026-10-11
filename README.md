@@ -116,31 +116,37 @@ _Verified_ = 11/11 identical and 11/11 stock bb.js; _Identical_ = 11/11 identica
 
 ## Seed data
 
+Series cards (baseline, integ1-5, final) all come from **one** run of all 14 flows (11 pinned + 3 aztec-standards) on the
+same machine (`sources/final/bench_14flows_4vcpu.json`: 7 binaries round-robin, order shuffled, 5 reps; time = min
+wall, RAM = median peak RSS). Their earlier 5-flow numbers are kept under `history` and shown as "Earlier
+measurements". Track cards keep their own reported numbers and flow counts.
+
 All numbers are transcribed from the published results; anything not reported is `null` and shows as “—”.
 
-| Card                                                | Board             | Source                                          | Time                           | Peak RSS                                              |
-| --------------------------------------------------- | ----------------- | ----------------------------------------------- | ------------------------------ | ----------------------------------------------------- |
-| `baseline`                                          | par               | `reference/baseline_times_4core.txt`, STATUS.md | 11 flows, single run           | 2 flows                                               |
-| `own-0003-0006`                                     | championship      | README.md, STATUS.md                            | not reported                   | 2 flows                                               |
-| `integ1`                                            | championship      | `integrated/STATUS.md`                          | −15.1% (5 flows, ratios)       | 2 flows (+0.4%)                                       |
-| `integ2`                                            | championship      | `integrated/STATUS.md`                          | −23.7% (5 flows, ratios)       | 2 flows (+4.6%)                                       |
-| `integ3`                                            | championship      | `integrated/STATUS.md`                          | −24.2% (5 flows, ratios)       | 2 flows (+5.0%)                                       |
-| `integ4`                                            | championship      | `sources/integ4/STATUS.md`                      | **−30.6%** (5 flows, ratios)   | 5 flows (**+12.3%**, flagged; RSS bisect on the card) |
-| `integ5`                                            | championship      | `sources/integ5/STATUS.md`                      | **−30.7%** (5 flows, seconds)  | 5 flows (**−6.5%**)                                   |
-| `track-msm2`                                        | range             | `contrib/msm2/RESULTS.md`                       | −16.4% (11 flows, IFMA VM)     | —                                                     |
-| `track-circuit`                                     | range             | `contrib/circuit/RESULTS.md`                    | −4.4% (11 flows, seconds)      | —                                                     |
-| `track-threading`                                   | range             | `contrib/threading/RESULTS.md`                  | −3.7% (11 flows, seconds)      | —                                                     |
-| `track-fields2`                                     | range             | `contrib/fields2/RESULTS.md`                    | −3.7% (vs integ2)              | —                                                     |
-| `track-fields`                                      | range (withdrawn) | `contrib/fields/RESULTS.md`                     | −3.3% (dup. of msm/0001)       | —                                                     |
-| `track-eccvm`                                       | range             | `contrib/eccvm/RESULTS.md`                      | −2.5% (11 flows, seconds)      | —                                                     |
-| `track-instance`                                    | range             | `contrib/instance/RESULTS.md`                   | −2.3% (11 flows, total)        | —                                                     |
-| `track-wasm`                                        | range             | `contrib/wasm/RESULTS.md`                       | −2.1% (WASM, 1 flow)           | —                                                     |
-| `track-sumcheck`                                    | range             | `contrib/sumcheck/RESULTS.md`                   | −2.1% (11 flows, seconds)      | —                                                     |
-| `track-pcs`                                         | range             | `contrib/pcs/RESULTS.md`                        | −1.7% (5 flows, prelim.)       | —                                                     |
-| `track-transcript`                                  | range             | `contrib/transcript/RESULTS.md`                 | −1.6% (11 flows, seconds)      | —                                                     |
-| `track-msm`                                         | range             | `contrib/msm/RESULTS.md`                        | −0.9% (11 flows; 4-flow table) | —                                                     |
-| `track-joint`                                       | range             | `contrib/joint/RESULTS.md`                      | ±0 (11 flows)                  | —                                                     |
-| `track-pipeline`, `track-stdlib`, `track-sumcheck2` | range             | RESULTS.md (WIP)                                | not reported                   | —                                                     |
+| Card                                                | Board                 | Source                                | Time                           | Peak RSS                       |
+| --------------------------------------------------- | --------------------- | ------------------------------------- | ------------------------------ | ------------------------------ |
+| `baseline`                                          | par                   | common 14-flow run (`sources/final/`) | 14 flows (par)                 | 14 flows (par)                 |
+| `own-0003-0006`                                     | championship          | README.md, STATUS.md                  | not reported                   | 2 flows                        |
+| `integ1`                                            | championship          | common 14-flow run                    | ⛳ −11.0% · all −14.2%         | ⛳ −0.1% · all +0.1%           |
+| `integ2`                                            | championship          | common 14-flow run                    | ⛳ −22.5% · all −21.0%         | ⛳ +4.6% · all +6.4% (flagged) |
+| `integ3`                                            | championship          | common 14-flow run                    | ⛳ −24.3% · all −25.1%         | ⛳ +4.5% · all +6.3% (flagged) |
+| `integ4`                                            | championship          | common 14-flow run (+ RSS bisect)     | ⛳ −32.9% · all −29.9%         | ⛳ +4.8% · all +8.8% (flagged) |
+| `integ5`                                            | championship          | common 14-flow run                    | ⛳ −26.3% · all −29.1%         | ⛳ −14.4% · all −9.8%          |
+| `final`                                             | championship (leader) | common 14-flow run, `sources/final/`  | **⛳ −32.2% · all −30.7%**     | **⛳ −27.0% · all −28.2%**     |
+| `track-msm2`                                        | range                 | `contrib/msm2/RESULTS.md`             | −16.4% (11 flows, IFMA VM)     | —                              |
+| `track-circuit`                                     | range                 | `contrib/circuit/RESULTS.md`          | −4.4% (11 flows, seconds)      | —                              |
+| `track-threading`                                   | range                 | `contrib/threading/RESULTS.md`        | −3.7% (11 flows, seconds)      | —                              |
+| `track-fields2`                                     | range                 | `contrib/fields2/RESULTS.md`          | −3.7% (vs integ2)              | —                              |
+| `track-fields`                                      | range (withdrawn)     | `contrib/fields/RESULTS.md`           | −3.3% (dup. of msm/0001)       | —                              |
+| `track-eccvm`                                       | range                 | `contrib/eccvm/RESULTS.md`            | −2.5% (11 flows, seconds)      | —                              |
+| `track-instance`                                    | range                 | `contrib/instance/RESULTS.md`         | −2.3% (11 flows, total)        | —                              |
+| `track-wasm`                                        | range                 | `contrib/wasm/RESULTS.md`             | −2.1% (WASM, 1 flow)           | —                              |
+| `track-sumcheck`                                    | range                 | `contrib/sumcheck/RESULTS.md`         | −2.1% (11 flows, seconds)      | —                              |
+| `track-pcs`                                         | range                 | `contrib/pcs/RESULTS.md`              | −1.7% (5 flows, prelim.)       | —                              |
+| `track-transcript`                                  | range                 | `contrib/transcript/RESULTS.md`       | −1.6% (11 flows, seconds)      | —                              |
+| `track-msm`                                         | range                 | `contrib/msm/RESULTS.md`              | −0.9% (11 flows; 4-flow table) | —                              |
+| `track-joint`                                       | range                 | `contrib/joint/RESULTS.md`            | ±0 (11 flows)                  | —                              |
+| `track-pipeline`, `track-stdlib`, `track-sumcheck2` | range                 | RESULTS.md (WIP)                      | not reported                   | —                              |
 
 Every patch and source link points at the snapshot in [`sources/`](sources/): the integrated series and
 coordinator patches (`sources/integrated/`, `sources/patches/`) and each track's patches and RESULTS.md
@@ -156,7 +162,7 @@ Taken with Playwright/Chromium against `vp preview` (`docs/screenshots/`; deskto
 | Leaderboard                 | ![](docs/screenshots/leaderboard.desktop.png)          | ![](docs/screenshots/leaderboard.desktop-dark.png)          | ![](docs/screenshots/leaderboard.mobile.png)          |
 | Leaderboard · driving range | ![](docs/screenshots/leaderboard-range.desktop.png)    | ![](docs/screenshots/leaderboard-range.desktop-dark.png)    | ![](docs/screenshots/leaderboard-range.mobile.png)    |
 | Leaderboard · peak RAM      | ![](docs/screenshots/leaderboard-ram.desktop.png)      | ![](docs/screenshots/leaderboard-ram.desktop-dark.png)      | ![](docs/screenshots/leaderboard-ram.mobile.png)      |
-| Submission: integ5          | ![](docs/screenshots/submission-integ5.desktop.png)    | ![](docs/screenshots/submission-integ5.desktop-dark.png)    | ![](docs/screenshots/submission-integ5.mobile.png)    |
+| Submission: final           | ![](docs/screenshots/submission-final.desktop.png)     | ![](docs/screenshots/submission-final.desktop-dark.png)     | ![](docs/screenshots/submission-final.mobile.png)     |
 | Submission: threading       | ![](docs/screenshots/submission-threading.desktop.png) | ![](docs/screenshots/submission-threading.desktop-dark.png) | ![](docs/screenshots/submission-threading.mobile.png) |
 | Rules                       | ![](docs/screenshots/rules.desktop.png)                | ![](docs/screenshots/rules.desktop-dark.png)                | ![](docs/screenshots/rules.mobile.png)                |
 | How to submit               | ![](docs/screenshots/submit.desktop.png)               | ![](docs/screenshots/submit.desktop-dark.png)               | ![](docs/screenshots/submit.mobile.png)               |

@@ -1,0 +1,34 @@
+From 082d88d4fe0d5ebc006a0b122385a838d6e645e4 Mon Sep 17 00:00:00 2001
+From: opt <a@b>
+Date: Sun, 11 Oct 2026 00:51:39 +0000
+Subject: [PATCH 06/76] perf(sumcheck): skip fold multiply for bit-identical
+ neighbour pairs
+
+---
+ .../cpp/src/barretenberg/polynomials/fold_stride2.hpp  | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+index 470949185..0b56f20aa 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+@@ -56,7 +56,15 @@ void fold_stride2(
+ #endif
+     for (; k < end; ++k) {
+         const Fr even = src[2 * k];
+-        dst[ScalarIndex{ k }] = even + challenge * (src[2 * k + 1] - even);
++        const Fr odd = src[2 * k + 1];
++        // Equal neighbours (constant selector runs, zero padding inside the active extent) fold to themselves, so
++        // skip the multiplication. Only bit-identical representations are short-cut.
++        if (even.data[0] == odd.data[0] && even.data[1] == odd.data[1] && even.data[2] == odd.data[2] &&
++            even.data[3] == odd.data[3]) {
++            dst[ScalarIndex{ k }] = even;
++        } else {
++            dst[ScalarIndex{ k }] = even + challenge * (odd - even);
++        }
+     }
+ }
+ 
+-- 
+2.43.0
+

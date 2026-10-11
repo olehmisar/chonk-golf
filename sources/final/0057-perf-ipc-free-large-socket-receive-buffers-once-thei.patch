@@ -1,0 +1,127 @@
+From 3c5538a0ae73519fcdc1c2047c466039dd4a94da Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 05:55:37 +0000
+Subject: [PATCH 57/76] perf(ipc): free large socket receive buffers once their
+ message is handled
+
+SocketServer kept one receive buffer per client and only ever grew it, so the
+largest request of a session stayed resident until the client disconnected.
+With bb.js's native socket backend that is the largest ChonkLoad (the
+uncompressed bytecode of the biggest circuit, ~13 MB on transfer_1+private_fpc),
+which is still allocated when ChonkProve reaches the prover's memory peak.
+
+release() now frees a receive buffer larger than 1 MiB after its message has
+been handled (small buffers are kept for reuse), and the buffer is allocated
+uninitialised since every message overwrites it. Requests and responses are
+unchanged.
+---
+ .../src/barretenberg/ipc/socket_server.cpp    | 27 ++++++++++++-------
+ .../src/barretenberg/ipc/socket_server.hpp    | 17 +++++++++---
+ 2 files changed, 31 insertions(+), 13 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ipc/socket_server.cpp b/barretenberg/cpp/src/barretenberg/ipc/socket_server.cpp
+index 62c8bf69c..693ac9198 100644
+--- a/barretenberg/cpp/src/barretenberg/ipc/socket_server.cpp
++++ b/barretenberg/cpp/src/barretenberg/ipc/socket_server.cpp
+@@ -3,6 +3,7 @@
+ #include <cstdint>
+ #include <cstring>
+ #include <fcntl.h>
++#include <memory>
+ #include <span>
+ #include <string>
+ #include <sys/socket.h>
+@@ -107,9 +108,16 @@ bool SocketServer::send(int client_id, const void* data, size_t len)
+ 
+ void SocketServer::release(int client_id, size_t message_size)
+ {
+-    // No-op for sockets - message already consumed from kernel buffer during receive()
+-    (void)client_id;
++    // The message was already consumed from the kernel buffer during receive(); only a large receive buffer is freed.
+     (void)message_size;
++    if (client_id < 0 || static_cast<size_t>(client_id) >= recv_buffers_.size()) {
++        return;
++    }
++    auto& buffer = recv_buffers_[static_cast<size_t>(client_id)];
++    if (buffer.capacity > MAX_RETAINED_RECV_BUFFER_SIZE) {
++        buffer.data.reset();
++        buffer.capacity = 0;
++    }
+ }
+ 
+ std::span<const uint8_t> SocketServer::receive(int client_id)
+@@ -146,20 +154,21 @@ std::span<const uint8_t> SocketServer::receive(int client_id)
+         total_read += static_cast<size_t>(n);
+     }
+ 
+-    // Resize buffer if needed to fit length prefix + message
++    // Grow buffer if needed to fit length prefix + message (the previous contents are not needed)
+     size_t total_size = sizeof(uint32_t) + msg_len;
+-    if (recv_buffers_[client_idx].size() < total_size) {
+-        recv_buffers_[client_idx].resize(total_size);
++    auto& buffer = recv_buffers_[client_idx];
++    if (buffer.capacity < total_size) {
++        buffer.data = std::make_unique_for_overwrite<uint8_t[]>(total_size);
++        buffer.capacity = total_size;
+     }
+ 
+     // Store length prefix in buffer
+-    std::memcpy(recv_buffers_[client_idx].data(), &msg_len, sizeof(uint32_t));
++    std::memcpy(buffer.data.get(), &msg_len, sizeof(uint32_t));
+ 
+     // Read message data - must loop until all bytes received (MSG_WAITALL unreliable on macOS)
+     total_read = 0;
+     while (total_read < msg_len) {
+-        ssize_t n =
+-            ::recv(fd, recv_buffers_[client_idx].data() + sizeof(uint32_t) + total_read, msg_len - total_read, 0);
++        ssize_t n = ::recv(fd, buffer.data.get() + sizeof(uint32_t) + total_read, msg_len - total_read, 0);
+         if (n < 0) {
+             if (errno == EINTR) {
+                 continue; // Interrupted, retry
+@@ -175,7 +184,7 @@ std::span<const uint8_t> SocketServer::receive(int client_id)
+         total_read += static_cast<size_t>(n);
+     }
+ 
+-    return std::span<const uint8_t>(recv_buffers_[client_idx].data() + sizeof(uint32_t), msg_len);
++    return std::span<const uint8_t>(buffer.data.get() + sizeof(uint32_t), msg_len);
+ }
+ 
+ #ifdef __APPLE__
+diff --git a/barretenberg/cpp/src/barretenberg/ipc/socket_server.hpp b/barretenberg/cpp/src/barretenberg/ipc/socket_server.hpp
+index 1d1dd941a..0d68869cd 100644
+--- a/barretenberg/cpp/src/barretenberg/ipc/socket_server.hpp
++++ b/barretenberg/cpp/src/barretenberg/ipc/socket_server.hpp
+@@ -3,6 +3,7 @@
+ #include "barretenberg/ipc/ipc_server.hpp"
+ #include <cstddef>
+ #include <cstdint>
++#include <memory>
+ #include <string>
+ #include <sys/types.h>
+ #include <unordered_map>
+@@ -45,10 +46,18 @@ class SocketServer : public IpcServer {
+     std::string socket_path_;
+     int initial_max_clients_;
+     int listen_fd_ = -1;
+-    int fd_ = -1;                                    // kqueue or epoll fd
+-    std::vector<int> client_fds_;                    // client_id -> fd
+-    std::unordered_map<int, int> fd_to_client_id_;   // fd -> client_id (for fast lookup)
+-    std::vector<std::vector<uint8_t>> recv_buffers_; // client_id -> recv buffer
++    int fd_ = -1;                                  // kqueue or epoll fd
++    std::vector<int> client_fds_;                  // client_id -> fd
++    std::unordered_map<int, int> fd_to_client_id_; // fd -> client_id (for fast lookup)
++    // Per-client receive buffer. Its contents are overwritten by each message, so it is allocated uninitialised.
++    struct RecvBuffer {
++        std::unique_ptr<uint8_t[]> data;
++        size_t capacity = 0;
++    };
++    // Receive buffers larger than this are freed once their message has been handled, so a large request (e.g. a
++    // circuit's bytecode) does not stay resident for the rest of the session.
++    static constexpr size_t MAX_RETAINED_RECV_BUFFER_SIZE = static_cast<size_t>(1024 * 1024);
++    std::vector<RecvBuffer> recv_buffers_; // client_id -> recv buffer
+     int num_clients_ = 0;
+ };
+ 
+-- 
+2.43.0
+

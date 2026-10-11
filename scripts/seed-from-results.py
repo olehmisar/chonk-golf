@@ -75,6 +75,7 @@ def add(**kw):
     base.update(kw)
     order = ["id","title","author","track","date","kind","status","integrated_in","target","aztec_packages_base","against",
              "patches","series_url","description","source_url","machine","correctness","summary","flows"]
+    # standards / history / rss_bisect are appended to the dict afterwards where present
     S.append({"$schema": "../submission.schema.json", **{k: base[k] for k in order}})
 
 # ---------- reference & full series ----------
@@ -362,6 +363,80 @@ BY["baseline"]["standards"] = {
     "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": None,
                     "tampered_rejected": None, "vks_match": True},
 }
+
+# ---------- final series + the common 14-flow run (sources/final/README.md, bench_14flows_4vcpu.json) ----------
+FINAL_URL = f"{GH}/sources/final/README.md"
+BENCH = json.load(open(os.path.join(SRC, "final", "bench_14flows_4vcpu.json")))["flows"]
+BIN = {"baseline": "00-baseline", "integ1": "01-integ1", "integ2": "02-integ2", "integ3": "03-integ3",
+       "integ4": "04-integ4", "integ5": "05-integ5", "final": "06-final"}
+MACHINE14 = {"cpu": "4 vCPU Intel Xeon @ 2.80GHz (cloud VM, AVX-512, no AVX-512 IFMA: IFMA kernels inactive)",
+             "cores": 4, "ram": "15 GiB", "os": None, "compiler": "clang 18 (Release)"}
+STD_NAMES = ["standards_token_transfer_private_to_private", "standards_token_mint_to_private",
+             "standards_token_transfer_private_to_public"]
+
+def run14(card):
+    b, base = BIN[card], BIN["baseline"]
+    row = lambda f: fm(f, BENCH[f][base]["wall_min_s"], BENCH[f][b]["wall_min_s"],
+                       BENCH[f][base]["peak_rss_median_mib"], BENCH[f][b]["peak_rss_median_mib"], 5)
+    pinned = [row(f) for f in FLOWS]
+    std = [row(f) for f in STD_NAMES]
+    tb = round(sum(BENCH[f][base]["wall_min_s"] for f in BENCH), 2)
+    tc = round(sum(BENCH[f][b]["wall_min_s"] for f in BENCH), 2)
+    summary = summ(tb, tc, None, 14, 5, "Common 14-flow run (11 pinned + 3 aztec-standards): all 7 binaries "
+                   "round-robin, order shuffled per flow and rep, 5 reps; time = min wall, RAM = median peak RSS of bb.")
+    return pinned, std, summary
+
+HIST_LABEL = {
+    "baseline": "Single run per flow (reference/baseline_times_4core.txt) + peak RSS on 2 flows",
+    "integ1": "integrated/STATUS.md: 5 flows, min of 3 (ratios) + peak RSS on 2 flows",
+    "integ2": "integrated/STATUS.md: 5 flows, min of 3 (ratios) + peak RSS on 2 flows",
+    "integ3": "integrated/STATUS.md: 5 flows, min of 3 (ratios) + peak RSS on 2 flows",
+    "integ4": "integ4 STATUS.md: 5 flows, min of 3 (ratios) + peak RSS",
+    "integ5": "integ5 STATUS.md: 5 flows, min of 3; aztec-standards README: 3 flows, 7 reps",
+}
+for cid in ["baseline", "integ1", "integ2", "integ3", "integ4", "integ5"]:
+    c = BY[cid]
+    h = {"label": HIST_LABEL[cid], "source_url": c["source_url"], "machine": c["machine"]["cpu"],
+         "summary": c["summary"], "flows": c["flows"]}
+    if c.get("standards"):
+        h["standards_flows"] = c["standards"]["flows"]
+    pinned, std, summary = run14(cid)
+    old_corr = (c.get("standards") or {}).get("correctness") or {
+        "flows_total": 3, "identical_flows": None, "stock_bbjs_verified_flows": None,
+        "tampered_rejected": None, "vks_match": None}
+    c["flows"], c["summary"], c["machine"], c["source_url"] = pinned, summary, MACHINE14, FINAL_URL
+    c["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": STD_URL,
+                      "machine_note": "Common 14-flow run, 5 reps (min wall / median peak RSS)",
+                      "flows": std, "correctness": old_corr}
+    c["history"] = [h]
+
+FINAL_DESC = ("Final 76-commit `git am` series on bb15fcb: 0001-0002 harness, 74 optimisations. integ5 minus 14/35 "
+              "(they cancel) and 33 (opt-in allocator), plus r3-msm-algo/0001 (folded into the IFMA test commit), "
+              "r3-bbapi 0002-0003, r3-hotspots 0001-0004, r3-ifma-fr 0001-0005, r3-construction 0001-0003 and "
+              "r3-memory 0001-0007. Excluded: r3-bbapi/0001 (verifier-path cache), r3-msm-algo 0002-0005 (neutral on "
+              "the headline flow), r3-sumcheck-algo/0002 (+1.3-1.5% headline RSS), buildflags2 (no gain). "
+              "Caveat: measured on a VM without AVX-512 IFMA, so the IFMA kernels were inactive; an IFMA-VM run and "
+              "WASM numbers are still to come.")
+pinned, std, summary = run14("final")
+add(id="final", title="final: 76-commit series (integ5 cleanup + round-3 tracks)",
+    author="bb-chonk-prover-opt coordinator", track="integrated", kind="series", status="integrated",
+    integrated_in="final", against={"id": "baseline", "description": "Unmodified prover, same 14-flow run."},
+    patches=patches("final"), series_url="https://github.com/olehmisar/chonk-golf/tree/main/sources/final",
+    description=FINAL_DESC, source_url=FINAL_URL, machine=MACHINE14,
+    correctness=corr(11, None, None, True, "check_identical.sh: 14/14 IDENTICAL (11 pinned + 3 aztec-standards). "
+                     "Stock bb.js 14/14 and unmodified native bb verify 14/14 were checked on the 75-commit version "
+                     "without r3-memory/0007; the memory track reports the same for the full series. The stock bb.js "
+                     "run on this exact series is pending, so it is not counted here."),
+    summary=summary, flows=pinned)
+S[-1]["caveats"] = [
+    "No AVX-512 IFMA on the benchmark VM: the runtime-dispatched IFMA kernels were inactive. An IFMA-VM run is coming.",
+    "WASM proving numbers are still to come.",
+    "Stock bb.js on this exact 76-commit series is pending (it passed 14/14 on the 75-commit version).",
+]
+S[-1]["standards"] = {"toolchain": STD_TOOLCHAIN, "source_url": STD_URL,
+                      "machine_note": "Common 14-flow run, 5 reps (min wall / median peak RSS)", "flows": std,
+                      "correctness": {"flows_total": 3, "identical_flows": 3, "stock_bbjs_verified_flows": None,
+                                      "tampered_rejected": None, "vks_match": True}}
 
 os.makedirs(OUT, exist_ok=True)
 for s in S:

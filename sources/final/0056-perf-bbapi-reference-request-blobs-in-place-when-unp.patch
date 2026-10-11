@@ -1,0 +1,95 @@
+From 5adc5228142008e3d83d340aa4a5b04cdd824226 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 05:54:23 +0000
+Subject: [PATCH 56/76] perf(bbapi): reference request blobs in place when
+ unpacking msgpack commands
+
+The native IPC server (bb.js socket / shared-memory backends), the stdin
+msgpack loop and the WASM/C bindings (msgpack_cbind_impl) unpacked every
+request with msgpack's default, which copies each string and binary blob into
+the unpacked object's zone before the Command is converted from it. ChonkLoad
+carries the uncompressed bytecode and ChonkAccumulate the witness (up to
+~13 MB per request on the pinned flows), so every byte was copied twice.
+
+All three callers keep the request buffer alive until the command converted
+from the object has executed, so they now pass a reference function that
+leaves strings and blobs in the request buffer; the conversion into the
+command's own vectors is the one remaining copy. The decoded commands are
+identical.
+---
+ .../cpp/src/barretenberg/api/api_msgpack.cpp    |  9 +++++++--
+ .../src/barretenberg/serialize/msgpack_impl.hpp | 17 +++++++++++++++--
+ 2 files changed, 22 insertions(+), 4 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/api/api_msgpack.cpp b/barretenberg/cpp/src/barretenberg/api/api_msgpack.cpp
+index 0abba6e00..ba3c19d59 100644
+--- a/barretenberg/cpp/src/barretenberg/api/api_msgpack.cpp
++++ b/barretenberg/cpp/src/barretenberg/api/api_msgpack.cpp
+@@ -2,6 +2,7 @@
+ #include "barretenberg/bbapi/c_bind.hpp"
+ #include "barretenberg/common/log.hpp"
+ #include "barretenberg/serialize/msgpack.hpp"
++#include "barretenberg/serialize/msgpack_impl.hpp"
+ #include <cstdint>
+ #include <fstream>
+ #include <iostream>
+@@ -60,7 +61,9 @@ int process_msgpack_commands(std::istream& input_stream)
+             // Deserialize the msgpack buffer
+             // The buffer should contain a tuple of arguments (array) matching the bbapi function signature.
+             // Since bbapi(Command) takes one argument, we expect a 1-element array containing the Command.
+-            auto unpacked = msgpack::unpack(reinterpret_cast<const char*>(buffer.data()), buffer.size());
++            // The buffer outlives the command's execution, so blobs (bytecode, witnesses, VKs) are referenced in place.
++            auto unpacked =
++                msgpack::unpack(reinterpret_cast<const char*>(buffer.data()), buffer.size(), msgpack_reference_input);
+             auto obj = unpacked.get();
+ 
+             // First, expect an array (the tuple of arguments)
+@@ -213,7 +216,9 @@ int execute_msgpack_ipc_server(std::unique_ptr<ipc::IpcServer> server)
+             // Deserialize msgpack command
+             // The buffer should contain a tuple of arguments (array) matching the bbapi function signature.
+             // Since bbapi(Command) takes one argument, we expect a 1-element array containing the Command.
+-            auto unpacked = msgpack::unpack(reinterpret_cast<const char*>(request.data()), request.size());
++            // The buffer outlives the command's execution, so blobs (bytecode, witnesses, VKs) are referenced in place.
++            auto unpacked =
++                msgpack::unpack(reinterpret_cast<const char*>(request.data()), request.size(), msgpack_reference_input);
+             auto obj = unpacked.get();
+ 
+             // First, expect an array (the tuple of arguments)
+diff --git a/barretenberg/cpp/src/barretenberg/serialize/msgpack_impl.hpp b/barretenberg/cpp/src/barretenberg/serialize/msgpack_impl.hpp
+index 7c86a5d58..b769b55d2 100644
+--- a/barretenberg/cpp/src/barretenberg/serialize/msgpack_impl.hpp
++++ b/barretenberg/cpp/src/barretenberg/serialize/msgpack_impl.hpp
+@@ -47,6 +47,16 @@ inline std::pair<uint8_t*, size_t> msgpack_encode_buffer(auto&& obj,
+     return { output, buffer.size() };
+ }
+ 
++/**
++ * @brief msgpack reference function for unpacking an input buffer that stays alive while the unpacked object and
++ * everything converted from it are in use: strings and binary blobs are referenced in the input buffer instead of being
++ * copied into the unpacked object's zone.
++ */
++inline bool msgpack_reference_input(msgpack::type::object_type /*type*/, std::size_t /*size*/, void* /*user_data*/)
++{
++    return true;
++}
++
+ // This function is intended to bind a function to a MessagePack-formatted input data,
+ // perform the function with the unpacked data, then pack the result back into MessagePack format.
+ // Note: output_out and output_len_out are IN-OUT parameters:
+@@ -62,8 +72,11 @@ inline void msgpack_cbind_impl(const auto& func,        // The function to be ap
+     // Args: the parameter types of the function as a tuple.
+     typename FuncTraits::Args params;
+ 
+-    // Unpack the input data into the parameter tuple.
+-    msgpack::unpack(reinterpret_cast<const char*>(input_in), input_len_in).get().convert(params);
++    // Unpack the input data into the parameter tuple. The input outlives the call, so blobs are referenced in place
++    // while being converted.
++    msgpack::unpack(reinterpret_cast<const char*>(input_in), input_len_in, msgpack_reference_input)
++        .get()
++        .convert(params);
+ 
+     // Read IN values: caller-provided scratch buffer
+     uint8_t* scratch_buf = *output_out;
+-- 
+2.43.0
+

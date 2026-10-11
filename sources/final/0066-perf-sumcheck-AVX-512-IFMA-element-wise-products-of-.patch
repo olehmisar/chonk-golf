@@ -1,0 +1,267 @@
+From fcd39ccd2c160dac3ac906a5fe5ac4d8770ec38e Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 06:31:45 +0000
+Subject: [PATCH 66/76] perf(sumcheck): AVX-512 IFMA element-wise products of
+ short univariates
+
+Univariate<Fr, 4..8>::operator*= (univariate and scalar) and self_sqr, the bulk of the multiplications
+in the sumcheck relation accumulation, run as one 8-lane IFMA Montgomery multiplication with masked
+loads/stores when the CPU supports it (native BN254-sized fields only; stdlib and other field types
+keep the loop). Results are the same field values, below 1.8p as bb's [0, 2p) form requires.
+---
+ .../barretenberg/ecc/fields/ifma_field.hpp    | 75 +++++++++++++++++--
+ .../ecc/fields/ifma_field.test.cpp            | 43 +++++++++++
+ .../barretenberg/polynomials/univariate.hpp   | 48 ++++++++++++
+ 3 files changed, 160 insertions(+), 6 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
+index 3fb0782dc..ec84985ac 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.hpp
+@@ -298,8 +298,8 @@ BB_FIELD_IFMA_INLINE void to_columns(const V5& v, __m512i& c0, __m512i& c1, __m5
+     c3 = _mm512_or_si512(_mm512_srli_epi64(v.l[3], 36), _mm512_slli_epi64(v.l[4], 16));
+ }
+ 
+-// Inverse of `load8` for a value below 2^256.
+-BB_FIELD_IFMA_INLINE void store8(const V5& v, uint64_t* dst)
++// Inverse of `transpose_in` for a value below 2^256: z_k = elements 2k, 2k + 1 in the 4-limb layout.
++BB_FIELD_IFMA_INLINE void transpose_out(const V5& v, __m512i* z)
+ {
+     __m512i c0;
+     __m512i c1;
+@@ -313,10 +313,20 @@ BB_FIELD_IFMA_INLINE void store8(const V5& v, uint64_t* dst)
+     const __m512i t1 = _mm512_permutex2var_epi64(c1, lo_idx, c3);
+     const __m512i t2 = _mm512_permutex2var_epi64(c0, hi_idx, c2);
+     const __m512i t3 = _mm512_permutex2var_epi64(c1, hi_idx, c3);
+-    _mm512_storeu_si512(dst, _mm512_unpacklo_epi64(t0, t1));
+-    _mm512_storeu_si512(dst + 8, _mm512_unpackhi_epi64(t0, t1));
+-    _mm512_storeu_si512(dst + 16, _mm512_unpacklo_epi64(t2, t3));
+-    _mm512_storeu_si512(dst + 24, _mm512_unpackhi_epi64(t2, t3));
++    z[0] = _mm512_unpacklo_epi64(t0, t1);
++    z[1] = _mm512_unpackhi_epi64(t0, t1);
++    z[2] = _mm512_unpacklo_epi64(t2, t3);
++    z[3] = _mm512_unpackhi_epi64(t2, t3);
++}
++
++// Inverse of `load8` for a value below 2^256.
++BB_FIELD_IFMA_INLINE void store8(const V5& v, uint64_t* dst)
++{
++    __m512i z[4];
++    transpose_out(v, z);
++    for (size_t j = 0; j < 4; ++j) {
++        _mm512_storeu_si512(dst + (8 * j), z[j]);
++    }
+ }
+ 
+ /**
+@@ -384,6 +394,59 @@ BB_FIELD_IFMA_TARGET void fold_stride2(const uint64_t* src, uint64_t* dst, size_
+     }
+ }
+ 
++/**
++ * @brief Load the first N <= 8 elements at `src` (32-byte 4-limb layout) without touching memory past them; unused
++ *        lanes are zero. Lane order as in `load8`.
++ */
++template <size_t N> BB_FIELD_IFMA_INLINE V5 load_n(const uint64_t* src)
++{
++    static_assert(N >= 1 && N <= 8);
++    __m512i z[4];
++    for (size_t j = 0; j < 4; ++j) {
++        constexpr auto mask = [](size_t pair) {
++            return static_cast<__mmask8>(((2 * pair) < N ? 0x0FU : 0U) | ((2 * pair) + 1 < N ? 0xF0U : 0U));
++        };
++        z[j] = _mm512_maskz_loadu_epi64(mask(j), src + (8 * j));
++    }
++    return transpose_in(z[0], z[1], z[2], z[3]);
++}
++
++// Store the first N <= 8 lanes of `v` (value below 2^256) to `dst` without touching memory past them.
++template <size_t N> BB_FIELD_IFMA_INLINE void store_n(const V5& v, uint64_t* dst)
++{
++    static_assert(N >= 1 && N <= 8);
++    __m512i z[4];
++    transpose_out(v, z);
++    for (size_t j = 0; j < 4; ++j) {
++        constexpr auto mask = [](size_t pair) {
++            return static_cast<__mmask8>(((2 * pair) < N ? 0x0FU : 0U) | ((2 * pair) + 1 < N ? 0xF0U : 0U));
++        };
++        _mm512_mask_storeu_epi64(dst + (8 * j), mask(j), z[j]);
++    }
++}
++
++/**
++ * @brief a[i] *= b[i] for i < N <= 8, on raw 4-limb elements in [0, 2p) (the results are below 1.8p). Element-wise
++ *        products of short univariates in the sumcheck relations.
++ */
++template <typename Params, size_t N> BB_FIELD_IFMA_TARGET void mul_assign_n(uint64_t* a, const uint64_t* b)
++{
++    store_n<N>(mont_mul<Params>(load_n<N>(a), load_n<N>(b)), a);
++}
++
++// a[i] *= s for i < N <= 8 (results below 1.8p).
++template <typename Params, size_t N> BB_FIELD_IFMA_TARGET void mul_assign_scalar_n(uint64_t* a, const uint64_t* s)
++{
++    store_n<N>(mont_mul<Params>(load_n<N>(a), broadcast(s)), a);
++}
++
++// a[i] = a[i]^2 for i < N <= 8 (results below 1.8p).
++template <typename Params, size_t N> BB_FIELD_IFMA_TARGET void sqr_assign_n(uint64_t* a)
++{
++    const V5 v = load_n<N>(a);
++    store_n<N>(mont_mul<Params>(v, v), a);
++}
++
+ /**
+  * @brief Horner evaluation split over 16 interleaved chains: writes eight elements t_0 .. t_7 (in [0, p), 4-limb
+  *        layout) to `out` whose sum is sum_i coeffs[i] * z^i for i < n. coeffs are raw 4-limb elements in [0, 2p) and
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
+index 763aef431..e11cfeffe 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/fields/ifma_field.test.cpp
+@@ -171,4 +171,47 @@ TEST_F(FieldIfma, AddScaledBatchTileMatchesScalar)
+     }
+ }
+ 
++template <size_t N> void check_small_products()
++{
++    for (size_t trial = 0; trial < 64; ++trial) {
++        std::array<fr, N> a;
++        std::array<fr, N> b;
++        for (size_t i = 0; i < N; ++i) {
++            a[i] = edge_or_random((trial * N) + i);
++            b[i] = edge_or_random((trial * N) + i + 7);
++        }
++        const fr s = edge_or_random(trial + 3);
++        // Guard elements around the arrays must be left untouched by the masked stores.
++        struct alignas(32) Guarded {
++            fr before;
++            std::array<fr, N> values;
++            fr after;
++        };
++        Guarded prod{ fr(17), a, fr(19) };
++        Guarded scaled{ fr(17), a, fr(19) };
++        Guarded squared{ fr(17), a, fr(19) };
++        field_ifma::mul_assign_n<fr::Params, N>(&prod.values[0].data[0], &b[0].data[0]);
++        field_ifma::mul_assign_scalar_n<fr::Params, N>(&scaled.values[0].data[0], &s.data[0]);
++        field_ifma::sqr_assign_n<fr::Params, N>(&squared.values[0].data[0]);
++        for (size_t i = 0; i < N; ++i) {
++            expect_reduced_equal(a[i] * b[i], prod.values[i]);
++            expect_reduced_equal(a[i] * s, scaled.values[i]);
++            expect_reduced_equal(a[i].sqr(), squared.values[i]);
++        }
++        for (const Guarded* g : { &prod, &scaled, &squared }) {
++            EXPECT_EQ(g->before, fr(17));
++            EXPECT_EQ(g->after, fr(19));
++        }
++    }
++}
++
++TEST_F(FieldIfma, SmallElementwiseProductsMatchScalar)
++{
++    check_small_products<4>();
++    check_small_products<5>();
++    check_small_products<6>();
++    check_small_products<7>();
++    check_small_products<8>();
++}
++
+ #endif // BB_FIELD_IFMA
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/univariate.hpp b/barretenberg/cpp/src/barretenberg/polynomials/univariate.hpp
+index f57560807..7fe4d5ac4 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/univariate.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/univariate.hpp
+@@ -8,15 +8,34 @@
+ 
+ #include <array>
+ #include <span>
++#include <type_traits>
+ #include <vector>
+ 
+ #include "barretenberg/common/assert.hpp"
+ #include "barretenberg/common/serialize.hpp"
++#include "barretenberg/ecc/fields/field.hpp"
++#include "barretenberg/ecc/fields/ifma_field.hpp"
+ #include "barretenberg/polynomials/barycentric.hpp"
+ #include "barretenberg/polynomials/univariate_coefficient_basis.hpp"
+ 
+ namespace bb {
+ 
++#ifdef BB_FIELD_IFMA
++/**
++ * @brief Whether element-wise products of a Univariate<Fr, length> go through the AVX-512 IFMA kernels: native fields
++ *        the kernels support, for lengths where eight-lane registers pay off.
++ */
++template <class Fr, size_t length> constexpr bool univariate_uses_ifma()
++{
++    if constexpr (requires { typename Fr::Params; }) {
++        if constexpr (std::is_same_v<Fr, field<typename Fr::Params>>) {
++            return field_ifma::Consts<typename Fr::Params>::supported && length >= 4 && length <= 8;
++        }
++    }
++    return false;
++}
++#endif
++
+ /**
+  * @brief A view of a univariate, also used to truncate univariates.
+  *
+@@ -40,6 +59,10 @@ template <class Fr, size_t domain_end> class Univariate {
+ 
+     std::array<Fr, LENGTH> evaluations;
+ 
++#ifdef BB_FIELD_IFMA
++    static constexpr bool use_ifma_v = univariate_uses_ifma<Fr, LENGTH>();
++#endif
++
+     Univariate() = default;
+ 
+     explicit Univariate(const std::array<Fr, LENGTH>& evaluations)
+@@ -175,6 +198,15 @@ template <class Fr, size_t domain_end> class Univariate {
+     }
+     Univariate& operator*=(const Univariate& other)
+     {
++#ifdef BB_FIELD_IFMA
++        if constexpr (use_ifma_v) {
++            if (field_ifma::available()) {
++                field_ifma::mul_assign_n<typename Fr::Params, LENGTH>(&evaluations[0].data[0],
++                                                                      &other.evaluations[0].data[0]);
++                return *this;
++            }
++        }
++#endif
+         for (size_t i = 0; i < LENGTH; ++i) {
+             evaluations[i] *= other.evaluations[i];
+         }
+@@ -182,6 +214,14 @@ template <class Fr, size_t domain_end> class Univariate {
+     }
+     Univariate& self_sqr()
+     {
++#ifdef BB_FIELD_IFMA
++        if constexpr (use_ifma_v) {
++            if (field_ifma::available()) {
++                field_ifma::sqr_assign_n<typename Fr::Params, LENGTH>(&evaluations[0].data[0]);
++                return *this;
++            }
++        }
++#endif
+         for (size_t i = 0; i < LENGTH; ++i) {
+             evaluations[i].self_sqr();
+         }
+@@ -241,6 +281,14 @@ template <class Fr, size_t domain_end> class Univariate {
+     }
+     Univariate& operator*=(const Fr& scalar)
+     {
++#ifdef BB_FIELD_IFMA
++        if constexpr (use_ifma_v) {
++            if (field_ifma::available()) {
++                field_ifma::mul_assign_scalar_n<typename Fr::Params, LENGTH>(&evaluations[0].data[0], &scalar.data[0]);
++                return *this;
++            }
++        }
++#endif
+         for (auto& eval : evaluations) {
+             eval *= scalar;
+         }
+-- 
+2.43.0
+
