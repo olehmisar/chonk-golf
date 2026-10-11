@@ -19,7 +19,8 @@ build time. No server. Deploys to Cloudflare with the `cf` CLI — see [Deploy](
 ## Play
 
 The home page starts with a **“Play chonk.golf with your agent”** card: a copy-paste prompt (also at `/prompt`, raw at
-`/prompt.md`) that sends anyone's coding agent off to beat the current leader using only this public repo. Rule #1
+`/prompt.md`) that sends anyone's coding agent off to beat the current #1 using only this public repo (the prompt
+never names the leader, since it changes). Rule #1
 of the prompt, and of the board: **the verifier must match.**
 
 ## Run
@@ -92,26 +93,26 @@ _Verified_ = 11/11 identical and 11/11 stock bb.js; _Identical_ = 11/11 identica
 
 ## Layout
 
-| Path                                                                 | What                                                                                                                                 |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/schema.ts`                                                      | zod schema of a submission (single source of truth)                                                                                  |
-| `data/submission.schema.json`                                        | generated JSON Schema (rewritten by `pnpm run validate`)                                                                             |
-| `data/submissions/*.json`                                            | one card per file; file name = `id`                                                                                                  |
-| `sources/<id>/submission.json`                                       | participant cards: a submission PR adds one `sources/<id>/` folder (full patch series + harness JSON)                                |
-| `scripts/validate-data.ts`                                           | build-time validation (task `data:validate`, a dependency of `app:build`)                                                            |
-| `scripts/seed-from-results.py`                                       | regenerates the seed cards from `sources/` (numbers transcribed by hand)                                                             |
-| `scripts/screenshots.mjs`                                            | Playwright screenshots of every page                                                                                                 |
-| `harness/`                                                           | correctness + benchmark harness that emits a card — see [`harness/README.md`](harness/README.md)                                     |
-| `src/pages/`                                                         | Leaderboard (with the “Play with your agent” card), Submission detail, Rules, Submit, Prompt                                         |
-| `src/prompt-template.md`                                             | participant prompt; `{{LEADER_ID}}`/`{{LEADER_PATCHES_URL}}` filled at build time (`src/prompt.ts`), also served raw at `/prompt.md` |
-| `sources/`                                                           | bb-chonk-prover-opt results snapshot: integrated series, patches, per-track RESULTS.md (what the cards cite)                         |
-| `reference/`                                                         | proof/VK SHA-256 of the unmodified prover for the 11 flows, baseline timings (from bb-chonk-prover-opt)                              |
-| `patches/`                                                           | the two harness patches (seeded RNG) every build applies on bb15fcb                                                                  |
-| `scripts/setup.sh`                                                   | builds par (`--harness-only`) or a series (`sources/<id>` [+ your patches]) and downloads the 11 pinned flows                        |
-| `scripts/check_identical.sh`, `ab.sh`, `native_verify_unmodified.sh` | identity check (`FLOWS`/`REF` overrides), interleaved A/B, unmodified `bb verify`                                                    |
-| `ts-verify/`                                                         | stock npm bb.js verify (`stock_bbjs_verify.mjs`) and one WASM proving run (`wasm_prove_once.mjs`)                                    |
-| `flows-standards/`                                                   | the headline aztec-standards Token flows: inputs (`.msgpack.gz`), `unpack.sh`, reference hashes, capture script, README              |
-| `cloudflare.config.ts`, `public/_headers`, `.node-version`           | Cloudflare deployment (`cf` CLI)                                                                                                     |
+| Path                                                                 | What                                                                                                                    |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `src/schema.ts`                                                      | zod schema of a submission (single source of truth)                                                                     |
+| `data/submission.schema.json`                                        | generated JSON Schema (rewritten by `pnpm run validate`)                                                                |
+| `data/submissions/*.json`                                            | one card per file; file name = `id`                                                                                     |
+| `sources/<id>/submission.json`                                       | participant cards: a submission PR adds one `sources/<id>/` folder (full patch series + harness JSON)                   |
+| `scripts/validate-data.ts`                                           | build-time validation (task `data:validate`, a dependency of `app:build`)                                               |
+| `scripts/seed-from-results.py`                                       | regenerates the seed cards from `sources/` (numbers transcribed by hand)                                                |
+| `scripts/screenshots.mjs`                                            | Playwright screenshots of every page                                                                                    |
+| `harness/`                                                           | correctness + benchmark harness that emits a card — see [`harness/README.md`](harness/README.md)                        |
+| `src/pages/`                                                         | Leaderboard (with the “Play with your agent” card), Submission detail, Rules, Submit, Prompt                            |
+| `src/prompt-template.md`                                             | participant prompt (static text, never names the leader); served raw at `/prompt.md`                                    |
+| `sources/`                                                           | bb-chonk-prover-opt results snapshot: integrated series, patches, per-track RESULTS.md (what the cards cite)            |
+| `reference/`                                                         | proof/VK SHA-256 of the unmodified prover for the 11 flows, baseline timings (from bb-chonk-prover-opt)                 |
+| `patches/`                                                           | the two harness patches (seeded RNG) every build applies on bb15fcb                                                     |
+| `scripts/setup.sh`                                                   | builds par (`--harness-only`) or a series (`sources/<id>` [+ your patches]) and downloads the 11 pinned flows           |
+| `scripts/check_identical.sh`, `ab.sh`, `native_verify_unmodified.sh` | identity check (`FLOWS`/`REF` overrides), interleaved A/B, unmodified `bb verify`                                       |
+| `ts-verify/`                                                         | stock npm bb.js verify (`stock_bbjs_verify.mjs`) and one WASM proving run (`wasm_prove_once.mjs`)                       |
+| `flows-standards/`                                                   | the headline aztec-standards Token flows: inputs (`.msgpack.gz`), `unpack.sh`, reference hashes, capture script, README |
+| `cloudflare.config.ts`, `public/_headers`, `.node-version`           | Cloudflare deployment (`cf` CLI)                                                                                        |
 
 ## Seed data
 

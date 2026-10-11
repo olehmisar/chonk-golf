@@ -5,7 +5,6 @@ import { describe, expect, test } from "vite-plus/test";
 import { FLOW_COUNT } from "./schema.ts";
 import { pctDelta, rank, score } from "./score.ts";
 import { submissionJsonSchema, validateSubmissions } from "./validate.ts";
-import { fillPrompt } from "./prompt.ts";
 
 const root = join(import.meta.dirname, "..");
 const dir = join(root, "data", "submissions");
@@ -48,16 +47,11 @@ describe("seed data", () => {
 });
 
 describe("participant prompt", () => {
-  const { submissions } = validateSubmissions(files);
-  const text = fillPrompt(
-    readFileSync(join(root, "src", "prompt-template.md"), "utf8"),
-    submissions,
-  );
+  const text = readFileSync(join(root, "src", "prompt-template.md"), "utf8");
 
-  test("placeholders are filled with the current leader (integ5)", () => {
+  test("does not name a leader (it changes)", () => {
     expect(text).not.toMatch(/\{\{/);
-    expect(text).toContain("**integ5**");
-    expect(text).toContain("https://github.com/olehmisar/chonk-golf/tree/main/sources/integ5");
+    expect(text).not.toMatch(/\binteg\d\b/);
   });
 
   test("the verifier rule stays rule 1", () => {
@@ -76,9 +70,7 @@ describe("participant prompt", () => {
       ].map((m) => m[1]!.replace(/\/$/, "")),
     );
     expect(paths.size).toBeGreaterThan(5);
-    for (const p of paths)
-      expect(existsSync(join(root, p.replace("{{LEADER_ID}}", "integ5"))), p).toBe(true);
-    expect(existsSync(join(root, "sources", "integ5"))).toBe(true);
+    for (const p of paths) expect(existsSync(join(root, p)), p).toBe(true);
   });
 });
 

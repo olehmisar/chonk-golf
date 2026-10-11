@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite-plus";
-import { fillPrompt } from "../src/prompt.ts";
 import { validateSubmissions } from "../src/validate.ts";
 import { loadSubmissionFiles } from "./load-submissions.ts";
 
@@ -13,7 +12,7 @@ import { loadSubmissionFiles } from "./load-submissions.ts";
  */
 export function routePages(root: string): Plugin {
   const { submissions: cards } = validateSubmissions(loadSubmissionFiles(root));
-  const prompt = fillPrompt(readFileSync(join(root, "src", "prompt-template.md"), "utf8"), cards);
+  const prompt = readFileSync(join(root, "src", "prompt-template.md"), "utf8");
   const pages: { file: string; title: string }[] = [
     { file: "prompt.html", title: "Play with your agent · chonk.golf" },
     { file: "rules.html", title: "Rules · chonk.golf" },
@@ -31,7 +30,7 @@ export function routePages(root: string): Plugin {
       const index = bundle["index.html"];
       if (!index || index.type !== "asset") return; // not the client build
       const html = String(index.source);
-      // The filled participant prompt as plain Markdown, for agents: curl https://…/prompt.md
+      // The participant prompt as plain Markdown, for agents: curl https://…/prompt.md
       this.emitFile({ type: "asset", fileName: "prompt.md", source: prompt });
       for (const p of pages) {
         this.emitFile({

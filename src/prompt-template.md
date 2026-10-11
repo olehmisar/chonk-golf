@@ -10,8 +10,9 @@ secondary scores and identity checks.
 ## Where to start
 - **Base:** AztecProtocol/aztec-packages at commit `bb15fcbbe969f11a892272715fe59f0976b086ca`. It is pinned, so don't
   rebase.
-- **Recommended:** start from the current leader, **{{LEADER_ID}}**. `git am` its patch series from
-  {{LEADER_PATCHES_URL}} on top of `bb15fcb`, then improve on it. Your submission is the leader's series plus your
+- **Recommended:** start from the current leader (#1 on the leaderboard at https://chonk-golf.olehmisar.workers.dev).
+  `git am` its patch series from `sources/<leader-id>/` in https://github.com/olehmisar/chonk-golf on top of
+  `bb15fcb`, then improve on it. Your submission is the leader's series plus your
   commits. You may also start from plain `bb15fcb`.
 - **Everything else** is in https://github.com/olehmisar/chonk-golf: harness scripts (`scripts/setup.sh`,
   `scripts/check_identical.sh`, `scripts/ab.sh`, `scripts/native_verify_unmodified.sh`), the two
@@ -50,7 +51,7 @@ secondary scores and identity checks.
    `cd barretenberg/cpp && cmake --preset default -DAVM=OFF && cmake --build build --target bb`.
    Also build an unmodified `bb` (harness patches only) as your reference and baseline.
    `scripts/setup.sh` does both from a clone of chonk-golf: `WORK=~/base ./scripts/setup.sh --harness-only` and
-   `WORK=~/cand ./scripts/setup.sh sources/{{LEADER_ID}}` (add your own patch directory as a second argument).
+   `WORK=~/cand ./scripts/setup.sh sources/<leader-id>` (add your own patch directory as a second argument).
 2. Get the flows: the harness setup script (`scripts/setup.sh`) downloads the 11 pinned flows into `$WORK/flows`, and
    the aztec-standards flows are unpacked from the repo with `WORK=~/base ./flows-standards/unpack.sh`.
 3. Profile the headline flow with
