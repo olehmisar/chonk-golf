@@ -50,6 +50,13 @@ python3 harness/chonk_golf.py \\
   --out sources/my-card/submission.json`,
   },
   {
+    title: "WASM (if you touched anything WASM-relevant)",
+    text: "Build both WASM variants (cmake --preset wasm-threads) and run the interleaved WASM A/B through stock bb.js: prove time and Node peak RSS per flow, each proof verified by bb.js's bundled WASM and a tampered copy rejected. Add the numbers to each flow's wasm block in submission.json.",
+    code: `python3 scripts/wasm_ab.py --a base/barretenberg-threads.wasm --b cand/barretenberg-threads.wasm \\
+  --flows $HOME/golf/base/flows-standards --reps 5 --threads 4 \\
+  --bbjs-dir $HOME/golf/stock --script ts-verify/wasm_prove_once.mjs`,
+  },
+  {
     title: "Open a pull request",
     text: "Add one folder, sources/<your-id>/: your patch series and the submission.json the harness wrote. The site picks it up automatically; vp test validates it against the schema, and a maintainer re-runs the harness before merging.",
     code: `sources/my-card/0001-harness-deterministic-RNG-env-hook.patch

@@ -409,6 +409,109 @@
                 "type": "null"
               }
             ]
+          },
+          "wasm": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "baseline_prove_s": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "prove_s": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "baseline_peak_rss_mib": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "peak_rss_mib": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reps": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "threads": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "stock_wasm_verified": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "tampered_rejected": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "baseline_prove_s",
+                  "prove_s",
+                  "baseline_peak_rss_mib",
+                  "peak_rss_mib",
+                  "reps",
+                  "threads",
+                  "stock_wasm_verified",
+                  "tampered_rejected"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -521,6 +624,109 @@
                   {
                     "type": "number",
                     "exclusiveMinimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "wasm": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseline_prove_s": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "prove_s": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "baseline_peak_rss_mib": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "peak_rss_mib": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reps": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "threads": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "stock_wasm_verified": {
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "tampered_rejected": {
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "baseline_prove_s",
+                      "prove_s",
+                      "baseline_peak_rss_mib",
+                      "peak_rss_mib",
+                      "reps",
+                      "threads",
+                      "stock_wasm_verified",
+                      "tampered_rejected"
+                    ],
+                    "additionalProperties": false
                   },
                   {
                     "type": "null"

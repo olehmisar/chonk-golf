@@ -1,6 +1,7 @@
 // One WASM proving run through stock @aztec-foundation/bb.js (run from a dir where it is installed).
 //   FLOW_DIR=<flow dir> WASM=<barretenberg-threads.wasm[.gz]> THREADS=4 node wasm_prove_once.mjs
-// Prints one JSON line: {flow, prove_ms, peak_rss_mib, verified}. Peak RSS is this Node process's max RSS (includes
+// Prints one JSON line: {flow, prove_ms, peak_rss_mib, verified, stock_verified, tampered_rejected}; stock_verified uses
+// bb.js's own bundled (unmodified) WASM verifier. Peak RSS is this Node process's max RSS (includes
 // the WASM linear memory), read from process.resourceUsage().maxRSS after proving.
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -23,5 +24,13 @@ const proveMs = performance.now() - t0;
 const verified = await backend.verify(proof, vk);
 const peakRssMib = process.resourceUsage().maxRSS / 1024;
 await api.destroy();
-console.log(JSON.stringify({ flow: basename(flowDir), prove_ms: Math.round(proveMs), peak_rss_mib: Math.round(peakRssMib * 10) / 10, verified }));
+// Independent check with the UNMODIFIED verifier: bb.js's own bundled WASM (no wasmPath), plus a tampered proof.
+const stockApi = await Barretenberg.new({ backend: BackendType.Wasm, threads: Number(process.env.THREADS ?? 4) });
+const stockBackend = new AztecClientBackend([], stockApi, [], []);
+const stockVerified = await stockBackend.verify(proof, vk);
+const tampered = Uint8Array.from(proof);
+tampered[tampered.length >> 1] ^= 1;
+const tamperedVerified = await stockBackend.verify(tampered, vk).catch(() => false);
+await stockApi.destroy();
+console.log(JSON.stringify({ flow: basename(flowDir), prove_ms: Math.round(proveMs), peak_rss_mib: Math.round(peakRssMib * 10) / 10, verified, stock_verified: stockVerified, tampered_rejected: !tamperedVerified }));
 process.exit(0);

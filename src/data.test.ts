@@ -74,6 +74,48 @@ describe("participant prompt", () => {
   });
 });
 
+describe("wasm metrics", () => {
+  const { submissions } = validateSubmissions(files);
+
+  test("no seed card has WASM numbers yet (shown as not measured)", () => {
+    for (const x of submissions.map(score)) {
+      expect(x.headlineWasmTime).toBeNull();
+      expect(x.wasmTime).toBeNull();
+    }
+  });
+
+  test("a card with a wasm block validates and scores", () => {
+    const base = structuredClone(submissions.find((s) => s.id === "integ5")!) as Record<
+      string,
+      unknown
+    > & {
+      standards: { flows: Record<string, unknown>[] };
+      flows: Record<string, unknown>[];
+    };
+    const wasm = {
+      baseline_prove_s: 10,
+      prove_s: 8,
+      baseline_peak_rss_mib: 1000,
+      peak_rss_mib: 900,
+      reps: 5,
+      threads: 4,
+      stock_wasm_verified: true,
+      tampered_rejected: true,
+    };
+    base.standards.flows[0]!.wasm = wasm;
+    base.flows[0]!.wasm = wasm;
+    const { submissions: parsed, errors } = validateSubmissions({
+      "data/submissions/baseline.json": files["data/submissions/baseline.json"],
+      "data/submissions/integ5.json": base,
+    });
+    expect(errors).toEqual([]);
+    const x = score(parsed.find((s) => s.id === "integ5")!);
+    expect(x.headlineWasmTime).toBeCloseTo(0.8);
+    expect(x.headlineWasmRam).toBeCloseTo(0.9);
+    expect(x.wasmTime).toBeCloseTo(0.8);
+  });
+});
+
 describe("scoring", () => {
   const base = files["data/submissions/baseline.json"] as Record<string, unknown>;
 

@@ -163,6 +163,17 @@ export function Rules() {
               shows up in red on the RAM board.
             </p>
             <p>
+              <strong className="text-ink">WASM.</strong> Browsers prove with the WASM build, so
+              cards that touch anything WASM-relevant also report WASM proving: the same flows
+              proved through stock bb.js (<code>BackendType.Wasm</code> with the card's{" "}
+              <code>wasmPath</code>), interleaved against the unmodified WASM build with{" "}
+              <code>scripts/wasm_ab.py</code> and <code>ts-verify/wasm_prove_once.mjs</code>. Time
+              is the prove time; RAM is the peak RSS of the Node process, WASM linear memory
+              included. Every WASM proof must verify with bb.js's own bundled (unmodified) WASM, and
+              a tampered copy must be rejected. The board shows WASM time and RAM next to native, or
+              “not measured”.
+            </p>
+            <p>
               <strong className="text-ink">Championship vs driving range.</strong> Full series
               measured against the unmodified prover compete in the championship. Track
               contributions measured against their own start point are marginal gains and are listed

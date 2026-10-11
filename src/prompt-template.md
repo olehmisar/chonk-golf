@@ -44,7 +44,10 @@ secondary scores and identity checks.
 6. **Measure honestly.** Run an interleaved A/B against your starting point on the same machine, taking the min of
    at least 7 runs. Report:
    - wall time and peak RSS (max RSS of the `bb` process);
-   - the machine: CPU model, vCPUs, whether it has AVX-512 IFMA, RAM.
+   - the machine: CPU model, vCPUs, whether it has AVX-512 IFMA, RAM;
+   - WASM proving via stock bb.js (`scripts/wasm_ab.py` + `ts-verify/wasm_prove_once.mjs`) if you change anything
+     WASM-relevant: prove time and peak RSS of the Node process. The WASM build must still prove and verify with
+     bb.js's bundled verifier.
 
 ## Workflow
 1. Clone aztec-packages, check out `bb15fcb`, and `git am` the harness patches and then your starting series. Build:

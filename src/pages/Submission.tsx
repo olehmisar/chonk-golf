@@ -17,6 +17,7 @@ import {
   STANDARDS_FLOWS,
   type StandardsFlowName,
   type Submission,
+  type WasmMetrics,
 } from "../schema.ts";
 import {
   flowRamRatio,
@@ -26,6 +27,8 @@ import {
   pctDelta,
   SHORT_FLOW,
   speedup,
+  wasmTimeRatio,
+  wasmRamRatio,
 } from "../score.ts";
 import { NotFound } from "./NotFound.tsx";
 
@@ -145,6 +148,9 @@ function Headline({ s, isPar }: { s: Submission; isPar: boolean }) {
   const head = flows.find((f) => f.flow === HEADLINE_FLOW);
   const tr = head ? flowWallRatio(head) : null;
   const rr = head ? flowRamRatio(head) : null;
+  const wt = wasmTimeRatio(head?.wasm);
+  const wr = wasmRamRatio(head?.wasm);
+  const hw = head?.wasm;
   const c = std.correctness;
   const frac = (n: number | null) => (n === null ? "not reported" : `${n}/${c.flows_total}`);
   return (
@@ -164,7 +170,7 @@ function Headline({ s, isPar }: { s: Submission; isPar: boolean }) {
         aztec-standards Token, captured with {std.toolchain}.{" "}
         {std.machine_note ? `${std.machine_note}.` : ""}
       </p>
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Tile
           label="Time vs par"
           value={isPar ? "E" : pctDelta(tr)}
@@ -183,6 +189,28 @@ function Headline({ s, isPar }: { s: Submission; isPar: boolean }) {
             head?.peak_rss_mib != null && head.baseline_peak_rss_mib != null
               ? `${head.baseline_peak_rss_mib.toFixed(1)} → ${head.peak_rss_mib.toFixed(1)} MiB`
               : undefined
+          }
+        />
+        <Tile
+          label="WASM time vs par"
+          value={wt === null ? "—" : isPar ? "E" : pctDelta(wt)}
+          tone={wt === null ? "text-muted" : isPar ? "text-ink-2" : tone(wt)}
+          sub={
+            wt === null || !hw
+              ? "not measured"
+              : `${n(hw.baseline_prove_s)} → ${n(hw.prove_s)} s, stock bb.js ${hw.threads ?? "?"} threads`
+          }
+        />
+        <Tile
+          label="WASM peak RAM vs par"
+          value={wr === null ? "—" : isPar ? "E" : pctDelta(wr)}
+          tone={wr === null ? "text-muted" : isPar ? "text-ink-2" : tone(wr)}
+          sub={
+            wr === null || !hw
+              ? "not measured"
+              : `${n(hw.baseline_peak_rss_mib, 1)} → ${n(hw.peak_rss_mib, 1)} MiB (Node, incl. WASM)${
+                  hw.stock_wasm_verified ? " · bundled verifier ✓" : ""
+                }`
           }
         />
         <Tile label="Identical proof + VK" value={frac(c.identical_flows)} sub="token flows" />
@@ -209,6 +237,8 @@ function Headline({ s, isPar }: { s: Submission; isPar: boolean }) {
               <th className="px-3 py-2 text-right">Par MiB</th>
               <th className="px-3 py-2 text-right">Peak MiB</th>
               <th className="px-3 py-2 text-right">RAM</th>
+              <th className="px-3 py-2 text-right">WASM time</th>
+              <th className="px-3 py-2 text-right">WASM RAM</th>
             </tr>
           </thead>
           <tbody>
@@ -237,6 +267,7 @@ function Headline({ s, isPar }: { s: Submission; isPar: boolean }) {
                   >
                     {isPar ? "par" : pctDelta(r)}
                   </td>
+                  <WasmCells w={f.wasm} isPar={isPar} />
                 </tr>
               );
             })}
@@ -244,6 +275,33 @@ function Headline({ s, isPar }: { s: Submission; isPar: boolean }) {
         </table>
       </div>
     </section>
+  );
+}
+
+/** Two cells (WASM time, WASM RAM vs par); "not measured" when the flow has no WASM numbers. */
+function WasmCells({ w, isPar }: { w: WasmMetrics | null | undefined; isPar: boolean }) {
+  const cell = (ratio: number | null, detail: string) => (
+    <td className="num px-3 py-2 text-right" title={detail}>
+      {ratio === null ? (
+        <span className="text-xs text-muted">not measured</span>
+      ) : (
+        <span className={`font-semibold ${isPar ? "text-muted" : tone(ratio)}`}>
+          {isPar ? "par" : pctDelta(ratio)}
+        </span>
+      )}
+    </td>
+  );
+  return (
+    <>
+      {cell(
+        wasmTimeRatio(w),
+        w ? `${n(w.baseline_prove_s)} → ${n(w.prove_s)} s (${w.reps ?? "?"} reps)` : "not measured",
+      )}
+      {cell(
+        wasmRamRatio(w),
+        w ? `${n(w.baseline_peak_rss_mib, 1)} → ${n(w.peak_rss_mib, 1)} MiB` : "not measured",
+      )}
+    </>
   );
 }
 
@@ -343,6 +401,8 @@ export function SubmissionPage({ id }: { id: string }) {
                 <th className="px-3 py-2 text-right">Par MiB</th>
                 <th className="px-3 py-2 text-right">Peak MiB</th>
                 <th className="px-3 py-2 text-right">RAM</th>
+                <th className="px-3 py-2 text-right">WASM time</th>
+                <th className="px-3 py-2 text-right">WASM RAM</th>
                 <th className="px-3 py-2 text-right">Reps</th>
               </tr>
             </thead>
@@ -372,13 +432,14 @@ export function SubmissionPage({ id }: { id: string }) {
                     >
                       {isPar ? (rr === null ? "—" : "par") : pctDelta(rr)}
                     </td>
+                    <WasmCells w={f.wasm} isPar={isPar} />
                     <td className="num px-3 py-2 text-right text-muted">{f.reps ?? "—"}</td>
                   </tr>
                 );
               })}
               {!flows.length && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-muted">
+                  <td colSpan={10} className="px-3 py-6 text-center text-muted">
                     No per-flow numbers were reported
                     {x.timeRatio !== null ? " (only the total above)" : ""}.
                   </td>

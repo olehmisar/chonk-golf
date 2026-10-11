@@ -5,6 +5,7 @@ import {
   type FlowMetrics,
   type FlowName,
   type Submission,
+  type WasmMetrics,
 } from "./schema.ts";
 
 type Metrics = Pick<
@@ -28,6 +29,13 @@ export interface Scored {
   /** Headline flow (aztec-standards private→private token transfer); null = not measured. */
   headlineTime: number | null;
   headlineRam: number | null;
+  /** WASM proving (stock bb.js) on the headline flow; null = not measured. */
+  headlineWasmTime: number | null;
+  headlineWasmRam: number | null;
+  /** WASM proving summed over the pinned flows that have WASM numbers. */
+  wasmTime: number | null;
+  wasmRam: number | null;
+  wasmFlows: number;
 }
 
 const has = (x: number | null | undefined): x is number =>
@@ -45,6 +53,32 @@ export function flowRamRatio(f: Metrics): number | null {
   if (has(f.peak_rss_mib) && has(f.baseline_peak_rss_mib) && f.baseline_peak_rss_mib > 0)
     return f.peak_rss_mib / f.baseline_peak_rss_mib;
   return null;
+}
+
+export function wasmTimeRatio(w: WasmMetrics | null | undefined): number | null {
+  if (w && has(w.prove_s) && has(w.baseline_prove_s) && w.baseline_prove_s > 0)
+    return w.prove_s / w.baseline_prove_s;
+  return null;
+}
+
+export function wasmRamRatio(w: WasmMetrics | null | undefined): number | null {
+  if (w && has(w.peak_rss_mib) && has(w.baseline_peak_rss_mib) && w.baseline_peak_rss_mib > 0)
+    return w.peak_rss_mib / w.baseline_peak_rss_mib;
+  return null;
+}
+
+function wasmAggregate(s: Submission) {
+  const w = s.flows.map((f) => f.wasm).filter((x): x is WasmMetrics => !!x);
+  const sum = (xs: WasmMetrics[], k: keyof WasmMetrics) =>
+    xs.reduce((t, x) => t + Number(x[k] ?? 0), 0);
+  const timed = w.filter((x) => has(x.prove_s) && has(x.baseline_prove_s));
+  const rss = w.filter((x) => has(x.peak_rss_mib) && has(x.baseline_peak_rss_mib));
+  const ratio = (a: number, b: number) => (b > 0 ? a / b : null);
+  return {
+    time: timed.length ? ratio(sum(timed, "prove_s"), sum(timed, "baseline_prove_s")) : null,
+    ram: rss.length ? ratio(sum(rss, "peak_rss_mib"), sum(rss, "baseline_peak_rss_mib")) : null,
+    flows: Math.max(timed.length, rss.length),
+  };
 }
 
 export function timeRatio(s: Submission): { ratio: number | null; flows: number | null } {
@@ -94,10 +128,16 @@ export function score(s: Submission): Scored {
     if (m !== null) flowRam[f.flow] = m;
   }
   const headline = s.standards?.flows.find((f) => f.flow === HEADLINE_FLOW);
+  const wa = wasmAggregate(s);
   return {
     s,
     headlineTime: headline ? flowWallRatio(headline) : null,
     headlineRam: headline ? flowRamRatio(headline) : null,
+    headlineWasmTime: wasmTimeRatio(headline?.wasm),
+    headlineWasmRam: wasmRamRatio(headline?.wasm),
+    wasmTime: wa.time,
+    wasmRam: wa.ram,
+    wasmFlows: wa.flows,
     timeRatio: t.ratio,
     timeFlows: t.flows,
     ramRatio: r.ratio,
@@ -112,7 +152,18 @@ export type Metric = "time" | "ram";
 /** `headline`: the aztec-standards token transfer; `aggregate`: the 5/11 pinned-flow totals. */
 export type Scope = "headline" | "aggregate";
 
-export function metricValue(x: Scored, metric: Metric, scope: Scope): number | null {
+export type Target = "native" | "wasm";
+
+export function metricValue(
+  x: Scored,
+  metric: Metric,
+  scope: Scope,
+  target: Target = "native",
+): number | null {
+  if (target === "wasm") {
+    if (scope === "headline") return metric === "time" ? x.headlineWasmTime : x.headlineWasmRam;
+    return metric === "time" ? x.wasmTime : x.wasmRam;
+  }
   if (scope === "headline") return metric === "time" ? x.headlineTime : x.headlineRam;
   return metric === "time" ? x.timeRatio : x.ramRatio;
 }

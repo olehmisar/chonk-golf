@@ -16,12 +16,20 @@ import {
   speedup,
   type Metric,
   type Scope,
+  type Target,
   type Scored,
 } from "../score.ts";
 
 type Tab = "championship" | "range";
 
-const COLUMNS: { key: string; label: string; hint: string; metric: Metric; scope: Scope }[] = [
+const COLUMNS: {
+  key: string;
+  label: string;
+  hint: string;
+  metric: Metric;
+  scope: Scope;
+  target?: Target;
+}[] = [
   {
     key: "ht",
     label: "⛳ Time",
@@ -35,6 +43,22 @@ const COLUMNS: { key: string; label: string; hint: string; metric: Metric; scope
     hint: `${HEADLINE_LABEL}: peak RSS vs par`,
     metric: "ram",
     scope: "headline",
+  },
+  {
+    key: "hwt",
+    label: "⛳ WASM time",
+    hint: `${HEADLINE_LABEL}: WASM proving time via stock bb.js vs par`,
+    metric: "time",
+    scope: "headline",
+    target: "wasm",
+  },
+  {
+    key: "hwr",
+    label: "⛳ WASM RAM",
+    hint: `${HEADLINE_LABEL}: peak RSS of the Node process (incl. WASM memory) vs par`,
+    metric: "ram",
+    scope: "headline",
+    target: "wasm",
   },
   {
     key: "at",
@@ -330,7 +354,7 @@ export function Leaderboard() {
                 <th className="w-12 px-3 py-2 text-center">Pos</th>
                 <th className="px-3 py-2">Card</th>
                 {COLUMNS.map((c) => {
-                  const active = c.metric === metric && c.scope === rows.effective;
+                  const active = !c.target && c.metric === metric && c.scope === rows.effective;
                   return (
                     <th
                       key={c.key}
@@ -401,7 +425,7 @@ export function Leaderboard() {
                       </div>
                     </td>
                     {COLUMNS.map((c) => {
-                      const v = metricValue(x, c.metric, c.scope);
+                      const v = metricValue(x, c.metric, c.scope, c.target);
                       return (
                         <td
                           key={c.key}
@@ -413,8 +437,12 @@ export function Leaderboard() {
                             <ScoreCell
                               ratio={v}
                               metric={c.metric}
-                              ranked={c.metric === metric && c.scope === rows.effective}
-                              missing={c.scope === "headline" ? "not measured" : undefined}
+                              ranked={
+                                !c.target && c.metric === metric && c.scope === rows.effective
+                              }
+                              missing={
+                                c.scope === "headline" || c.target ? "not measured" : undefined
+                              }
                             />
                           )}
                         </td>
@@ -465,10 +493,11 @@ export function Leaderboard() {
           </table>
         </div>
         <p className="text-xs text-muted">
-          ⛳ Headline = {HEADLINE_LABEL}, the aztec-standards Token flow (see the rules). Pinned =
-          total over the measured pinned Chonk flows. Cells show per-hole ratio vs par (lower is
-          better); <span className="text-muted/60">·</span> = not reported. Cards without a reported
-          total sort to the bottom. Holes:{" "}
+          ⛳ Headline = {HEADLINE_LABEL}, the aztec-standards Token flow (see the rules). WASM = the
+          same flow proved by the card's WASM build through stock bb.js (peak RSS of the Node
+          process, WASM memory included). Pinned = total over the measured pinned Chonk flows. Cells
+          show per-hole ratio vs par (lower is better); <span className="text-muted/60">·</span> =
+          not reported. Cards without a reported total sort to the bottom. Holes:{" "}
           {flowCols.map((f) => `H${holeNumber(f)} ${SHORT_FLOW[f]}`).join(" · ")}.
         </p>
       </section>

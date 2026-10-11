@@ -37,6 +37,30 @@ export const standardsFlowName = z.enum(STANDARDS_FLOWS);
 const num = z.number().finite().nonnegative().nullable();
 const count = z.number().int().min(0).max(FLOW_COUNT).nullable();
 
+/**
+ * WASM proving of one flow through stock bb.js (`BackendType.Wasm` with a custom `wasmPath`), measured with
+ * scripts/wasm_ab.py + ts-verify/wasm_prove_once.mjs. Peak RSS is the Node process's max RSS, which includes the WASM
+ * linear memory. Verification uses bb.js's own bundled (unmodified) WASM.
+ */
+export const wasmMetrics = z
+  .object({
+    /** Min prove seconds of the reference WASM build over `reps` interleaved runs. */
+    baseline_prove_s: num,
+    /** Min prove seconds of this submission's WASM build. */
+    prove_s: num,
+    /** Peak RSS (MiB) of the Node process proving with the reference WASM build. */
+    baseline_peak_rss_mib: num,
+    /** Peak RSS (MiB) of the Node process proving with this submission's WASM build. */
+    peak_rss_mib: num,
+    reps: z.number().int().positive().nullable(),
+    threads: z.number().int().positive().nullable(),
+    /** Every proof was accepted by bb.js's bundled (unmodified) WASM verifier. */
+    stock_wasm_verified: z.boolean().nullable(),
+    /** Every one-byte-tampered proof was rejected by that verifier. */
+    tampered_rejected: z.boolean().nullable(),
+  })
+  .strict();
+
 const metricsShape = {
   /** Min wall-clock seconds of the reference build (`against`) over `reps` interleaved runs. */
   baseline_wall_s: num,
@@ -50,6 +74,8 @@ const metricsShape = {
   reps: z.number().int().positive().nullable(),
   /** Published wall-time ratio (wall / baseline); preferred over recomputing from rounded seconds. */
   wall_ratio: z.number().positive().nullable().optional(),
+  /** WASM proving of the same flow (absent = not measured). */
+  wasm: wasmMetrics.nullable().optional(),
 };
 
 export const flowMetrics = z.object({ flow: flowName, ...metricsShape }).strict();
@@ -216,5 +242,6 @@ export const submission = z
 export type Submission = z.infer<typeof submission>;
 export type FlowMetrics = z.infer<typeof flowMetrics>;
 export type StandardsFlowMetrics = z.infer<typeof standardsFlowMetrics>;
+export type WasmMetrics = z.infer<typeof wasmMetrics>;
 export type StandardsFlowName = (typeof STANDARDS_FLOWS)[number];
 export type FlowName = (typeof FLOWS)[number];
