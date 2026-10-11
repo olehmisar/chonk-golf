@@ -30,9 +30,9 @@ describe("seed data", () => {
     expect(onDisk).toEqual(JSON.parse(JSON.stringify(submissionJsonSchema())));
   });
 
-  test("integ3 leads the championship on time", () => {
+  test("integ4 leads the championship on time", () => {
     const series = submissions.filter((s) => s.kind === "series").map(score);
-    expect(rank(series, "time")[0]?.s.id).toBe("integ3");
+    expect(rank(series, "time")[0]?.s.id).toBe("integ4");
   });
 
   test("baseline is par", () => {

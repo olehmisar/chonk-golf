@@ -127,6 +127,24 @@ export const submission = z
       })
       .strict(),
     flows: z.array(flowMetrics),
+    /** Optional peak-RSS bisect along a patch series: where the RAM went. */
+    rss_bisect: z
+      .object({
+        flows: z.array(flowName).min(1),
+        baseline_mib: z.array(z.number().positive()),
+        steps: z.array(
+          z
+            .object({
+              after_patch: z.number().int().positive(),
+              label: z.string().nullable(),
+              rss_mib: z.array(z.number().positive()),
+            })
+            .strict(),
+        ),
+        note: z.string().nullable(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((s, ctx) => {
@@ -140,6 +158,17 @@ export const submission = z
         });
       }
       seen.add(f.flow);
+    }
+    const b = s.rss_bisect;
+    if (b) {
+      const n = b.flows.length;
+      if (b.baseline_mib.length !== n || b.steps.some((st) => st.rss_mib.length !== n)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["rss_bisect"],
+          message: "one RSS value per bisect flow",
+        });
+      }
     }
     if (s.kind === "series" && s.against.id !== "baseline") {
       ctx.addIssue({

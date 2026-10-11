@@ -154,6 +154,39 @@ for iid, d in INTEG.items():
                      "not published (ratios only)."),
         flows=flows)
 
+# integ4: linear 43-patch series, sources/integ4/STATUS.md (its own A/B, so its own par RSS per flow).
+I4 = [  # flow, time ratio, par RSS, integ4 RSS
+  (FLOWS[1], 0.697, 307.1, 337.1), (FLOWS[2], 0.728, 348.8, 401.3), (FLOWS[4], 0.670, 849.2, 962.5),
+  (FLOWS[5], 0.711, 314.1, 339.7), (FLOWS[8], 0.697, 342.3, 387.1)]
+add(id="integ4", title="integ4: linear series, + circuit, stdlib, eccvm, fields2, msm2, wasm",
+    author="bb-chonk-prover-opt coordinator", track="integrated", kind="series", status="integrated",
+    integrated_in="integ4", against={"id": "baseline", "description": "Unmodified prover, interleaved on the same VM."},
+    patches=patches("integ4"), series_url="https://github.com/olehmisar/chonk-golf/tree/main/sources/integ4",
+    description="Linear `git am` series 0001-0043 on bb15fcb. Includes: integ3 + circuit/0005, stdlib/0005-0007, "
+                "eccvm/0001-0002, fields2/0001, msm2/0002, msm/0002 (tests), transcript/0001 (updated), wasm/0002 "
+                "(wasm build flags). Peak RSS rose 12.3%: the bisect below puts +37 MiB on pipeline/0001-0002 (the "
+                "background parser runs ahead over all steps); the pipeline track was asked to bound the lookahead "
+                "to one step, and RAM regressions must be fixed or dropped before the final series.",
+    source_url=f"{GH}/sources/integ4/STATUS.md", machine=machine(),
+    correctness=corr(11, 11, None, None, "STATUS.md: 11/11 identical, 11/11 stock bb.js verify; tampered/VK checks "
+                     "not itemised."),
+    summary=summ(52.79, 36.63, round(36.63 / 52.79, 4), 5, 3, "End-to-end vs unmodified, min of 3, 5 flows. Per-flow "
+                 "seconds not published (ratios only); peak RSS per flow from the same A/B."),
+    flows=[fm(f, None, None, a, b, 3, r) for f, r, a, b in I4])
+S[-1]["rss_bisect"] = {
+    "flows": [FLOWS[2], FLOWS[8]], "baseline_mib": [348.8, 342.3],
+    "steps": [
+        {"after_patch": 13, "label": "circuit/0004", "rss_mib": [347.0, 337.3]},
+        {"after_patch": 15, "label": "pipeline/0001-0002", "rss_mib": [383.8, 375.4]},
+        {"after_patch": 22, "label": None, "rss_mib": [385.0, 376.9]},
+        {"after_patch": 31, "label": None, "rss_mib": [387.8, 374.3]},
+        {"after_patch": 35, "label": None, "rss_mib": [389.1, 372.9]},
+        {"after_patch": 39, "label": "circuit/0005 tile chunks, stdlib bigfield", "rss_mib": [392.9, 382.8]},
+        {"after_patch": 41, "label": "eccvm parallel MSM trace", "rss_mib": [399.2, 379.7]},
+    ],
+    "note": "+37 MiB at patch 15: the background parser runs ahead over all steps.",
+}
+
 # ---------- track deltas (practice range) ----------
 START = {"id": "own-0003-0006", "description": "patches/0001-0006 (\"start\" binary), interleaved on the same VM."}
 def track(t, title, desc, status, integ, corr_, summ_, flows=None, against=START, mach=None, only=None,

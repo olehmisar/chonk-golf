@@ -1,0 +1,375 @@
+{
+  "$schema": "../submission.schema.json",
+  "id": "integ4",
+  "title": "integ4: linear series, + circuit, stdlib, eccvm, fields2, msm2, wasm",
+  "author": "bb-chonk-prover-opt coordinator",
+  "track": "integrated",
+  "date": "2026-10-11",
+  "kind": "series",
+  "status": "integrated",
+  "integrated_in": "integ4",
+  "target": "native",
+  "aztec_packages_base": "bb15fcbbe969",
+  "against": {
+    "id": "baseline",
+    "description": "Unmodified prover, interleaved on the same VM."
+  },
+  "patches": [
+    {
+      "name": "0001-harness-deterministic-RNG-env-hook.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0001-harness-deterministic-RNG-env-hook.patch",
+      "summary": "harness: deterministic RNG env hook"
+    },
+    {
+      "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
+      "summary": "harness: sequential random polys in deterministic mode"
+    },
+    {
+      "name": "0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
+      "summary": "perf: single-limb fast path in uint256 divmod; chunked keccak normalize_sparse"
+    },
+    {
+      "name": "0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
+      "summary": "perf(msm): fused scalar batch-affine drain for native Stage 6a"
+    },
+    {
+      "name": "0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
+      "summary": "perf(translator): fetch only grand-product columns per row"
+    },
+    {
+      "name": "0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
+      "summary": "perf(sumcheck): skip fold multiply for bit-identical neighbour pairs"
+    },
+    {
+      "name": "0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
+      "summary": "perf(ecc): batched variable-time divsteps in Bernstein-Yang inverse"
+    },
+    {
+      "name": "0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
+      "summary": "perf(sumcheck): fold subrelation separators into Poseidon2 quad relations on the prover"
+    },
+    {
+      "name": "0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
+      "summary": "perf(sumcheck): skip databus lookup rows of other bus columns"
+    },
+    {
+      "name": "0010-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0010-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
+      "summary": "perf(dsl): move decoded ACIR enum variants instead of copying; string_view field names"
+    },
+    {
+      "name": "0011-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0011-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
+      "summary": "perf(dsl): stream msgpack-compact ACIR program and witness decoding"
+    },
+    {
+      "name": "0012-perf-uintx-skip-multiplications-by-zero-halves.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0012-perf-uintx-skip-multiplications-by-zero-halves.patch",
+      "summary": "perf(uintx): skip multiplications by zero halves"
+    },
+    {
+      "name": "0013-perf-field-compile-time-one-and-neg_one.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0013-perf-field-compile-time-one-and-neg_one.patch",
+      "summary": "perf(field): compile-time one() and neg_one()"
+    },
+    {
+      "name": "0014-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0014-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
+      "summary": "perf(chonk): parse step bytecode on a background thread during CLI proving"
+    },
+    {
+      "name": "0015-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0015-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
+      "summary": "perf(chonk): write the IVC's hiding-kernel VK in prove --write_vk"
+    },
+    {
+      "name": "0016-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0016-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
+      "summary": "perf(threading): lock-free parallel_for pool with bounded spin before sleeping"
+    },
+    {
+      "name": "0017-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0017-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
+      "summary": "perf(poseidon2): shorter critical path in native permutation rounds"
+    },
+    {
+      "name": "0018-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0018-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
+      "summary": "perf(sha256): x86 SHA extensions and streaming input for native sha256"
+    },
+    {
+      "name": "0019-perf-polynomials-tile-add_scaled_batch-and-skip-zero.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0019-perf-polynomials-tile-add_scaled_batch-and-skip-zero.patch",
+      "summary": "perf(polynomials): tile add_scaled_batch and skip zero source coefficients"
+    },
+    {
+      "name": "0020-perf-oink-parallel-range-limited-log-derivative-inve.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0020-perf-oink-parallel-range-limited-log-derivative-inve.patch",
+      "summary": "perf(oink): parallel, range-limited log-derivative inverse computation"
+    },
+    {
+      "name": "0021-perf-honk-fill-only-the-permutation-columns-of-the-g.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0021-perf-honk-fill-only-the-permutation-columns-of-the-g.patch",
+      "summary": "perf(honk): fill only the permutation columns of the grand-product row"
+    },
+    {
+      "name": "0022-perf-polynomials-Horner-per-thread-chunk-in-polynomi.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0022-perf-polynomials-Horner-per-thread-chunk-in-polynomi.patch",
+      "summary": "perf(polynomials): Horner per thread chunk in polynomial evaluate"
+    },
+    {
+      "name": "0023-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0023-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
+      "summary": "perf(sumcheck): drop memory relation terms of gate types absent from the edge on the prover"
+    },
+    {
+      "name": "0024-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0024-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
+      "summary": "perf(keccak): divide by multi-limb powers of 11 via chained single-limb divisions"
+    },
+    {
+      "name": "0025-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0025-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
+      "summary": "perf(bigfield): compute fixed CRT bounds once; 512-bit borrow factor in subtraction"
+    },
+    {
+      "name": "0026-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0026-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
+      "summary": "perf(keccak): runtime slice loop in normalize_and_rotate"
+    },
+    {
+      "name": "0027-perf-field_t-compile-time-Montgomery-1-and-1.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0027-perf-field_t-compile-time-Montgomery-1-and-1.patch",
+      "summary": "perf(field_t): compile-time Montgomery 1 and -1"
+    },
+    {
+      "name": "0028-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0028-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
+      "summary": "perf(joint): fold both circuits' sumcheck tables in one largest-first parallel region"
+    },
+    {
+      "name": "0029-perf-pcs-parallel-batched-linear-quotients-for-Shplo.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0029-perf-pcs-parallel-batched-linear-quotients-for-Shplo.patch",
+      "summary": "perf(pcs): parallel batched linear quotients for Shplonk and KZG"
+    },
+    {
+      "name": "0030-perf-gemini-single-pass-for-the-partially-evaluated-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0030-perf-gemini-single-pass-for-the-partially-evaluated-.patch",
+      "summary": "perf(gemini): single pass for the partially evaluated batch polynomials"
+    },
+    {
+      "name": "0031-perf-multilinear_batching-batched-merge-in-compute_n.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0031-perf-multilinear_batching-batched-merge-in-compute_n.patch",
+      "summary": "perf(multilinear_batching): batched merge in compute_new_claim"
+    },
+    {
+      "name": "0032-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0032-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
+      "summary": "perf(msm): AVX-512 IFMA batch-affine drain for native Stage 6a"
+    },
+    {
+      "name": "0033-build-BB_ALLOCATOR-option-to-link-tcmalloc-mimalloc-.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0033-build-BB_ALLOCATOR-option-to-link-tcmalloc-mimalloc-.patch",
+      "summary": "build: BB_ALLOCATOR option to link tcmalloc/mimalloc/jemalloc into bb"
+    },
+    {
+      "name": "0034-test-msm-IFMA-drain-edge-cases.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0034-test-msm-IFMA-drain-edge-cases.patch",
+      "summary": "test(msm): IFMA drain edge cases"
+    },
+    {
+      "name": "0035-perf-msm-run-native-Stage-6b-batched-adds-on-the-IFM.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0035-perf-msm-run-native-Stage-6b-batched-adds-on-the-IFM.patch",
+      "summary": "perf(msm): run native Stage 6b batched adds on the IFMA drain"
+    },
+    {
+      "name": "0036-perf-trace-chunked-gate-tile-storage.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0036-perf-trace-chunked-gate-tile-storage.patch",
+      "summary": "perf(trace): chunked gate tile storage"
+    },
+    {
+      "name": "0037-perf-bigfield-avoid-wide-divisions-on-bounds-and-red.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0037-perf-bigfield-avoid-wide-divisions-on-bounds-and-red.patch",
+      "summary": "perf(bigfield): avoid wide divisions on bounds and reduced values"
+    },
+    {
+      "name": "0038-perf-bigfield-combine-and-split-limbs-with-256-bit-s.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0038-perf-bigfield-combine-and-split-limbs-with-256-bit-s.patch",
+      "summary": "perf(bigfield): combine and split limbs with 256-bit shifts"
+    },
+    {
+      "name": "0039-perf-field_t-is_normalized-compares-raw-limbs.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0039-perf-field_t-is_normalized-compares-raw-limbs.patch",
+      "summary": "perf(field_t): is_normalized compares raw limbs"
+    },
+    {
+      "name": "0040-perf-eccvm-narrow-rows-and-zero-tail-broadcast-for-g.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0040-perf-eccvm-narrow-rows-and-zero-tail-broadcast-for-g.patch",
+      "summary": "perf(eccvm): narrow rows and zero-tail broadcast for grand product and log-derivative inverses"
+    },
+    {
+      "name": "0041-perf-eccvm-parallelise-transcript-scalar-muls-and-MS.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0041-perf-eccvm-parallelise-transcript-scalar-muls-and-MS.patch",
+      "summary": "perf(eccvm): parallelise transcript scalar muls and MSM trace construction"
+    },
+    {
+      "name": "0042-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0042-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
+      "summary": "perf(field): lower-latency ADX Montgomery mul and split-reduction squaring"
+    },
+    {
+      "name": "0043-perf-wasm-build-release-wasm-with-O3-fno-vectorize-i.patch",
+      "url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/0043-perf-wasm-build-release-wasm-with-O3-fno-vectorize-i.patch",
+      "summary": "perf(wasm): build release wasm with -O3 -fno-vectorize instead of -Oz"
+    }
+  ],
+  "series_url": "https://github.com/olehmisar/chonk-golf/tree/main/sources/integ4",
+  "description": "Linear `git am` series 0001-0043 on bb15fcb. Includes: integ3 + circuit/0005, stdlib/0005-0007, eccvm/0001-0002, fields2/0001, msm2/0002, msm/0002 (tests), transcript/0001 (updated), wasm/0002 (wasm build flags). Peak RSS rose 12.3%: the bisect below puts +37 MiB on pipeline/0001-0002 (the background parser runs ahead over all steps); the pipeline track was asked to bound the lookahead to one step, and RAM regressions must be fixed or dropped before the final series.",
+  "source_url": "https://github.com/olehmisar/chonk-golf/blob/main/sources/integ4/STATUS.md",
+  "machine": {
+    "cpu": "4 vCPU cloud VM (x86-64, CPU model not reported)",
+    "cores": 4,
+    "ram": null,
+    "os": null,
+    "compiler": null
+  },
+  "correctness": {
+    "identical_flows": 11,
+    "stock_bbjs_verified_flows": 11,
+    "tampered_rejected": null,
+    "vks_match": null,
+    "notes": "STATUS.md: 11/11 identical, 11/11 stock bb.js verify; tampered/VK checks not itemised."
+  },
+  "summary": {
+    "baseline_wall_s": 52.79,
+    "wall_s": 36.63,
+    "wall_ratio": 0.6939,
+    "flows_measured": 5,
+    "reps": 3,
+    "notes": "End-to-end vs unmodified, min of 3, 5 flows. Per-flow seconds not published (ratios only); peak RSS per flow from the same A/B."
+  },
+  "flows": [
+    {
+      "flow": "deploy_schnorr+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 307.1,
+      "peak_rss_mib": 337.1,
+      "reps": 3,
+      "wall_ratio": 0.697
+    },
+    {
+      "flow": "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 348.8,
+      "peak_rss_mib": 401.3,
+      "reps": 3,
+      "wall_ratio": 0.728
+    },
+    {
+      "flow": "ecdsar1+storage_proof_7_layers+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 849.2,
+      "peak_rss_mib": 962.5,
+      "reps": 3,
+      "wall_ratio": 0.67
+    },
+    {
+      "flow": "ecdsar1+token_bridge_claim_private+sponsored_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 314.1,
+      "peak_rss_mib": 339.7,
+      "reps": 3,
+      "wall_ratio": 0.711
+    },
+    {
+      "flow": "ecdsar1+transfer_1_recursions+private_fpc",
+      "baseline_wall_s": null,
+      "wall_s": null,
+      "baseline_peak_rss_mib": 342.3,
+      "peak_rss_mib": 387.1,
+      "reps": 3,
+      "wall_ratio": 0.697
+    }
+  ],
+  "rss_bisect": {
+    "flows": [
+      "ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc",
+      "ecdsar1+transfer_1_recursions+private_fpc"
+    ],
+    "baseline_mib": [
+      348.8,
+      342.3
+    ],
+    "steps": [
+      {
+        "after_patch": 13,
+        "label": "circuit/0004",
+        "rss_mib": [
+          347.0,
+          337.3
+        ]
+      },
+      {
+        "after_patch": 15,
+        "label": "pipeline/0001-0002",
+        "rss_mib": [
+          383.8,
+          375.4
+        ]
+      },
+      {
+        "after_patch": 22,
+        "label": null,
+        "rss_mib": [
+          385.0,
+          376.9
+        ]
+      },
+      {
+        "after_patch": 31,
+        "label": null,
+        "rss_mib": [
+          387.8,
+          374.3
+        ]
+      },
+      {
+        "after_patch": 35,
+        "label": null,
+        "rss_mib": [
+          389.1,
+          372.9
+        ]
+      },
+      {
+        "after_patch": 39,
+        "label": "circuit/0005 tile chunks, stdlib bigfield",
+        "rss_mib": [
+          392.9,
+          382.8
+        ]
+      },
+      {
+        "after_patch": 41,
+        "label": "eccvm parallel MSM trace",
+        "rss_mib": [
+          399.2,
+          379.7
+        ]
+      }
+    ],
+    "note": "+37 MiB at patch 15: the background parser runs ahead over all steps."
+  }
+}

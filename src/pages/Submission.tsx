@@ -9,11 +9,12 @@ import { FlowBars } from "../components/FlowBars.tsx";
 import { blobUrl } from "../config.ts";
 import { BY_ID } from "../data.ts";
 import { href } from "../router.ts";
-import { FLOW_COUNT, FLOWS } from "../schema.ts";
+import { FLOW_COUNT, FLOWS, type Submission } from "../schema.ts";
 import {
   flowRamRatio,
   flowWallRatio,
   holeNumber,
+  isRamRegression,
   pctDelta,
   SHORT_FLOW,
   speedup,
@@ -44,6 +45,72 @@ const n = (v: number | null | undefined, d = 2) =>
   v === null || v === undefined ? "—" : v.toFixed(d);
 const tone = (r: number | null) =>
   r === null ? "text-muted" : r < 0.9995 ? "text-rough" : r > 1.0005 ? "text-flag" : "text-ink-2";
+
+function RssBisect({ bisect }: { bisect: NonNullable<Submission["rss_bisect"]> }) {
+  return (
+    <section>
+      <h2 className="font-display text-2xl font-semibold">Where the RAM went</h2>
+      <p className="mt-1 text-sm text-muted">
+        Peak RSS bisected along the patch series (MiB, bb process).
+        {bisect.note ? ` ${bisect.note}` : ""}
+      </p>
+      <div className="mt-3 overflow-x-auto rounded-xl border border-line bg-surface">
+        <table className="w-full min-w-[560px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-line bg-surface-2 text-left text-xs tracking-wide text-muted uppercase">
+              <th className="px-3 py-2">After patch</th>
+              {bisect.flows.map((f) => (
+                <th key={f} className="px-3 py-2 text-right" title={f}>
+                  H{holeNumber(f)} {SHORT_FLOW[f]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-line bg-sand/40">
+              <td className="px-3 py-2 font-medium">par (unmodified)</td>
+              {bisect.baseline_mib.map((v, i) => (
+                <td key={i} className="num px-3 py-2 text-right text-ink-2">
+                  {v.toFixed(1)}
+                </td>
+              ))}
+            </tr>
+            {bisect.steps.map((st, si) => {
+              const prev = si === 0 ? bisect.baseline_mib : bisect.steps[si - 1]!.rss_mib;
+              return (
+                <tr key={st.after_patch} className="border-b border-line last:border-b-0">
+                  <td className="px-3 py-2">
+                    <span className="num mr-2 font-semibold">
+                      {String(st.after_patch).padStart(4, "0")}
+                    </span>
+                    <span className="text-ink-2">{st.label ?? ""}</span>
+                  </td>
+                  {st.rss_mib.map((v, i) => {
+                    const base = bisect.baseline_mib[i]!;
+                    const jump = v - (prev[i] ?? v);
+                    return (
+                      <td key={i} className="num px-3 py-2 text-right">
+                        <span className={isRamRegression(v / base) ? "text-flag" : "text-ink"}>
+                          {v.toFixed(1)}
+                        </span>{" "}
+                        <span className="text-xs text-muted">{pctDelta(v / base)}</span>
+                        {jump >= 10 && (
+                          <span className="ml-1 rounded bg-bad-bg px-1 text-[11px] font-semibold text-flag">
+                            +{jump.toFixed(0)}
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 export function SubmissionPage({ id }: { id: string }) {
   const x = BY_ID.get(id);
@@ -187,6 +254,8 @@ export function SubmissionPage({ id }: { id: string }) {
           reported; numbers are never filled in.
         </p>
       </section>
+
+      {s.rss_bisect && <RssBisect bisect={s.rss_bisect} />}
 
       <section className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div>

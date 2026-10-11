@@ -1,0 +1,63 @@
+From 232842d4e1a7f402f793d0751b5fae0a6e4b5020 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:09:31 +0000
+Subject: [PATCH 19/43] perf(polynomials): tile add_scaled_batch and skip zero
+ source coefficients
+
+Apply every source to an L1-sized tile of dst before moving on, so dst is
+streamed once per tile instead of once per source, and skip the multiply for
+zero source coefficients (selector columns are mostly zero inside their
+backing range). c * 0 adds nothing, so dst is unchanged.
+---
+ .../barretenberg/polynomials/polynomial.cpp   | 35 +++++++++++--------
+ 1 file changed, 21 insertions(+), 14 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
+index 390fd28..14946d8 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.cpp
+@@ -267,20 +267,27 @@ void add_scaled_batch(Polynomial<Fr>& dst,
+         if (chunk_indices.empty()) {
+             return;
+         }
+-        auto chunk_start = chunk_indices.front();
+-        auto chunk_end = chunk_indices.back();
+-
+-        for (size_t k = 0; k < sources.size(); ++k) {
+-            const auto& src = sources[k];
+-            const Fr& c = scalars[k];
+-            const size_t src_start = src.start_index;
+-            const size_t src_end = src.end_index();
+-
+-            const size_t idx_start = std::max(chunk_start, src_start);
+-            const size_t idx_end = std::min(chunk_end + 1, src_end);
+-
+-            for (size_t i = idx_start; i < idx_end; ++i) {
+-                dst.at(i) += c * src[i];
++        const size_t chunk_start = chunk_indices.front();
++        const size_t chunk_end = chunk_indices.back() + 1;
++
++        // Walk the chunk in L1-sized tiles and apply every source to a tile before moving on, so each dst
++        // element is loaded and stored once per tile rather than once per source.
++        constexpr size_t TILE_SIZE = 256;
++        for (size_t tile_start = chunk_start; tile_start < chunk_end; tile_start += TILE_SIZE) {
++            const size_t tile_end = std::min(tile_start + TILE_SIZE, chunk_end);
++            for (size_t k = 0; k < sources.size(); ++k) {
++                const auto& src = sources[k];
++                const Fr& c = scalars[k];
++                const size_t idx_start = std::max(tile_start, src.start_index);
++                const size_t idx_end = std::min(tile_end, src.end_index());
++
++                // Zero coefficients (common in selector columns) contribute nothing, so skip their multiply.
++                for (size_t i = idx_start; i < idx_end; ++i) {
++                    const Fr& value = src[i];
++                    if (!value.is_zero()) {
++                        dst.at(i) += c * value;
++                    }
++                }
+             }
+         }
+     });
+-- 
+2.43.0
+
