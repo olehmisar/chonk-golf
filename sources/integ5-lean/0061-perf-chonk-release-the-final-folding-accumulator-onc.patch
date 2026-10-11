@@ -1,0 +1,38 @@
+From 8e8edfa68e4f624bacc30c1bde476cb0565c0d19 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 11:39:51 +0000
+Subject: [PATCH 61/65] perf(chonk): release the final folding accumulator once
+ the decider has proven it
+
+After the tail kernel's group is batched, the decider proves the final
+accumulator and nothing reads Chonk::prover_accumulator again (the hiding
+kernel verifies the decider proof in-circuit, and ChonkProve works from the
+hiding kernel instance and Goblin). Its two batched polynomials (about 4.8 MiB
+on the headline flow) were still held through the hiding kernel's accumulation
+and all of ChonkProve, where peak RSS is reached. They are now released right
+after the decider proof.
+
+Why the output is unchanged: only the lifetime of an object that is no longer
+read changes. The decider proof is computed before the release, and no
+transcript, randomness or polynomial value depends on when the memory is freed.
+---
+ barretenberg/cpp/src/barretenberg/chonk/chonk.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+index f50ec08..f438c87 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+@@ -662,6 +662,9 @@ void Chonk::accumulate(ClientCircuit& circuit, const CircuitVerificationKey& vk)
+ #ifndef NDEBUG
+             verify_decider_natively();
+ #endif
++            // The final accumulator is consumed by the decider; release its polynomials instead of holding them
++            // through the hiding kernel and ChonkProve.
++            prover_accumulator = ProverAccumulator{};
+             goblin.prove_batch_merge();
+         }
+         break;
+-- 
+2.43.0
+

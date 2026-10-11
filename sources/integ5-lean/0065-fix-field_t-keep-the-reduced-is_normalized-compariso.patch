@@ -1,0 +1,55 @@
+From 053f0b38eee4db1415012b665aba3ea36c42e3e7 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 16:45:44 +0000
+Subject: [PATCH 65/65] fix(field_t): keep the reduced is_normalized comparison
+ on WASM
+
+is_normalized compares the multiplicative constant against the raw
+representatives ONE and ONE + p and uses fr::is_zero for the additive
+constant. That relies on field elements being held in [0, 2p), which holds
+for the native arithmetic but not for the WASM build: there a normalized
+field_t could be reported as not normalized, the WASM prover then built a
+different circuit, and bb.js rejected its own proof ("Failed to verify the
+generated proof"). WASM builds now use the reduced comparison
+(operator==), exactly as the unmodified prover does; native builds keep the
+raw-limb fast path.
+
+Output is unchanged: on native the code is identical, and on WASM
+is_normalized again returns the value the unmodified prover computes, so the
+same circuit, VK and proof are produced.
+---
+ .../src/barretenberg/stdlib/primitives/field/field.hpp | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/stdlib/primitives/field/field.hpp b/barretenberg/cpp/src/barretenberg/stdlib/primitives/field/field.hpp
+index 430aab9..c34840c 100644
+--- a/barretenberg/cpp/src/barretenberg/stdlib/primitives/field/field.hpp
++++ b/barretenberg/cpp/src/barretenberg/stdlib/primitives/field/field.hpp
+@@ -56,8 +56,8 @@ template <typename Builder_> class field_t {
+ 
+     /**
+      * @brief Whether x == 1, without the two reductions of bb::fr::operator==
+-     * @details A field element is held in [0, 2p) (the invariant bb::fr::operator== relies on), so 1 has exactly the
+-     * raw representatives ONE and ONE + p.
++     * @details On native builds a field element is held in [0, 2p) (the invariant bb::fr::operator== relies on), so 1
++     * has exactly the raw representatives ONE and ONE + p.
+      */
+     static bool is_one(const bb::fr& x)
+     {
+@@ -474,7 +474,13 @@ template <typename Builder_> class field_t {
+     bool is_constant() const { return witness_index == IS_CONSTANT; }
+     bool is_normalized() const
+     {
++#if defined(__wasm__)
++        // The WASM field arithmetic does not keep elements in [0, 2p), so the raw-representative checks above do not
++        // apply there; compare reduced values.
++        return (is_constant() || ((multiplicative_constant == ONE) && (additive_constant == bb::fr::zero())));
++#else
+         return (is_constant() || (is_one(multiplicative_constant) && additive_constant.is_zero()));
++#endif
+     };
+     uint32_t set_public() const
+     {
+-- 
+2.43.0
+

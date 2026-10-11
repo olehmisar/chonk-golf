@@ -1,0 +1,52 @@
+From 14bb93105a2a70e72e6d378181c16941649edf42 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 02:09:31 +0000
+Subject: [PATCH 21/65] perf(honk): fill only the permutation columns of the
+ grand-product row
+
+The permutation grand product (UltraPermutationRelation) reads only the wire,
+id and sigma columns. Dispatch on the relation rather than on
+IsUltraOrMegaHonk, which does not include MegaAppFlavor/MegaKernelFlavor (the
+folded app and kernel circuits): those took the generic get_row() path that
+loads every column (~72) into a fresh row and copy-assigns it per trace row.
+Write the 12 needed columns straight into the reused row instead.
+---
+ .../honk/library/grand_product_library.hpp        | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/honk/library/grand_product_library.hpp b/barretenberg/cpp/src/barretenberg/honk/library/grand_product_library.hpp
+index 946725e..b6cd02a 100644
+--- a/barretenberg/cpp/src/barretenberg/honk/library/grand_product_library.hpp
++++ b/barretenberg/cpp/src/barretenberg/honk/library/grand_product_library.hpp
+@@ -13,6 +13,7 @@
+ #include "barretenberg/constants.hpp"
+ #include "barretenberg/flavor/flavor.hpp"
+ 
++#include "barretenberg/relations/permutation_relation.hpp"
+ #include "barretenberg/relations/relation_parameters.hpp"
+ #include "barretenberg/trace_to_polynomials/trace_to_polynomials.hpp"
+ 
+@@ -125,8 +126,18 @@ void compute_grand_product(typename Flavor::ProverPolynomials& full_polynomials,
+         for (size_t i = start; i < end; ++i) {
+             const size_t poly_idx = i + gp_start;
+             // TODO: consider avoiding get_row if possible.
+-            if constexpr (IsUltraOrMegaHonk<Flavor>) {
+-                row = full_polynomials.get_row_for_permutation_arg(poly_idx);
++            if constexpr (std::is_same_v<GrandProdRelation, UltraPermutationRelation<FF>>) {
++                // Write the permutation argument's columns (wires, ids, sigmas) straight into the reused row
++                // rather than building and copying a whole row; the relation reads no other entries.
++                for (auto [row_value, polynomial] : zip_view(row.get_wires(), full_polynomials.get_wires())) {
++                    row_value = polynomial[poly_idx];
++                }
++                for (auto [row_value, polynomial] : zip_view(row.get_ids(), full_polynomials.get_ids())) {
++                    row_value = polynomial[poly_idx];
++                }
++                for (auto [row_value, polynomial] : zip_view(row.get_sigmas(), full_polynomials.get_sigmas())) {
++                    row_value = polynomial[poly_idx];
++                }
+             } else if constexpr (requires { full_polynomials.get_row_for_grand_product(poly_idx); }) {
+                 row = full_polynomials.get_row_for_grand_product(poly_idx);
+             } else {
+-- 
+2.43.0
+

@@ -1,0 +1,195 @@
+From ec4936ccc2a3ae2b1b1f590bd9e203da6db59fbf Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 04:18:56 +0000
+Subject: [PATCH 35/65] perf(chonk): parse step bytecode in step order on the
+ main thread again
+
+The background bytecode parser (parse step bytecode on a background thread)
+raised peak RSS: unbounded, it kept every step's parsed program alive at once
+(+64 MiB on transfer_0, +123 MiB on storage_proof); bounded to one step ahead,
+the parses still land in the worker thread's malloc arena, which the prover's
+allocations on the main thread cannot reuse (+4.9% peak RSS summed over five
+flows), for a 1.0% wall-time gain on 4 cores. Client proving is memory-bound,
+so the CLI parses each step's bytecode right before accumulating it again,
+through ChonkLoad as the bbapi path does. Bytecode, witness and VK are moved
+out of the loaded steps rather than copied, and ChonkLoad is back to its
+upstream form.
+---
+ .../cpp/src/barretenberg/api/api_chonk.cpp    | 82 ++-----------------
+ .../src/barretenberg/bbapi/bbapi_chonk.cpp    | 27 ++----
+ .../src/barretenberg/bbapi/bbapi_chonk.hpp    | 10 ---
+ 3 files changed, 13 insertions(+), 106 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/api/api_chonk.cpp b/barretenberg/cpp/src/barretenberg/api/api_chonk.cpp
+index 24f1483..43e0893 100644
+--- a/barretenberg/cpp/src/barretenberg/api/api_chonk.cpp
++++ b/barretenberg/cpp/src/barretenberg/api/api_chonk.cpp
+@@ -18,10 +18,7 @@
+ #include "barretenberg/serialize/msgpack.hpp"
+ #include "barretenberg/serialize/msgpack_check_eq.hpp"
+ #include <algorithm>
+-#include <atomic>
+-#include <future>
+ #include <stdexcept>
+-#include <thread>
+ 
+ namespace bb {
+ namespace { // anonymous namespace
+@@ -72,70 +69,6 @@ void write_chonk_vk(std::vector<uint8_t> bytecode, const std::filesystem::path&
+         { .bytes = std::move(response.bytes), .fields = std::move(response.fields) }, output_path, flags);
+ }
+ 
+-/**
+- * @brief Parses the bytecode of every step in order on a background thread, so that parsing the upcoming circuits
+- * overlaps accumulation (proving) of the current one.
+- */
+-class BytecodeParser {
+-  public:
+-    explicit BytecodeParser(std::vector<PrivateExecutionStepRaw>& steps)
+-        : raw_steps(steps)
+-    {
+-#ifndef NO_MULTITHREADING
+-        promises.resize(steps.size());
+-        futures.reserve(steps.size());
+-        for (auto& promise : promises) {
+-            futures.push_back(promise.get_future());
+-        }
+-        worker = std::thread([this]() {
+-            for (size_t i = 0; i < raw_steps.size() && !stop.load(std::memory_order_relaxed); ++i) {
+-                try {
+-                    promises[i].set_value(parse(i));
+-                } catch (...) {
+-                    promises[i].set_exception(std::current_exception());
+-                }
+-            }
+-        });
+-#endif
+-    }
+-
+-    BytecodeParser(const BytecodeParser&) = delete;
+-    BytecodeParser& operator=(const BytecodeParser&) = delete;
+-    BytecodeParser(BytecodeParser&&) = delete;
+-    BytecodeParser& operator=(BytecodeParser&&) = delete;
+-
+-    ~BytecodeParser()
+-    {
+-#ifndef NO_MULTITHREADING
+-        stop.store(true, std::memory_order_relaxed);
+-        worker.join();
+-#endif
+-    }
+-
+-    // Blocks until step i is parsed. Each step is retrieved once, in order.
+-    acir_format::AcirFormat get(size_t i)
+-    {
+-#ifndef NO_MULTITHREADING
+-        return futures[i].get();
+-#else
+-        return parse(i);
+-#endif
+-    }
+-
+-  private:
+-    acir_format::AcirFormat parse(size_t i)
+-    {
+-        return acir_format::circuit_buf_to_mega_acir_format(std::move(raw_steps[i].bytecode));
+-    }
+-
+-    std::vector<PrivateExecutionStepRaw>& raw_steps;
+-#ifndef NO_MULTITHREADING
+-    std::vector<std::promise<acir_format::AcirFormat>> promises;
+-    std::vector<std::future<acir_format::AcirFormat>> futures;
+-    std::atomic<bool> stop = false;
+-    std::thread worker;
+-#endif
+-};
+ } // anonymous namespace
+ 
+ void ChonkAPI::prove(const Flags& flags,
+@@ -155,13 +88,14 @@ void ChonkAPI::prove(const Flags& flags,
+     bbapi::ChonkStart{ .kinds = std::move(kinds) }.execute(request);
+     info("Chonk: starting with ", raw_steps.size(), " circuits");
+ 
+-    // Bytecode parsing draws no randomness, so parsing ahead on a background thread leaves the order of RNG draws
+-    // (witness gap filling, circuit construction, proving) unchanged; the witnesses are still parsed in order, step
+-    // by step, by ChonkAccumulate.
+-    BytecodeParser parser(raw_steps);
+-    for (size_t i = 0; i < raw_steps.size(); ++i) {
+-        auto& step = raw_steps[i];
+-        bbapi::chonk_load_constraints(request, step.function_name, parser.get(i), std::move(step.vk), step.kind);
++    for (auto& step : raw_steps) {
++        bbapi::ChonkLoad{
++            .circuit = { .name = step.function_name,
++                         .bytecode = std::move(step.bytecode),
++                         .verification_key = std::move(step.vk) },
++            .kind = step.kind,
++        }
++            .execute(request);
+ 
+         info("Chonk: accumulating " + step.function_name);
+         bbapi::ChonkAccumulate{ .witness = std::move(step.witness) }.execute(request);
+diff --git a/barretenberg/cpp/src/barretenberg/bbapi/bbapi_chonk.cpp b/barretenberg/cpp/src/barretenberg/bbapi/bbapi_chonk.cpp
+index 28161ed..a9f4074 100644
+--- a/barretenberg/cpp/src/barretenberg/bbapi/bbapi_chonk.cpp
++++ b/barretenberg/cpp/src/barretenberg/bbapi/bbapi_chonk.cpp
+@@ -92,31 +92,14 @@ ChonkLoad::Response ChonkLoad::execute(BBApiRequest& request) &&
+         throw_or_abort("Chonk not started. Call ChonkStart first.");
+     }
+ 
+-    chonk_load_constraints(request,
+-                           std::move(circuit.name),
+-                           acir_format::circuit_buf_to_mega_acir_format(std::move(circuit.bytecode)),
+-                           std::move(circuit.verification_key),
+-                           kind);
+-
+-    return Response{};
+-}
+-
+-void chonk_load_constraints(BBApiRequest& request,
+-                            std::string name,
+-                            acir_format::AcirFormat&& constraints,
+-                            std::vector<uint8_t> verification_key,
+-                            CircuitKind kind)
+-{
+-    if (!request.ivc_in_progress) {
+-        throw_or_abort("Chonk not started. Call ChonkStart first.");
+-    }
+-
+-    request.loaded_circuit_name = std::move(name);
+-    request.loaded_circuit_constraints = std::move(constraints);
+-    request.loaded_circuit_vk = std::move(verification_key);
++    request.loaded_circuit_name = circuit.name;
++    request.loaded_circuit_constraints = acir_format::circuit_buf_to_mega_acir_format(std::move(circuit.bytecode));
++    request.loaded_circuit_vk = circuit.verification_key;
+     request.loaded_circuit_kind = kind;
+ 
+     info("ChonkLoad - loaded circuit '", request.loaded_circuit_name, "'");
++
++    return Response{};
+ }
+ 
+ ChonkAccumulate::Response ChonkAccumulate::execute(BBApiRequest& request) &&
+diff --git a/barretenberg/cpp/src/barretenberg/bbapi/bbapi_chonk.hpp b/barretenberg/cpp/src/barretenberg/bbapi/bbapi_chonk.hpp
+index 27b52e9..49fc4ab 100644
+--- a/barretenberg/cpp/src/barretenberg/bbapi/bbapi_chonk.hpp
++++ b/barretenberg/cpp/src/barretenberg/bbapi/bbapi_chonk.hpp
+@@ -81,16 +81,6 @@ struct ChonkLoad {
+     bool operator==(const ChonkLoad&) const = default;
+ };
+ 
+-/**
+- * @brief Load an already-parsed circuit for the next ChonkAccumulate, exactly as ChonkLoad does once it has parsed its
+- * bytecode. Lets native callers parse the bytecode of every step ahead of (and in parallel with) accumulation.
+- */
+-void chonk_load_constraints(BBApiRequest& request,
+-                            std::string name,
+-                            acir_format::AcirFormat&& constraints,
+-                            std::vector<uint8_t> verification_key,
+-                            CircuitKind kind);
+-
+ /**
+  * @struct ChonkAccumulate
+  * @brief Accumulate the previously loaded circuit into the IVC proof
+-- 
+2.43.0
+
