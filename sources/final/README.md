@@ -16,11 +16,11 @@ r3-sumcheck-algo/0002 (+1.3-1.5% headline RSS) and buildflags2 (no gain).
 
 Correctness of this exact 76-commit series on the 11 pinned + 3 aztec-standards flows (coordinator VM). Logs are in
 this folder:
-- `check_identical.log`: **14/14 IDENTICAL**, meaning proof and VK SHA-256 with `BB_DETERMINISTIC_PROVING=42` equal
+- `check_identical.txt`: **14/14 IDENTICAL**, meaning proof and VK SHA-256 with `BB_DETERMINISTIC_PROVING=42` equal
   the unmodified prover's.
-- `verify_stock_bbjs.log`, with stock npm `@aztec-foundation/bb.js@7.0.0-nightly.20261009` and real randomness:
+- `verify_stock_bbjs.txt`, with stock npm `@aztec-foundation/bb.js@7.0.0-nightly.20261009` and real randomness:
   **14/14 verified, 14/14 tampered proofs rejected, 14/14 VKs equal to the unmodified prover's**.
-- `verify_native_unmodified.log`, with the unmodified native `bb verify` (`bb15fcb` + harness only): **14/14 accepted,
+- `verify_native_unmodified.txt`, with the unmodified native `bb verify` (`bb15fcb` + harness only): **14/14 accepted,
   14/14 tampered proofs rejected**.
 
 The same checks were run on an AVX-512 IFMA VM (Intel Xeon Granite Rapids, 4 vCPU), with IFMA on and with

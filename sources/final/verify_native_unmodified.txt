@@ -1,0 +1,15 @@
+deploy_ecdsar1+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+deploy_schnorr+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+ecdsar1+amm_add_liquidity_1_recursions+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+ecdsar1+deploy_tokenContract_with_registration+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+ecdsar1+storage_proof_7_layers+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+ecdsar1+token_bridge_claim_private+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+ecdsar1+transfer_0_recursions+private_fpc verify_rc=0 tampered_rc=1 PASS
+ecdsar1+transfer_0_recursions+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+ecdsar1+transfer_1_recursions+private_fpc verify_rc=0 tampered_rc=1 PASS
+ecdsar1+transfer_1_recursions+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+schnorr+deploy_tokenContract_with_registration+sponsored_fpc verify_rc=0 tampered_rc=1 PASS
+standards_token_mint_to_private verify_rc=0 tampered_rc=1 PASS
+standards_token_transfer_private_to_private verify_rc=0 tampered_rc=1 PASS
+standards_token_transfer_private_to_public verify_rc=0 tampered_rc=1 PASS
+exit=0
