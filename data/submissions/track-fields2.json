@@ -18,7 +18,7 @@
     {
       "name": "0001-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-fields2/bb-chonk-prover-opt/contrib/fields2/0001-perf-field-lower-latency-ADX-Montgomery-mul-and-spli.patch",
-      "summary": "perf field lower latency ADX Montgomery mul and spli"
+      "summary": "perf(field): lower-latency ADX Montgomery mul and split-reduction squaring"
     }
   ],
   "series_url": null,

@@ -18,12 +18,12 @@
     {
       "name": "0001-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck/bb-chonk-prover-opt/contrib/sumcheck/0001-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
-      "summary": "perf sumcheck fold subrelation separators into Posei"
+      "summary": "perf(sumcheck): fold subrelation separators into Poseidon2 quad relations on the prover"
     },
     {
       "name": "0002-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck/bb-chonk-prover-opt/contrib/sumcheck/0002-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
-      "summary": "perf sumcheck skip databus lookup rows of other bus "
+      "summary": "perf(sumcheck): skip databus lookup rows of other bus columns"
     }
   ],
   "series_url": null,

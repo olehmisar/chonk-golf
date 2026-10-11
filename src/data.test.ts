@@ -9,7 +9,10 @@ const dir = join(import.meta.dirname, "..", "data", "submissions");
 const files = Object.fromEntries(
   readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
-    .map((f) => [`data/submissions/${f}`, JSON.parse(readFileSync(join(dir, f), "utf8")) as unknown]),
+    .map((f) => [
+      `data/submissions/${f}`,
+      JSON.parse(readFileSync(join(dir, f), "utf8")) as unknown,
+    ]),
 );
 
 describe("seed data", () => {
@@ -21,7 +24,9 @@ describe("seed data", () => {
   });
 
   test("checked-in JSON Schema is up to date", () => {
-    const onDisk = JSON.parse(readFileSync(join(dir, "..", "submission.schema.json"), "utf8")) as unknown;
+    const onDisk = JSON.parse(
+      readFileSync(join(dir, "..", "submission.schema.json"), "utf8"),
+    ) as unknown;
     expect(onDisk).toEqual(JSON.parse(JSON.stringify(submissionJsonSchema())));
   });
 

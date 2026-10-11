@@ -15,10 +15,12 @@ export interface Scored {
   flowRamRatio: Partial<Record<FlowName, number>>;
 }
 
-const has = (x: number | null | undefined): x is number => typeof x === "number" && Number.isFinite(x);
+const has = (x: number | null | undefined): x is number =>
+  typeof x === "number" && Number.isFinite(x);
 
 export function flowWallRatio(f: FlowMetrics): number | null {
-  if (has(f.wall_s) && has(f.baseline_wall_s) && f.baseline_wall_s > 0) return f.wall_s / f.baseline_wall_s;
+  if (has(f.wall_s) && has(f.baseline_wall_s) && f.baseline_wall_s > 0)
+    return f.wall_s / f.baseline_wall_s;
   return f.wall_ratio ?? null;
 }
 
@@ -54,7 +56,9 @@ export function verdict(s: Submission): Verdict {
     c.tampered_rejected === false ||
     c.vks_match === false ||
     (c.identical_flows !== null && c.identical_flows < FLOW_COUNT) ||
-    (c.stock_bbjs_verified_flows !== null && c.stock_bbjs_verified_flows < FLOW_COUNT && s.target === "native");
+    (c.stock_bbjs_verified_flows !== null &&
+      c.stock_bbjs_verified_flows < FLOW_COUNT &&
+      s.target === "native");
   if (fail) return "failed";
   if (c.identical_flows !== FLOW_COUNT) return "unverified";
   if (c.stock_bbjs_verified_flows === FLOW_COUNT) return "verified";
@@ -99,6 +103,17 @@ export function rank(items: Scored[], metric: Metric): Scored[] {
   });
 }
 
+/** Attach leaderboard positions; par and cards without the metric get no position. */
+export function withPositions(ranked: Scored[], metric: Metric) {
+  const out: { x: Scored; ratio: number | null; pos: number }[] = [];
+  for (const x of ranked) {
+    const ratio = metric === "time" ? x.timeRatio : x.ramRatio;
+    const prev = out.at(-1)?.pos ?? 0;
+    out.push({ x, ratio, pos: ratio !== null && x.s.kind !== "reference" ? prev + 1 : prev });
+  }
+  return out;
+}
+
 /** "−24.2%" style delta vs par. */
 export function pctDelta(ratio: number | null, digits = 1): string {
   if (ratio === null) return "—";
@@ -107,7 +122,8 @@ export function pctDelta(ratio: number | null, digits = 1): string {
   return `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(digits)}%`;
 }
 
-export const speedup = (ratio: number | null) => (ratio === null ? "—" : `${(1 / ratio).toFixed(2)}×`);
+export const speedup = (ratio: number | null) =>
+  ratio === null ? "—" : `${(1 / ratio).toFixed(2)}×`;
 
 export const SHORT_FLOW: Record<FlowName, string> = {
   "deploy_ecdsar1+sponsored_fpc": "deploy ecdsar1",

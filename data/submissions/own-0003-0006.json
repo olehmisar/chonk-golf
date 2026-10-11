@@ -18,32 +18,32 @@
     {
       "name": "0001-harness-deterministic-RNG-env-hook.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0001-harness-deterministic-RNG-env-hook.patch",
-      "summary": "harness deterministic RNG env hook"
+      "summary": "harness: deterministic RNG env hook"
     },
     {
       "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
-      "summary": "harness sequential random polys in deterministic mod"
+      "summary": "harness: sequential random polys in deterministic mode"
     },
     {
       "name": "0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
-      "summary": "perf single limb fast path in uint256 divmod chunked"
+      "summary": "perf: single-limb fast path in uint256 divmod; chunked keccak normalize_sparse"
     },
     {
       "name": "0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
-      "summary": "perf msm fused scalar batch affine drain for native "
+      "summary": "perf(msm): fused scalar batch-affine drain for native Stage 6a"
     },
     {
       "name": "0005-perf-translator-fetch-only-grand-product-columns-per.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
-      "summary": "perf translator fetch only grand product columns per"
+      "summary": "perf(translator): fetch only grand-product columns per row"
     },
     {
       "name": "0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
-      "summary": "perf sumcheck skip fold multiply for bit identical n"
+      "summary": "perf(sumcheck): skip fold multiply for bit-identical neighbour pairs"
     }
   ],
   "series_url": null,

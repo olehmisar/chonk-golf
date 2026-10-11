@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  color-scheme: light;
+  --bg: #f5f1e6;
+  --surface: #fffdf7;
+  --surface-2: #f0ebdc;
+  --ink: #10241a;
+  --ink-2: #3f5246;
+  --muted: #6a776d;
+  --line: #ddd5bf;
+  --fairway: #1f7a45;
+  --fairway-ink: #ffffff;
+  --rough: #145c33;
+  --flag: #c7362b;
+  --sand: #e8d9ae;
+  --par: #a8862f;
+  --you: #1f7a45;
+  --good-bg: #d7ecd9;
+  --bad-bg: #f6dccd;
+  --warn: #9a6a00;
+  --stripe-a: #2b8a52;
+  --stripe-b: #247a48;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0c1611;
+    --surface: #12201a;
+    --surface-2: #182a21;
+    --ink: #eef3ec;
+    --ink-2: #c7d3ca;
+    --muted: #93a598;
+    --line: #26392e;
+    --fairway: #2fa864;
+    --fairway-ink: #06120b;
+    --rough: #7fd8a1;
+    --flag: #ff6b5b;
+    --sand: #3b3420;
+    --par: #a37b28;
+    --you: #199e70;
+    --good-bg: #173d27;
+    --bad-bg: #4a2a1d;
+    --warn: #e2b04a;
+    --stripe-a: #14402a;
+    --stripe-b: #113823;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c1611;
+  --surface: #12201a;
+  --surface-2: #182a21;
+  --ink: #eef3ec;
+  --ink-2: #c7d3ca;
+  --muted: #93a598;
+  --line: #26392e;
+  --fairway: #2fa864;
+  --fairway-ink: #06120b;
+  --rough: #7fd8a1;
+  --flag: #ff6b5b;
+  --sand: #3b3420;
+  --par: #a37b28;
+  --you: #199e70;
+  --good-bg: #173d27;
+  --bad-bg: #4a2a1d;
+  --warn: #e2b04a;
+  --stripe-a: #14402a;
+  --stripe-b: #113823;
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+  --font-display: "Fraunces Variable", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-fairway: var(--fairway);
+  --color-fairway-ink: var(--fairway-ink);
+  --color-rough: var(--rough);
+  --color-flag: var(--flag);
+  --color-sand: var(--sand);
+  --color-par: var(--par);
+  --color-you: var(--you);
+  --color-good-bg: var(--good-bg);
+  --color-bad-bg: var(--bad-bg);
+  --color-warn: var(--warn);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+  }
+  a {
+    color: inherit;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+  }
+}
+
+@utility mowed {
+  background-color: var(--stripe-a);
+  background-image: repeating-linear-gradient(
+    100deg,
+    var(--stripe-a) 0 56px,
+    var(--stripe-b) 56px 112px
+  );
+}
+
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

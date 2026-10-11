@@ -18,12 +18,12 @@
     {
       "name": "0001-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-transcript/bb-chonk-prover-opt/contrib/transcript/0001-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
-      "summary": "perf poseidon2 shorter critical path in native permu"
+      "summary": "perf(poseidon2): shorter critical path in native permutation rounds"
     },
     {
       "name": "0002-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-transcript/bb-chonk-prover-opt/contrib/transcript/0002-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
-      "summary": "perf sha256 x86 SHA extensions and streaming input f"
+      "summary": "perf(sha256): x86 SHA extensions and streaming input for native sha256"
     }
   ],
   "series_url": null,

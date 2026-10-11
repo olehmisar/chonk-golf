@@ -18,12 +18,12 @@
     {
       "name": "0001-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pipeline/bb-chonk-prover-opt/contrib/pipeline/0001-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
-      "summary": "perf chonk parse step bytecode on a background threa"
+      "summary": "perf(chonk): parse step bytecode on a background thread during CLI proving"
     },
     {
       "name": "0002-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pipeline/bb-chonk-prover-opt/contrib/pipeline/0002-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
-      "summary": "perf chonk write the IVC s hiding kernel VK in prove"
+      "summary": "perf(chonk): write the IVC's hiding-kernel VK in prove --write_vk"
     }
   ],
   "series_url": null,

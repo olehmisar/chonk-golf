@@ -18,22 +18,22 @@
     {
       "name": "0001-perf-polynomials-tile-add_scaled_batch-and-skip-zero.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-instance/bb-chonk-prover-opt/contrib/instance/0001-perf-polynomials-tile-add_scaled_batch-and-skip-zero.patch",
-      "summary": "perf polynomials tile add_scaled_batch and skip zero"
+      "summary": "perf(polynomials): tile add_scaled_batch and skip zero source coefficients"
     },
     {
       "name": "0002-perf-oink-parallel-range-limited-log-derivative-inve.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-instance/bb-chonk-prover-opt/contrib/instance/0002-perf-oink-parallel-range-limited-log-derivative-inve.patch",
-      "summary": "perf oink parallel range limited log derivative inve"
+      "summary": "perf(oink): parallel, range-limited log-derivative inverse computation"
     },
     {
       "name": "0003-perf-honk-fill-only-the-permutation-columns-of-the-g.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-instance/bb-chonk-prover-opt/contrib/instance/0003-perf-honk-fill-only-the-permutation-columns-of-the-g.patch",
-      "summary": "perf honk fill only the permutation columns of the g"
+      "summary": "perf(honk): fill only the permutation columns of the grand-product row"
     },
     {
       "name": "0004-perf-polynomials-Horner-per-thread-chunk-in-polynomi.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-instance/bb-chonk-prover-opt/contrib/instance/0004-perf-polynomials-Horner-per-thread-chunk-in-polynomi.patch",
-      "summary": "perf polynomials Horner per thread chunk in polynomi"
+      "summary": "perf(polynomials): Horner per thread chunk in polynomial evaluate"
     }
   ],
   "series_url": null,

@@ -18,12 +18,12 @@
     {
       "name": "0001-perf-eccvm-narrow-rows-and-zero-tail-broadcast-for-g.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-eccvm/bb-chonk-prover-opt/contrib/eccvm/0001-perf-eccvm-narrow-rows-and-zero-tail-broadcast-for-g.patch",
-      "summary": "perf eccvm narrow rows and zero tail broadcast for g"
+      "summary": "perf(eccvm): narrow rows and zero-tail broadcast for grand product and log-derivative inverses"
     },
     {
       "name": "0002-perf-eccvm-parallelise-transcript-scalar-muls-and-MS.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-eccvm/bb-chonk-prover-opt/contrib/eccvm/0002-perf-eccvm-parallelise-transcript-scalar-muls-and-MS.patch",
-      "summary": "perf eccvm parallelise transcript scalar muls and MS"
+      "summary": "perf(eccvm): parallelise transcript scalar muls and MSM trace construction"
     }
   ],
   "series_url": null,

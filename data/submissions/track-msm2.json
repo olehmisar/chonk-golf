@@ -18,7 +18,7 @@
     {
       "name": "0001-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-msm2/bb-chonk-prover-opt/contrib/msm2/0001-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
-      "summary": "perf msm AVX 512 IFMA batch affine drain for native "
+      "summary": "perf(msm): AVX-512 IFMA batch-affine drain for native Stage 6a"
     }
   ],
   "series_url": null,

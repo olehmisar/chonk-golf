@@ -18,27 +18,27 @@
     {
       "name": "0001-perf-pcs-parallel-batched-linear-quotients-for-Shplo.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pcs/bb-chonk-prover-opt/contrib/pcs/0001-perf-pcs-parallel-batched-linear-quotients-for-Shplo.patch",
-      "summary": "perf pcs parallel batched linear quotients for Shplo"
+      "summary": "perf(pcs): parallel batched linear quotients for Shplonk and KZG"
     },
     {
       "name": "0002-perf-polynomials-two-chain-Horner-in-polynomial_arit.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pcs/bb-chonk-prover-opt/contrib/pcs/0002-perf-polynomials-two-chain-Horner-in-polynomial_arit.patch",
-      "summary": "perf polynomials two chain Horner in polynomial_arit"
+      "summary": "perf(polynomials): two-chain Horner in polynomial_arithmetic::evaluate"
     },
     {
       "name": "0003-perf-polynomials-skip-zero-source-entries-in-add_sca.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pcs/bb-chonk-prover-opt/contrib/pcs/0003-perf-polynomials-skip-zero-source-entries-in-add_sca.patch",
-      "summary": "perf polynomials skip zero source entries in add_sca"
+      "summary": "perf(polynomials): skip zero source entries in add_scaled_batch"
     },
     {
       "name": "0004-perf-gemini-single-pass-for-the-partially-evaluated-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pcs/bb-chonk-prover-opt/contrib/pcs/0004-perf-gemini-single-pass-for-the-partially-evaluated-.patch",
-      "summary": "perf gemini single pass for the partially evaluated "
+      "summary": "perf(gemini): single pass for the partially evaluated batch polynomials"
     },
     {
       "name": "0005-perf-multilinear_batching-batched-merge-in-compute_n.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-pcs/bb-chonk-prover-opt/contrib/pcs/0005-perf-multilinear_batching-batched-merge-in-compute_n.patch",
-      "summary": "perf multilinear_batching batched merge in compute_n"
+      "summary": "perf(multilinear_batching): batched merge in compute_new_claim"
     }
   ],
   "series_url": null,

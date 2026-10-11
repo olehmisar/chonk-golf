@@ -18,167 +18,167 @@
     {
       "name": "0001-harness-deterministic-RNG-env-hook.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0001-harness-deterministic-RNG-env-hook.patch",
-      "summary": "harness deterministic RNG env hook"
+      "summary": "harness: deterministic RNG env hook"
     },
     {
       "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
-      "summary": "harness sequential random polys in deterministic mod"
+      "summary": "harness: sequential random polys in deterministic mode"
     },
     {
       "name": "0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
-      "summary": "perf single limb fast path in uint256 divmod chunked"
+      "summary": "perf: single-limb fast path in uint256 divmod; chunked keccak normalize_sparse"
     },
     {
       "name": "0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
-      "summary": "perf msm fused scalar batch affine drain for native "
+      "summary": "perf(msm): fused scalar batch-affine drain for native Stage 6a"
     },
     {
       "name": "0005-perf-translator-fetch-only-grand-product-columns-per.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
-      "summary": "perf translator fetch only grand product columns per"
+      "summary": "perf(translator): fetch only grand-product columns per row"
     },
     {
       "name": "0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
-      "summary": "perf sumcheck skip fold multiply for bit identical n"
+      "summary": "perf(sumcheck): skip fold multiply for bit-identical neighbour pairs"
     },
     {
       "name": "0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
-      "summary": "perf ecc batched variable time divsteps in Bernstein"
+      "summary": "perf(ecc): batched variable-time divsteps in Bernstein-Yang inverse"
     },
     {
       "name": "0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
-      "summary": "perf sumcheck fold subrelation separators into Posei"
+      "summary": "perf(sumcheck): fold subrelation separators into Poseidon2 quad relations on the prover"
     },
     {
       "name": "0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
-      "summary": "perf sumcheck skip databus lookup rows of other bus "
+      "summary": "perf(sumcheck): skip databus lookup rows of other bus columns"
     },
     {
       "name": "0010-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0010-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
-      "summary": "perf dsl move decoded ACIR enum variants instead of "
+      "summary": "perf(dsl): move decoded ACIR enum variants instead of copying; string_view field names"
     },
     {
       "name": "0011-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0011-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
-      "summary": "perf dsl stream msgpack compact ACIR program and wit"
+      "summary": "perf(dsl): stream msgpack-compact ACIR program and witness decoding"
     },
     {
       "name": "0012-perf-uintx-skip-multiplications-by-zero-halves.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0012-perf-uintx-skip-multiplications-by-zero-halves.patch",
-      "summary": "perf uintx skip multiplications by zero halves"
+      "summary": "perf(uintx): skip multiplications by zero halves"
     },
     {
       "name": "0013-perf-field-compile-time-one-and-neg_one.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0013-perf-field-compile-time-one-and-neg_one.patch",
-      "summary": "perf field compile time one and neg_one"
+      "summary": "perf(field): compile-time one() and neg_one()"
     },
     {
       "name": "0014-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0014-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
-      "summary": "perf chonk parse step bytecode on a background threa"
+      "summary": "perf(chonk): parse step bytecode on a background thread during CLI proving"
     },
     {
       "name": "0015-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0015-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
-      "summary": "perf chonk write the IVC s hiding kernel VK in prove"
+      "summary": "perf(chonk): write the IVC's hiding-kernel VK in prove --write_vk"
     },
     {
       "name": "0016-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0016-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
-      "summary": "perf threading lock free parallel_for pool with boun"
+      "summary": "perf(threading): lock-free parallel_for pool with bounded spin before sleeping"
     },
     {
       "name": "0017-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0017-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
-      "summary": "perf poseidon2 shorter critical path in native permu"
+      "summary": "perf(poseidon2): shorter critical path in native permutation rounds"
     },
     {
       "name": "0018-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0018-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
-      "summary": "perf sha256 x86 SHA extensions and streaming input f"
+      "summary": "perf(sha256): x86 SHA extensions and streaming input for native sha256"
     },
     {
       "name": "0019-perf-polynomials-tile-add_scaled_batch-and-skip-zero.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0019-perf-polynomials-tile-add_scaled_batch-and-skip-zero.patch",
-      "summary": "perf polynomials tile add_scaled_batch and skip zero"
+      "summary": "perf(polynomials): tile add_scaled_batch and skip zero source coefficients"
     },
     {
       "name": "0020-perf-oink-parallel-range-limited-log-derivative-inve.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0020-perf-oink-parallel-range-limited-log-derivative-inve.patch",
-      "summary": "perf oink parallel range limited log derivative inve"
+      "summary": "perf(oink): parallel, range-limited log-derivative inverse computation"
     },
     {
       "name": "0021-perf-honk-fill-only-the-permutation-columns-of-the-g.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0021-perf-honk-fill-only-the-permutation-columns-of-the-g.patch",
-      "summary": "perf honk fill only the permutation columns of the g"
+      "summary": "perf(honk): fill only the permutation columns of the grand-product row"
     },
     {
       "name": "0022-perf-polynomials-Horner-per-thread-chunk-in-polynomi.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0022-perf-polynomials-Horner-per-thread-chunk-in-polynomi.patch",
-      "summary": "perf polynomials Horner per thread chunk in polynomi"
+      "summary": "perf(polynomials): Horner per thread chunk in polynomial evaluate"
     },
     {
       "name": "0023-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0023-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
-      "summary": "perf sumcheck drop memory relation terms of gate typ"
+      "summary": "perf(sumcheck): drop memory relation terms of gate types absent from the edge on the prover"
     },
     {
       "name": "0024-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0024-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
-      "summary": "perf keccak divide by multi limb powers of 11 via ch"
+      "summary": "perf(keccak): divide by multi-limb powers of 11 via chained single-limb divisions"
     },
     {
       "name": "0025-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0025-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
-      "summary": "perf bigfield compute fixed CRT bounds once 512 bit "
+      "summary": "perf(bigfield): compute fixed CRT bounds once; 512-bit borrow factor in subtraction"
     },
     {
       "name": "0026-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0026-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
-      "summary": "perf keccak runtime slice loop in normalize_and_rota"
+      "summary": "perf(keccak): runtime slice loop in normalize_and_rotate"
     },
     {
       "name": "0027-perf-field_t-compile-time-Montgomery-1-and-1.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0027-perf-field_t-compile-time-Montgomery-1-and-1.patch",
-      "summary": "perf field_t compile time Montgomery 1 and 1"
+      "summary": "perf(field_t): compile-time Montgomery 1 and -1"
     },
     {
       "name": "0028-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0028-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
-      "summary": "perf joint fold both circuits sumcheck tables in one"
+      "summary": "perf(joint): fold both circuits' sumcheck tables in one largest-first parallel region"
     },
     {
       "name": "0029-perf-pcs-parallel-batched-linear-quotients-for-Shplo.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0029-perf-pcs-parallel-batched-linear-quotients-for-Shplo.patch",
-      "summary": "perf pcs parallel batched linear quotients for Shplo"
+      "summary": "perf(pcs): parallel batched linear quotients for Shplonk and KZG"
     },
     {
       "name": "0030-perf-gemini-single-pass-for-the-partially-evaluated-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0030-perf-gemini-single-pass-for-the-partially-evaluated-.patch",
-      "summary": "perf gemini single pass for the partially evaluated "
+      "summary": "perf(gemini): single pass for the partially evaluated batch polynomials"
     },
     {
       "name": "0031-perf-multilinear_batching-batched-merge-in-compute_n.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0031-perf-multilinear_batching-batched-merge-in-compute_n.patch",
-      "summary": "perf multilinear_batching batched merge in compute_n"
+      "summary": "perf(multilinear_batching): batched merge in compute_new_claim"
     },
     {
       "name": "0032-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0032-perf-msm-AVX-512-IFMA-batch-affine-drain-for-native-.patch",
-      "summary": "perf msm AVX 512 IFMA batch affine drain for native "
+      "summary": "perf(msm): AVX-512 IFMA batch-affine drain for native Stage 6a"
     },
     {
       "name": "0033-build-BB_ALLOCATOR-option-to-link-tcmalloc-mimalloc-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0033-build-BB_ALLOCATOR-option-to-link-tcmalloc-mimalloc-.patch",
-      "summary": "build BB_ALLOCATOR option to link tcmalloc mimalloc "
+      "summary": "build: BB_ALLOCATOR option to link tcmalloc/mimalloc/jemalloc into bb"
     }
   ],
   "series_url": "https://github.com/olehmisar/playground/tree/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated",

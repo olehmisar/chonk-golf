@@ -18,12 +18,12 @@
     {
       "name": "0001-harness-deterministic-RNG-env-hook.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0001-harness-deterministic-RNG-env-hook.patch",
-      "summary": "harness deterministic RNG env hook"
+      "summary": "harness: deterministic RNG env hook"
     },
     {
       "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/patches/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
-      "summary": "harness sequential random polys in deterministic mod"
+      "summary": "harness: sequential random polys in deterministic mode"
     }
   ],
   "series_url": null,

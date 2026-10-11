@@ -18,7 +18,7 @@
     {
       "name": "0001-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-threading/bb-chonk-prover-opt/contrib/threading/0001-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
-      "summary": "perf threading lock free parallel_for pool with boun"
+      "summary": "perf(threading): lock-free parallel_for pool with bounded spin before sleeping"
     }
   ],
   "series_url": null,

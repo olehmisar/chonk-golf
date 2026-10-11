@@ -18,7 +18,7 @@
     {
       "name": "0001-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-msm/bb-chonk-prover-opt/contrib/msm/0001-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
-      "summary": "perf ecc batched variable time divsteps in Bernstein"
+      "summary": "perf(ecc): batched variable-time divsteps in Bernstein-Yang inverse"
     }
   ],
   "series_url": null,

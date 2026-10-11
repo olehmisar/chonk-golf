@@ -18,7 +18,7 @@
     {
       "name": "0001-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-sumcheck2/bb-chonk-prover-opt/contrib/sumcheck2/0001-perf-sumcheck-drop-memory-relation-terms-of-gate-typ.patch",
-      "summary": "perf sumcheck drop memory relation terms of gate typ"
+      "summary": "perf(sumcheck): drop memory relation terms of gate types absent from the edge on the prover"
     }
   ],
   "series_url": null,

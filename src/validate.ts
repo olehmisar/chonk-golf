@@ -16,7 +16,10 @@ export function validateSubmissions(files: Record<string, unknown>): ValidationR
       errors.push(`${path}:\n${z.prettifyError(parsed.error)}`);
       continue;
     }
-    const expected = path.split("/").pop()?.replace(/\.json$/, "");
+    const expected = path
+      .split("/")
+      .pop()
+      ?.replace(/\.json$/, "");
     if (expected !== parsed.data.id) {
       errors.push(`${path}: id "${parsed.data.id}" must match the file name`);
     }

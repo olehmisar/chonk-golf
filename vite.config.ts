@@ -13,7 +13,7 @@ export default defineConfig({
     port: 4173,
   },
   fmt: {
-    ignorePatterns: ["dist", "harness/*.py"],
+    ignorePatterns: ["dist", "data/**/*.json"],
   },
   test: {
     include: ["src/**/*.test.ts", "data/**/*.test.ts"],
@@ -23,12 +23,14 @@ export default defineConfig({
     tasks: {
       "data:validate": {
         command: "node scripts/validate-data.ts",
-        input: ["data/**", "src/schema.ts", "scripts/validate-data.ts"],
+        cache: {
+          input: ["data/**", "src/schema.ts", "src/validate.ts", "scripts/validate-data.ts"],
+        },
       },
       "app:build": {
         command: "tsc && vp build",
         dependsOn: ["data:validate"],
-        output: ["dist/**"],
+        cache: { output: ["dist/**"] },
       },
     },
   },

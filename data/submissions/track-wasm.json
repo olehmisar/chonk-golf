@@ -18,7 +18,7 @@
     {
       "name": "0001-perf-wasm-batched-divstep-matrix-in-Bernstein-Yang-W.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-wasm/bb-chonk-prover-opt/contrib/wasm/0001-perf-wasm-batched-divstep-matrix-in-Bernstein-Yang-W.patch",
-      "summary": "perf wasm batched divstep matrix in Bernstein Yang W"
+      "summary": "perf(wasm): batched divstep matrix in Bernstein-Yang Wasm9x29 inverse"
     }
   ],
   "series_url": null,

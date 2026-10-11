@@ -133,7 +133,11 @@ export const submission = z
     const seen = new Set<string>();
     for (const [i, f] of s.flows.entries()) {
       if (seen.has(f.flow)) {
-        ctx.addIssue({ code: "custom", path: ["flows", i, "flow"], message: `duplicate flow ${f.flow}` });
+        ctx.addIssue({
+          code: "custom",
+          path: ["flows", i, "flow"],
+          message: `duplicate flow ${f.flow}`,
+        });
       }
       seen.add(f.flow);
     }
@@ -141,7 +145,8 @@ export const submission = z
       ctx.addIssue({
         code: "custom",
         path: ["against", "id"],
-        message: "a `series` submission is measured against the unmodified baseline (id `baseline`)",
+        message:
+          "a `series` submission is measured against the unmodified baseline (id `baseline`)",
       });
     }
   });

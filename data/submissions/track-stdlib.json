@@ -18,22 +18,22 @@
     {
       "name": "0001-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/0001-perf-keccak-divide-by-multi-limb-powers-of-11-via-ch.patch",
-      "summary": "perf keccak divide by multi limb powers of 11 via ch"
+      "summary": "perf(keccak): divide by multi-limb powers of 11 via chained single-limb divisions"
     },
     {
       "name": "0002-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/0002-perf-bigfield-compute-fixed-CRT-bounds-once-512-bit-.patch",
-      "summary": "perf bigfield compute fixed CRT bounds once 512 bit "
+      "summary": "perf(bigfield): compute fixed CRT bounds once; 512-bit borrow factor in subtraction"
     },
     {
       "name": "0003-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/0003-perf-keccak-runtime-slice-loop-in-normalize_and_rota.patch",
-      "summary": "perf keccak runtime slice loop in normalize_and_rota"
+      "summary": "perf(keccak): runtime slice loop in normalize_and_rotate"
     },
     {
       "name": "0004-perf-field_t-compile-time-Montgomery-1-and-1.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-stdlib/bb-chonk-prover-opt/contrib/stdlib/0004-perf-field_t-compile-time-Montgomery-1-and-1.patch",
-      "summary": "perf field_t compile time Montgomery 1 and 1"
+      "summary": "perf(field_t): compile-time Montgomery 1 and -1"
     }
   ],
   "series_url": null,

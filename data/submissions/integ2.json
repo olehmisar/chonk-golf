@@ -18,92 +18,92 @@
     {
       "name": "0001-harness-deterministic-RNG-env-hook.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0001-harness-deterministic-RNG-env-hook.patch",
-      "summary": "harness deterministic RNG env hook"
+      "summary": "harness: deterministic RNG env hook"
     },
     {
       "name": "0002-harness-sequential-random-polys-in-deterministic-mod.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0002-harness-sequential-random-polys-in-deterministic-mod.patch",
-      "summary": "harness sequential random polys in deterministic mod"
+      "summary": "harness: sequential random polys in deterministic mode"
     },
     {
       "name": "0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0003-perf-single-limb-fast-path-in-uint256-divmod-chunked.patch",
-      "summary": "perf single limb fast path in uint256 divmod chunked"
+      "summary": "perf: single-limb fast path in uint256 divmod; chunked keccak normalize_sparse"
     },
     {
       "name": "0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0004-perf-msm-fused-scalar-batch-affine-drain-for-native-.patch",
-      "summary": "perf msm fused scalar batch affine drain for native "
+      "summary": "perf(msm): fused scalar batch-affine drain for native Stage 6a"
     },
     {
       "name": "0005-perf-translator-fetch-only-grand-product-columns-per.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0005-perf-translator-fetch-only-grand-product-columns-per.patch",
-      "summary": "perf translator fetch only grand product columns per"
+      "summary": "perf(translator): fetch only grand-product columns per row"
     },
     {
       "name": "0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0006-perf-sumcheck-skip-fold-multiply-for-bit-identical-n.patch",
-      "summary": "perf sumcheck skip fold multiply for bit identical n"
+      "summary": "perf(sumcheck): skip fold multiply for bit-identical neighbour pairs"
     },
     {
       "name": "0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0007-perf-ecc-batched-variable-time-divsteps-in-Bernstein.patch",
-      "summary": "perf ecc batched variable time divsteps in Bernstein"
+      "summary": "perf(ecc): batched variable-time divsteps in Bernstein-Yang inverse"
     },
     {
       "name": "0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0008-perf-sumcheck-fold-subrelation-separators-into-Posei.patch",
-      "summary": "perf sumcheck fold subrelation separators into Posei"
+      "summary": "perf(sumcheck): fold subrelation separators into Poseidon2 quad relations on the prover"
     },
     {
       "name": "0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0009-perf-sumcheck-skip-databus-lookup-rows-of-other-bus-.patch",
-      "summary": "perf sumcheck skip databus lookup rows of other bus "
+      "summary": "perf(sumcheck): skip databus lookup rows of other bus columns"
     },
     {
       "name": "0010-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0010-perf-dsl-move-decoded-ACIR-enum-variants-instead-of-.patch",
-      "summary": "perf dsl move decoded ACIR enum variants instead of "
+      "summary": "perf(dsl): move decoded ACIR enum variants instead of copying; string_view field names"
     },
     {
       "name": "0011-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0011-perf-dsl-stream-msgpack-compact-ACIR-program-and-wit.patch",
-      "summary": "perf dsl stream msgpack compact ACIR program and wit"
+      "summary": "perf(dsl): stream msgpack-compact ACIR program and witness decoding"
     },
     {
       "name": "0012-perf-uintx-skip-multiplications-by-zero-halves.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0012-perf-uintx-skip-multiplications-by-zero-halves.patch",
-      "summary": "perf uintx skip multiplications by zero halves"
+      "summary": "perf(uintx): skip multiplications by zero halves"
     },
     {
       "name": "0013-perf-field-compile-time-one-and-neg_one.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0013-perf-field-compile-time-one-and-neg_one.patch",
-      "summary": "perf field compile time one and neg_one"
+      "summary": "perf(field): compile-time one() and neg_one()"
     },
     {
       "name": "0014-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0014-perf-chonk-parse-step-bytecode-on-a-background-threa.patch",
-      "summary": "perf chonk parse step bytecode on a background threa"
+      "summary": "perf(chonk): parse step bytecode on a background thread during CLI proving"
     },
     {
       "name": "0015-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0015-perf-chonk-write-the-IVC-s-hiding-kernel-VK-in-prove.patch",
-      "summary": "perf chonk write the IVC s hiding kernel VK in prove"
+      "summary": "perf(chonk): write the IVC's hiding-kernel VK in prove --write_vk"
     },
     {
       "name": "0016-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0016-perf-threading-lock-free-parallel_for-pool-with-boun.patch",
-      "summary": "perf threading lock free parallel_for pool with boun"
+      "summary": "perf(threading): lock-free parallel_for pool with bounded spin before sleeping"
     },
     {
       "name": "0017-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0017-perf-poseidon2-shorter-critical-path-in-native-permu.patch",
-      "summary": "perf poseidon2 shorter critical path in native permu"
+      "summary": "perf(poseidon2): shorter critical path in native permutation rounds"
     },
     {
       "name": "0018-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated/0018-perf-sha256-x86-SHA-extensions-and-streaming-input-f.patch",
-      "summary": "perf sha256 x86 SHA extensions and streaming input f"
+      "summary": "perf(sha256): x86 SHA extensions and streaming input for native sha256"
     }
   ],
   "series_url": "https://github.com/olehmisar/playground/tree/claude/nice-sagan-f00j9v/bb-chonk-prover-opt/integrated",

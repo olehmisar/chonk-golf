@@ -18,7 +18,7 @@
     {
       "name": "0001-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
       "url": "https://github.com/olehmisar/playground/blob/claude/bbopt-joint/bb-chonk-prover-opt/contrib/joint/0001-perf-joint-fold-both-circuits-sumcheck-tables-in-one.patch",
-      "summary": "perf joint fold both circuits sumcheck tables in one"
+      "summary": "perf(joint): fold both circuits' sumcheck tables in one largest-first parallel region"
     }
   ],
   "series_url": null,
