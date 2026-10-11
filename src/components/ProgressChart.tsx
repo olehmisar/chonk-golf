@@ -39,7 +39,8 @@ export function ProgressChart() {
   const lo = Math.max(0, Math.floor((Math.min(...values) - 0.05) * 10) / 10);
   const hi = Math.max(1.1, Math.ceil((Math.max(...values) + 0.02) * 10) / 10);
   const x = (i: number) => M.left + (i * (W - M.left - M.right)) / (points.length - 1);
-  const y = (v: number) => M.top + ((v - lo) / (hi - lo)) * (H - M.top - M.bottom);
+  // Conventional axis: higher values up, so a falling line = less time / less RAM than par.
+  const y = (v: number) => M.top + ((hi - v) / (hi - lo)) * (H - M.top - M.bottom);
   const ticks: number[] = [];
   for (let t = Math.ceil(lo * 10) / 10; t <= hi + 1e-9; t += 0.1)
     ticks.push(Math.round(t * 10) / 10);
@@ -94,7 +95,8 @@ export function ProgressChart() {
           </h2>
           <p className="max-w-2xl text-sm text-muted">
             Each integrated series vs the unmodified prover (par = 100%), all measured in the same
-            run on the same machine. Lower is better.
+            run on the same machine. Lower is better: the lines go down as the prover gets faster
+            and leaner.
           </p>
         </div>
         <Segmented<Scope>
