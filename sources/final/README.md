@@ -14,10 +14,25 @@ Composition: integ5, minus 14/35 (they cancel) and 33 (opt-in allocator). On top
 Excluded: r3-bbapi/0001 (verifier-path cache), r3-msm-algo 0002-0005 (neutral on the headline flow),
 r3-sumcheck-algo/0002 (+1.3-1.5% headline RSS) and buildflags2 (no gain).
 
-Correctness on the 11 pinned + 3 aztec-standards flows:
-- `check_identical.sh`: 14/14 IDENTICAL.
-- The 75-commit version without r3-memory/0007 was also checked with stock bb.js 14/14 and unmodified native
-  `bb verify` 14/14. The memory track reports the same results for the full series.
+Correctness of this exact 76-commit series on the 11 pinned + 3 aztec-standards flows (coordinator VM). Logs are in
+this folder:
+- `check_identical.log`: **14/14 IDENTICAL**, meaning proof and VK SHA-256 with `BB_DETERMINISTIC_PROVING=42` equal
+  the unmodified prover's.
+- `verify_stock_bbjs.log`, with stock npm `@aztec-foundation/bb.js@7.0.0-nightly.20261009` and real randomness:
+  **14/14 verified, 14/14 tampered proofs rejected, 14/14 VKs equal to the unmodified prover's**.
+- `verify_native_unmodified.log`, with the unmodified native `bb verify` (`bb15fcb` + harness only): **14/14 accepted,
+  14/14 tampered proofs rejected**.
+
+The same checks were run on an AVX-512 IFMA VM (Intel Xeon Granite Rapids, 4 vCPU), with IFMA on and with
+`BB_FIELD_NO_IFMA=1 BB_MSM_NO_IFMA=1`. Results are in `final-ifma-vm.md` in this folder (r3-ifma-fr @ `07912fa`): 14/14 identical and stock bb.js 14/14 in both modes, native verify 14/14.
+
+## IFMA VM benchmark (Granite Rapids, 4 vCPU, avx512ifma)
+
+| | unmodified → final | time | peak RSS |
+|---|---|---|---|
+| headline transfer_private_to_private (min of 7) | 3.76 → 1.83 s, 307.1 → 225.3 MiB | **0.488** | **0.734** |
+| same, IFMA forced off | 3.63 → 2.55 s | 0.702 | 0.736 |
+| all 14 flows × 3 reps | 71.27 → 36.13 s, 4965 → 3595 MiB | **0.507** | **0.724** |
 
 ## 14-flow benchmark (`bench_14flows_4vcpu.json`, `bench_14flows_4vcpu_runs.csv`)
 

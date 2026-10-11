@@ -461,8 +461,9 @@ fin["machine"], fin["source_url"] = IFMA_MACHINE, IFMA_URL
 fin["correctness"] = corr(11, 11, True, True, "Exact 76-commit series on the IFMA VM (final-ifma-vm.md): "
                           "check_identical 14/14 IDENTICAL with IFMA on and with BB_FIELD_NO_IFMA=1 BB_MSM_NO_IFMA=1; "
                           "stock bb.js 7.0.0-nightly.20261009 verifies all 14 in both modes (tampered rejected, VKs equal "
-                          "the unmodified prover's); unmodified native bb verify 14/14 (tampered rejected). On the "
-                          "no-IFMA VM: check_identical 14/14 (final/README.md).")
+                          "the unmodified prover's); unmodified native bb verify 14/14 (tampered rejected). Same checks on the "
+                          "no-IFMA coordinator VM (final/README.md @ 1b72a22): check_identical 14/14, stock bb.js 14/14 "
+                          "verified + 14/14 tampered rejected + 14/14 VKs equal, unmodified native bb verify 14/14.")
 fin["history"] = [no_ifma, ifma_off]
 fin["_ifma_std"] = ifma_std
 
