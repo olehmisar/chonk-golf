@@ -1,0 +1,203 @@
+From ebf42c79b0aeb6f46f3e90553eb18f16b6c7e298 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 10:25:45 +0000
+Subject: [PATCH 59/65] perf(msm): contiguous per-step IFMA drain buffer, 512
+ pairs per drain
+
+The IFMA batch-affine drain kept its 26 limb columns as separate CAP-wide
+rows, so the columns sat a multiple of 2 KiB apart and every vector step
+touched 26 lines in the same few L1 sets. Each 8-pair step's columns now
+live in one contiguous 1664-byte group, and with the conflict misses gone a
+drain can hold 512 pairs, halving the number of field inversions per pair
+in the Stage 6a tree reduce and the Stage 6b batched adds.
+
+Output unchanged: the drain computes the same affine sums of the same
+pairs (one Montgomery batch per drain, exact field arithmetic); only where
+the queued operands live and how many pairs share an inversion change, and
+affine point addition has a unique result. MSM results, and so every
+commitment, are identical.
+
+The IFMA edge-case test fills the buffer through push() instead of writing the
+column arrays directly, and calls drain_to() (the pointer-output overload); it
+did not compile on the starting series.
+---
+ .../batch_affine_ifma.hpp                     | 70 +++++++++++--------
+ .../scalar_multiplication.test.cpp            |  9 +--
+ .../scalar_multiplication_fast.cpp            |  8 +--
+ 3 files changed, 48 insertions(+), 39 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/batch_affine_ifma.hpp b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/batch_affine_ifma.hpp
+index 37ed627..7ecb672 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/batch_affine_ifma.hpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/batch_affine_ifma.hpp
+@@ -267,22 +267,29 @@ BB_IFMA_INLINE void store52(const V5& v, uint64_t* base, size_t stride)
+  */
+ template <size_t CAP> struct DrainBuffer {
+     static_assert(CAP % 8 == 0);
+-    alignas(64) uint64_t lx[4][CAP];
+-    alignas(64) uint64_t ly[4][CAP];
+-    alignas(64) uint64_t rx[4][CAP];
+-    alignas(64) uint64_t ry[4][CAP];
+-    alignas(64) uint64_t dx[5][CAP];
+-    alignas(64) uint64_t pre[5][CAP];
++    // One group per 8 pairs (one vector step), holding every column the drain touches for those pairs, so a step reads
++    // and writes one contiguous 1664-byte block.
++    struct alignas(64) Group {
++        uint64_t lx[4][8];
++        uint64_t ly[4][8];
++        uint64_t rx[4][8];
++        uint64_t ry[4][8];
++        uint64_t dx[5][8];
++        uint64_t pre[5][8];
++    };
++    Group group[CAP / 8];
+     uint32_t pair_dest[CAP];
+ 
+     template <typename BaseField>
+     void push(size_t k, const BaseField& x1, const BaseField& y1, const BaseField& x2, const BaseField& y2) noexcept
+     {
++        Group& g = group[k / 8];
++        const size_t l = k % 8;
+         for (size_t i = 0; i < 4; ++i) {
+-            lx[i][k] = x1.data[i];
+-            ly[i][k] = y1.data[i];
+-            rx[i][k] = x2.data[i];
+-            ry[i][k] = y2.data[i];
++            g.lx[i][l] = x1.data[i];
++            g.ly[i][l] = y1.data[i];
++            g.rx[i][l] = x2.data[i];
++            g.ry[i][l] = y2.data[i];
+         }
+     }
+ };
+@@ -310,11 +317,12 @@ BB_IFMA_TARGET void drain_vector(DrainBuffer<CAP>& buf, size_t n, Sink&& sink)
+     // Padding pairs (0, 0) + (1, 0): dx = 1, so they leave the chain products unchanged. Their outputs are dropped.
+     const BaseField one = BaseField::one();
+     for (size_t k = n; k < padded; ++k) {
++        auto& g = buf.group[k / 8];
+         for (size_t i = 0; i < 4; ++i) {
+-            buf.lx[i][k] = 0;
+-            buf.ly[i][k] = 0;
+-            buf.rx[i][k] = one.data[i];
+-            buf.ry[i][k] = 0;
++            g.lx[i][k % 8] = 0;
++            g.ly[i][k % 8] = 0;
++            g.rx[i][k % 8] = one.data[i];
++            g.ry[i][k % 8] = 0;
+         }
+     }
+ 
+@@ -328,11 +336,12 @@ BB_IFMA_TARGET void drain_vector(DrainBuffer<CAP>& buf, size_t n, Sink&& sink)
+ 
+     // Forward: dx = rx - lx + 2p (< 4p); prefix products bounded by ~4.1p.
+     for (size_t k = 0; k < padded; k += 8) {
+-        const V5 x1 = load64(&buf.lx[0][k], &buf.lx[1][k], &buf.lx[2][k], &buf.lx[3][k]);
+-        const V5 x2 = load64(&buf.rx[0][k], &buf.rx[1][k], &buf.rx[2][k], &buf.rx[3][k]);
++        auto& g = buf.group[k / 8];
++        const V5 x1 = load64(g.lx[0], g.lx[1], g.lx[2], g.lx[3]);
++        const V5 x2 = load64(g.rx[0], g.rx[1], g.rx[2], g.rx[3]);
+         const V5 dx = sub_plus(x2, x1, C::P2);
+-        store52(dx, &buf.dx[0][k], CAP);
+-        store52(acc, &buf.pre[0][k], CAP);
++        store52(dx, g.dx[0], 8);
++        store52(acc, g.pre[0], 8);
+         acc = mont_mul<Params>(acc, dx);
+     }
+ 
+@@ -367,12 +376,13 @@ BB_IFMA_TARGET void drain_vector(DrainBuffer<CAP>& buf, size_t n, Sink&& sink)
+     alignas(64) uint64_t oy[4][8];
+     for (size_t k = padded; k != 0;) {
+         k -= 8;
+-        const V5 inv_dx = mont_mul<Params>(acc, load52(&buf.pre[0][k], CAP));
+-        acc = mont_mul<Params>(acc, load52(&buf.dx[0][k], CAP));
+-        const V5 x1 = load64(&buf.lx[0][k], &buf.lx[1][k], &buf.lx[2][k], &buf.lx[3][k]);
+-        const V5 y1 = load64(&buf.ly[0][k], &buf.ly[1][k], &buf.ly[2][k], &buf.ly[3][k]);
+-        const V5 x2 = load64(&buf.rx[0][k], &buf.rx[1][k], &buf.rx[2][k], &buf.rx[3][k]);
+-        const V5 y2 = load64(&buf.ry[0][k], &buf.ry[1][k], &buf.ry[2][k], &buf.ry[3][k]);
++        const auto& g = buf.group[k / 8];
++        const V5 inv_dx = mont_mul<Params>(acc, load52(g.pre[0], 8));
++        acc = mont_mul<Params>(acc, load52(g.dx[0], 8));
++        const V5 x1 = load64(g.lx[0], g.lx[1], g.lx[2], g.lx[3]);
++        const V5 y1 = load64(g.ly[0], g.ly[1], g.ly[2], g.ly[3]);
++        const V5 x2 = load64(g.rx[0], g.rx[1], g.rx[2], g.rx[3]);
++        const V5 y2 = load64(g.ry[0], g.ry[1], g.ry[2], g.ry[3]);
+         const V5 slope = mont_mul<Params>(sub_plus(y2, y1, C::P2), inv_dx);
+         const V5 x3 = canonical<Params>(sub2_plus(mont_mul<Params>(slope, slope), x1, x2, C::P4));
+         const V5 y3 = canonical<Params>(sub_plus(mont_mul<Params>(slope, sub_plus(x1, x3, C::P)), y1, C::P2));
+@@ -394,8 +404,12 @@ inline constexpr size_t SMALL_DRAIN_MAX_PAIRS = 6;
+ template <typename BaseField, size_t CAP, typename Sink>
+ void drain_small(const DrainBuffer<CAP>& buf, size_t n, Sink&& sink)
+ {
+-    const auto lhs_x = [&](size_t k) { return BaseField{ buf.lx[0][k], buf.lx[1][k], buf.lx[2][k], buf.lx[3][k] }; };
+-    const auto rhs_x = [&](size_t k) { return BaseField{ buf.rx[0][k], buf.rx[1][k], buf.rx[2][k], buf.rx[3][k] }; };
++    static_assert(SMALL_DRAIN_MAX_PAIRS <= 8, "a small drain reads only the first group");
++    const auto col = [&](const uint64_t (&c)[4][8], size_t k) {
++        return BaseField{ c[0][k], c[1][k], c[2][k], c[3][k] };
++    };
++    const auto lhs_x = [&](size_t k) { return col(buf.group[0].lx, k); };
++    const auto rhs_x = [&](size_t k) { return col(buf.group[0].rx, k); };
+     std::array<BaseField, SMALL_DRAIN_MAX_PAIRS> dxs;
+     std::array<BaseField, SMALL_DRAIN_MAX_PAIRS> prefix;
+     BaseField acc = BaseField::one();
+@@ -412,8 +426,8 @@ void drain_small(const DrainBuffer<CAP>& buf, size_t n, Sink&& sink)
+         const BaseField inv = acc * prefix[k];
+         acc *= dxs[k];
+         const BaseField x1 = lhs_x(k);
+-        const BaseField y1{ buf.ly[0][k], buf.ly[1][k], buf.ly[2][k], buf.ly[3][k] };
+-        const BaseField y2{ buf.ry[0][k], buf.ry[1][k], buf.ry[2][k], buf.ry[3][k] };
++        const BaseField y1 = col(buf.group[0].ly, k);
++        const BaseField y2 = col(buf.group[0].ry, k);
+         const BaseField slope = (y2 - y1) * inv;
+         const BaseField x3 = slope.sqr() - (x1 + rhs_x(k));
+         sink(k, x3, slope * (x1 - x3) - y1);
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
+index 4b76442..241da84 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
+@@ -2375,15 +2375,10 @@ template <typename Curve> void ifma_drain_matches_affine_add_edge_cases()
+                 r.x = coarse(r.x);
+                 r.y = coarse(r.y);
+             }
+-            for (size_t i = 0; i < 4; ++i) {
+-                buf->lx[i][k] = l.x.data[i];
+-                buf->ly[i][k] = l.y.data[i];
+-                buf->rx[i][k] = r.x.data[i];
+-                buf->ry[i][k] = r.y.data[i];
+-            }
++            buf->push(k, l.x, l.y, r.x, r.y);
+             buf->pair_dest[k] = static_cast<uint32_t>(k);
+         }
+-        scalar_multiplication::ifma::drain<BaseField>(*buf, n, out.data());
++        scalar_multiplication::ifma::drain_to<BaseField>(*buf, n, out.data());
+         for (size_t k = 0; k < n; ++k) {
+             EXPECT_EQ(out[k], AffineElement(Element(lhs[k]) + Element(rhs[k]))) << "n=" << n << " k=" << k;
+         }
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication_fast.cpp b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication_fast.cpp
+index 29fff96..7ce6fee 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication_fast.cpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication_fast.cpp
+@@ -304,8 +304,7 @@ template <typename Curve> inline void drain_batch(ThreadScratch<Curve>& s, size_
+  *          1 / dx_k, completes the slope and writes the sum straight to its destination slot. Six multiplications
+  *          per pair, with every intermediate held in registers rather than in packed VectorField temporaries.
+  */
+-template <typename Curve>
+-inline void drain_batch_scalar(ThreadScratch<Curve>& s, size_t pair_count) noexcept
++template <typename Curve> inline void drain_batch_scalar(ThreadScratch<Curve>& s, size_t pair_count) noexcept
+ {
+     using BaseField = typename Curve::BaseField;
+     if (pair_count == 0) {
+@@ -409,8 +408,9 @@ template <typename Curve> void tree_reduce_in_place_scalar(ThreadScratch<Curve>&
+ 
+ #ifdef BB_MSM_IFMA
+ // Pairs per IFMA drain. The queue (operands held limb-major for the vector kernel) lives in a per-thread heap buffer
+-// rather than in the MSM arena, so the arena layout is the same with and without IFMA.
+-inline constexpr size_t IFMA_BATCH_CAPACITY = 256;
++// rather than in the MSM arena, so the arena layout is the same with and without IFMA. The buffer is 512 * 208 bytes
++// (L2-resident); a full drain spends its one field inversion on 512 pairs instead of 256.
++inline constexpr size_t IFMA_BATCH_CAPACITY = 512;
+ 
+ inline ifma::DrainBuffer<IFMA_BATCH_CAPACITY>& ifma_drain_buffer()
+ {
+-- 
+2.43.0
+

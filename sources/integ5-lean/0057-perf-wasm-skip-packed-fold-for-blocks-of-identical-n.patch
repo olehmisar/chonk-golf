@@ -1,0 +1,57 @@
+From a4eb5aa7cf75d2c8b6b072a847c94da6519af613 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 03:33:37 +0000
+Subject: [PATCH 57/65] perf(wasm): skip packed fold for blocks of identical
+ neighbour pairs
+
+The WASM SIMD path of fold_stride2 copies the even values when all five source pairs of a
+block are bit-identical (constant selector runs, zero padding), mirroring the scalar path's
+per-pair short-cut, instead of packing and multiplying.
+---
+ .../barretenberg/polynomials/fold_stride2.hpp | 22 +++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+index 0b56f20..f27b2d1 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+@@ -4,7 +4,9 @@
+ #include "barretenberg/ecc/fields/vectorized_for.hpp"
+ #include "barretenberg/polynomials/polynomial.hpp"
+ 
++#include <array>
+ #include <cstddef>
++#include <cstdint>
+ 
+ namespace bb {
+ 
+@@ -48,6 +50,26 @@ void fold_stride2(
+         using Vec = VectorField<typename Fr::Params>;
+         const Vec challenge_vec = Vec::broadcast(challenge);
+         for (; k + WIDTH <= end; k += WIDTH) {
++            // A block whose WIDTH source pairs are all bit-identical (constant selector runs, zero padding) folds to
++            // the even values; copy them instead of packing and multiplying.
++            if (2 * k >= src.start_index() && 2 * (k + WIDTH) <= src.end_index()) {
++                const Fr* pairs = src.data() + (2 * k - src.start_index());
++                uint64_t diff = 0;
++                for (size_t j = 0; j < 2 * WIDTH; j += 2) {
++                    diff |= (pairs[j].data[0] ^ pairs[j + 1].data[0]) | (pairs[j].data[1] ^ pairs[j + 1].data[1]) |
++                            (pairs[j].data[2] ^ pairs[j + 1].data[2]) | (pairs[j].data[3] ^ pairs[j + 1].data[3]);
++                }
++                if (diff == 0) {
++                    std::array<Fr, WIDTH> evens;
++                    for (size_t lane = 0; lane < WIDTH; ++lane) {
++                        evens[lane] = pairs[2 * lane];
++                    }
++                    for (size_t lane = 0; lane < WIDTH; ++lane) {
++                        dst[ScalarIndex{ k + lane }] = evens[lane];
++                    }
++                    continue;
++                }
++            }
+             const Vec even = Vec::from_lanes([&](size_t lane) { return src[2 * (k + lane)]; });
+             const Vec odd = Vec::from_lanes([&](size_t lane) { return src[2 * (k + lane) + 1]; });
+             dst[ContiguousVectorIndex<WIDTH>{ k }] = even + (odd - even) * challenge_vec;
+-- 
+2.43.0
+

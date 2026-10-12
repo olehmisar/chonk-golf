@@ -1,0 +1,86 @@
+From b793f9cacbc5affd606e6944c181af33e6a20388 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 12:58:59 +0000
+Subject: [PATCH 64/65] perf(msm): batch the windows of MSMs up to 2^17 points
+ into an 8 MiB arena
+
+The round-parallel Pippenger sizes its per-MSM arena so that
+fixed_overhead + windows_per_batch * per_window_bytes fills a 32 MiB budget.
+Every commitment of a client-side proof allocates and touches that arena,
+so it sits on top of the live polynomials at each phase's peak. MSMs of at
+most 2^17 points (the largest in client-side proving) now use an 8 MiB
+budget; larger MSMs keep 32 MiB. The arena sizer and the live allocator both
+derive the budget from the same n_input through batch_mem_budget(), so the
+sizer's bound still dominates the live layout.
+
+Output is unchanged: the budget only chooses how many windows are processed
+per batch. Each window's bucket sums and the Horner combination over windows
+are computed exactly as before, and the MSM result is a group element, so
+the commitments, transcript and proof bytes are the same.
+---
+ .../scalar_multiplication/pippenger_arena_layout.hpp | 12 ++++++++++++
+ .../scalar_multiplication.test.cpp                   |  2 +-
+ .../scalar_multiplication_fast.cpp                   |  4 ++--
+ 3 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/pippenger_arena_layout.hpp b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/pippenger_arena_layout.hpp
+index 72482e9..84ce15a 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/pippenger_arena_layout.hpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/pippenger_arena_layout.hpp
+@@ -150,6 +150,18 @@ inline constexpr size_t MIN_BATCH_CAPACITY = 32;
+ inline constexpr size_t MIN_AFFINE_THREAD_RATIO = 2;
+ inline constexpr size_t SUBCHUNK_ENTRIES_CAP = 2048;
+ inline constexpr size_t BATCH_MEM_BUDGET = 32ULL * 1024ULL * 1024ULL;
++// MSMs of at most SMALL_MSM_MAX_POINTS points batch their windows into SMALL_MSM_BATCH_MEM_BUDGET instead: at
++// that size the extra window batches cost no measurable time, and the smaller arena keeps the peak resident set of
++// client-side proving (whose largest MSMs are this size) lower.
++inline constexpr size_t SMALL_MSM_MAX_POINTS = size_t{ 1 } << 17;
++inline constexpr size_t SMALL_MSM_BATCH_MEM_BUDGET = 8ULL * 1024ULL * 1024ULL;
++
++// The window-batch memory budget of an MSM over `n_input` points. The arena sizer and the live allocator must
++// both use it, with the same `n_input`.
++[[nodiscard]] inline constexpr size_t batch_mem_budget(size_t n_input) noexcept
++{
++    return n_input <= SMALL_MSM_MAX_POINTS ? SMALL_MSM_BATCH_MEM_BUDGET : BATCH_MEM_BUDGET;
++}
+ 
+ // Per-bucket-chunk metadata produced by Stage 6a, consumed by Stage 6b's
+ // cross-thread reduce.
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
+index 241da84..c9da0da 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication.test.cpp
+@@ -61,7 +61,7 @@ bool pippenger_bn254_arena_layout_fits_for_test(size_t n_input,
+ 
+     using rpd::BATCH_CAPACITY;
+     constexpr size_t MIN_BATCH_CAPACITY = 32;
+-    constexpr size_t BATCH_MEM_BUDGET = 32ULL * 1024ULL * 1024ULL;
++    const size_t BATCH_MEM_BUDGET = rpd::batch_mem_budget(n_input);
+     constexpr size_t SUBCHUNK_ENTRIES_CAP = 2048;
+ 
+     const size_t desired_threads = std::max<size_t>(1, bb::get_num_cpus());
+diff --git a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication_fast.cpp b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication_fast.cpp
+index 7ce6fee..3d8717d 100644
+--- a/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication_fast.cpp
++++ b/barretenberg/cpp/src/barretenberg/ecc/scalar_multiplication/scalar_multiplication_fast.cpp
+@@ -1452,7 +1452,7 @@ size_t compute_arena_bytes_for_msm(size_t n_input,
+                   size_t{ round_parallel_detail::SCHEDULE_INDEX_MASK } + 1,
+                   "working scalar indices must fit in the 29-bit schedule payload");
+ 
+-    using round_parallel_detail::BATCH_MEM_BUDGET;
++    const size_t BATCH_MEM_BUDGET = round_parallel_detail::batch_mem_budget(n_input);
+     using round_parallel_detail::MIN_AFFINE_THREAD_RATIO;
+     using round_parallel_detail::MIN_BATCH_CAPACITY;
+     using round_parallel_detail::SUBCHUNK_ENTRIES_CAP;
+@@ -1864,7 +1864,7 @@ typename Curve::Element pippenger_round_parallel(PolynomialSpan<const typename C
+                   "window schedule exceeds compile-time max window count");
+ 
+     using round_parallel_detail::BATCH_CAPACITY;
+-    using round_parallel_detail::BATCH_MEM_BUDGET;
++    const size_t BATCH_MEM_BUDGET = round_parallel_detail::batch_mem_budget(n_input);
+     using round_parallel_detail::MIN_BATCH_CAPACITY;
+     using round_parallel_detail::SUBCHUNK_ENTRIES_CAP;
+ 
+-- 
+2.43.0
+

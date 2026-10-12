@@ -1,0 +1,562 @@
+From cd3121ff4b38d19177f4004eaaf1fdbebacd72a0 Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 12:24:51 +0000
+Subject: [PATCH 63/65] perf(chonk): window the joint sumcheck's round 1
+ instead of materializing the round-1 tables
+
+The joint MegaZK + translator sumcheck folded the full tables at u_0 into
+half-size round-1 tables (about 86 MiB on the headline flow) while the full
+tables stay alive for the PCS, which made round 1 the ChonkProve RSS peak.
+
+Round 1 now folds the full tables at u_0 one 8192-row window at a time and
+accumulates the edges of that window; once u_1 is drawn, the quarter-size
+round-2 tables are folded straight from the full tables at (u_0, u_1).
+SumcheckProverRound gains accumulate_univariate_over_range and
+finalize_univariate (compute_univariate is now the full-range case of the
+two), and the skip_entire_row scan is factored out so it can run on a window.
+
+Output is unchanged:
+- each window entry is computed by the same fold (fold_stride2) from the
+  same operands as the round-1 table entry it replaces, and reads outside a
+  window are the virtual zero exactly as reads past a table's extent were;
+- the windows partition the round's edges [excluded head, effective end),
+  the effective end is computed from the extents the round-1 tables would
+  have had, the gate separator is indexed by absolute edge, and the offset
+  area is read from window 0; field addition is exact, so the per-relation
+  sums and the round univariate are the same field elements;
+- each round-2 entry is fold_stride2_pair(fold of the first pair, fold of
+  the second pair), the same two folds two fold_stride2 passes perform, with
+  entries past the round-1 extent read as zero, so round-2 tables are
+  bit-identical and rounds 2.. proceed as before;
+- the transcript sees the same univariates in the same order and no
+  challenge draw moves. Flavors with fewer than two real MegaZK rounds keep
+  the materialized path.
+---
+ .../batched_honk_translator_prover.cpp        | 208 ++++++++++++++++--
+ .../partially_evaluated_multivariates.hpp     |   5 +
+ .../barretenberg/polynomials/fold_stride2.hpp |  26 ++-
+ .../barretenberg/sumcheck/sumcheck_round.hpp  | 180 ++++++++++-----
+ 4 files changed, 346 insertions(+), 73 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp b/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
+index e44ad74..0ab795a 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/batched_honk_translator/batched_honk_translator_prover.cpp
+@@ -10,6 +10,7 @@
+ #include "barretenberg/translator_vm/translator_prover.hpp"
+ 
+ #include <algorithm>
++#include <functional>
+ #include <vector>
+ 
+ // Short-monomial translator relation definitions: the joint sumcheck round (TransProverRound) is templated on
+@@ -78,6 +79,92 @@ void joint_partially_evaluate(MegaZKSource& mega_zk_source,
+     halve_active_prefix(translator_source, translator_dest);
+ }
+ 
++// Rows of the round-1 tables materialized at a time by the windowed round 1 (see execute_joint_sumcheck_rounds).
++constexpr size_t ROUND_ONE_WINDOW_SIZE = 8192;
++
++// Number of entries of a table after one partial evaluation: one per source pair, an odd tail folding against zero.
++inline size_t folded_size(const size_t size)
++{
++    return (size / 2) + (size % 2);
++}
++
++/**
++ * @brief Allocate `window` to hold rows `[begin, end)` of the table that partially evaluating `full` would produce.
++ * @details Entity k gets the overlap of `[begin, end)` with that table's extent `[0, folded_size(end_k))`, indexed by
++ * absolute row with the same virtual size, so every row outside the window reads as zero.
++ */
++template <typename FF, typename Window, typename Full>
++void allocate_round_one_window(Window& window, const Full& full, size_t begin, size_t end, size_t virtual_size)
++{
++    for (auto [window_poly, full_poly] : zip_view(window.get_all(), full.get_all())) {
++        const size_t folded_end = folded_size(full_poly.end_index());
++        const size_t window_begin = std::min(begin, folded_end);
++        const size_t window_end = std::min(end, folded_end);
++        window_poly =
++            Polynomial<FF>(window_end - window_begin, virtual_size, window_begin, Polynomial<FF>::DontZeroMemory::FLAG);
++    }
++}
++
++/**
++ * @brief Partially evaluate `full` at `first_challenge` and the result at `second_challenge` into `dest`, without
++ * materializing the intermediate table.
++ * @details Entity k of the intermediate table holds `folded_size(end_k)` entries; `dest` gets one entry per pair of
++ * them. Each entry is computed by `fold_stride2_pair` from the same operands as two successive `fold_stride2` passes
++ * would use (entries past an extent read as zero), so `dest` is bit-identical to the two-pass result.
++ */
++struct SizedJob {
++    size_t size;
++    std::function<void()> run;
++};
++
++template <typename FF, typename Dest, typename Full>
++void allocate_and_fold_twice(std::vector<SizedJob>& jobs,
++                             Dest& dest,
++                             const Full& full,
++                             size_t virtual_size,
++                             const FF& first_challenge,
++                             const FF& second_challenge)
++{
++    for (auto [dest_poly, full_poly] : zip_view(dest.get_all(), full.get_all())) {
++        const size_t once_size = folded_size(full_poly.end_index());
++        const size_t twice_size = folded_size(once_size);
++        dest_poly = Polynomial<FF>(twice_size, virtual_size, 0, Polynomial<FF>::DontZeroMemory::FLAG);
++        jobs.push_back(
++            { twice_size, [&dest_poly, &full_poly, once_size, twice_size, &first_challenge, &second_challenge]() {
++                 auto once = [&](size_t k) {
++                     return k < once_size ? fold_stride2_pair(full_poly[2 * k], full_poly[(2 * k) + 1], first_challenge)
++                                          : FF::zero();
++                 };
++                 // Outputs whose four source entries lie inside the stored extent read them directly; the others
++                 // (at most a few at either end) go through the virtual-zero-aware accessor.
++                 const size_t source_start = full_poly.start_index();
++                 const size_t source_end = full_poly.end_index();
++                 const size_t direct_begin = std::min(twice_size, (source_start + 3) / 4);
++                 const size_t direct_end = std::max(direct_begin, std::min(twice_size, source_end / 4));
++                 const FF* source = full_poly.data();
++                 FF* dest = dest_poly.data();
++                 for (size_t m = 0; m < direct_begin; ++m) {
++                     dest[m] = fold_stride2_pair(once(2 * m), once((2 * m) + 1), second_challenge);
++                 }
++                 for (size_t m = direct_begin; m < direct_end; ++m) {
++                     const FF* quad = source + ((4 * m) - source_start);
++                     dest[m] = fold_stride2_pair(fold_stride2_pair(quad[0], quad[1], first_challenge),
++                                                 fold_stride2_pair(quad[2], quad[3], first_challenge),
++                                                 second_challenge);
++                 }
++                 for (size_t m = direct_end; m < twice_size; ++m) {
++                     dest[m] = fold_stride2_pair(once(2 * m), once((2 * m) + 1), second_challenge);
++                 }
++             } });
++    }
++    if constexpr (requires {
++                      full.row_skip_active_prefix_end;
++                      dest.row_skip_active_prefix_end;
++                  }) {
++        dest.row_skip_active_prefix_end = folded_size(folded_size(full.row_skip_active_prefix_end));
++    }
++}
++
+ } // namespace
+ 
+ BatchedHonkTranslatorProver::BatchedHonkTranslatorProver(std::shared_ptr<MegaZKProverInstance> mega_zk_instance,
+@@ -182,9 +269,12 @@ void BatchedHonkTranslatorProver::execute_joint_sumcheck_rounds()
+     auto& mega_zk_params = mega_zk_inst->relation_parameters;
+     auto& translator_polys = translator_key->proving_key->polynomials;
+ 
+-    // Allocate partially evaluated polynomial tables (populated by the first partially_evaluate call).
+-    MegaZKPartialEvals mega_zk_partial(mega_zk_polys, static_cast<size_t>(1) << mega_zk_log_n);
+-    TransPartialEvals translator_partial(translator_polys, static_cast<size_t>(1) << JOINT_LOG_N);
++    // Partially evaluated polynomial tables, allocated and populated after the first round (or the second, see the
++    // windowed round 1 below).
++    const size_t mega_zk_circuit_size = static_cast<size_t>(1) << mega_zk_log_n;
++    const size_t translator_circuit_size = static_cast<size_t>(1) << JOINT_LOG_N;
++    MegaZKPartialEvals mega_zk_partial;
++    TransPartialEvals translator_partial;
+ 
+     // Type aliases for static partial-evaluation helpers from SumcheckProver.
+     using MegaZKSumcheck = SumcheckProver<MegaZKFlavor>;
+@@ -256,22 +346,114 @@ void BatchedHonkTranslatorProver::execute_joint_sumcheck_rounds()
+         return send_round(round_idx);
+     };
+ 
++    // The windowed round 1 below needs round 1 to be a real MegaZK round.
++    const bool windowed_round_one = mega_zk_log_n >= 2;
++
+     // ==================== Round 0: bootstraps mega_zk_partial and translator_partial ====================
+-    // PartiallyEvaluatedMultivariates only allocates output buffers; values are populated here.
+-    {
+-        const FF u = do_round(mega_zk_polys, translator_polys, 0);
++    const FF u_0 = do_round(mega_zk_polys, translator_polys, 0);
++    if (!windowed_round_one) {
++        BB_BENCH_NAME("joint_sumcheck/partially_evaluate");
++        // PartiallyEvaluatedMultivariates only allocates output buffers; values are populated here.
++        mega_zk_partial = MegaZKPartialEvals(mega_zk_polys, mega_zk_circuit_size);
++        translator_partial = TransPartialEvals(translator_polys, translator_circuit_size);
++        joint_partially_evaluate(mega_zk_polys, mega_zk_partial, translator_polys, translator_partial, u_0);
++    }
++    rdp.update_evaluations(u_0, 0);
++    mega_zk_round.advance_round();
++    mega_zk_round.excluded_head_size = 2; // After round 0, disabled zone collapses to 1 edge pair
++    update_round_state(0, u_0);
++
++    // ==================== Round 1, windowed: bootstraps mega_zk_partial and translator_partial ====================
++    // The round-1 tables (the full tables partially evaluated at u_0) are half the size of the full tables, which stay
++    // alive for the PCS. Instead of materializing them, round 1 folds the full tables at u_0 one window of
++    // ROUND_ONE_WINDOW_SIZE rows at a time and accumulates that window's edges; the round-2 tables are then folded
++    // straight from the full tables at (u_0, u_1). The window tables hold exactly the round-1 table entries of their
++    // rows (computed by the same fold), the windows partition the edges of the round, and field addition is exact,
++    // so the round univariate and the round-2 tables are the same as with materialized round-1 tables.
++    size_t first_in_place_round = 1;
++    if (windowed_round_one) {
++        // The effective round sizes of the round-1 tables, computed from the extents they would have.
++        auto round_one_effective_size = [](const auto& round, const auto& full_polys) {
++            if constexpr (requires { full_polys.get_witness(); }) {
++                size_t max_witness_end = 0;
++                for (auto& witness_poly : full_polys.get_witness()) {
++                    max_witness_end = std::max(max_witness_end, folded_size(witness_poly.end_index()));
++                }
++                return round.effective_round_size_for_witness_end(max_witness_end);
++            } else {
++                // Without witness extents the effective size is the round size, whatever the table.
++                return round.compute_effective_round_size(full_polys);
++            }
++        };
++        const size_t mega_zk_end = round_one_effective_size(mega_zk_round, mega_zk_polys);
++        const size_t translator_end = round_one_effective_size(translator_round, translator_polys);
++
++        SumcheckRoundUnivariate U_H_offset;
++        {
++            BB_BENCH_NAME("joint_sumcheck/windowed_round_one");
++            for (size_t begin = 0; begin < std::max(mega_zk_end, translator_end); begin += ROUND_ONE_WINDOW_SIZE) {
++                const size_t end = begin + ROUND_ONE_WINDOW_SIZE;
++                MegaZKPartialEvals mega_zk_window;
++                TransPartialEvals translator_window;
++                allocate_round_one_window<FF>(mega_zk_window, mega_zk_polys, begin, end, mega_zk_circuit_size / 2);
++                allocate_round_one_window<FF>(
++                    translator_window, translator_polys, begin, end, translator_circuit_size / 2);
++
++                std::vector<std::pair<const Polynomial<FF>*, Polynomial<FF>*>> folds;
++                auto add_folds = [&](auto& window, const auto& full) {
++                    for (auto [window_poly, full_poly] : zip_view(window.get_all(), full.get_all())) {
++                        folds.emplace_back(&full_poly, &window_poly);
++                    }
++                };
++                add_folds(mega_zk_window, mega_zk_polys);
++                add_folds(translator_window, translator_polys);
++                parallel_for(folds.size(), [&](size_t j) {
++                    auto [full_poly, window_poly] = folds[j];
++                    fold_stride2(*full_poly, *window_poly, window_poly->start_index(), window_poly->end_index(), u_0);
++                });
++
++                if (begin == 0) {
++                    U_H_offset = mega_zk_round.compute_offset_area_contribution(
++                        mega_zk_window, mega_zk_params, gate_sep, mega_zk_alphas, rdp);
++                }
++                mega_zk_round.accumulate_univariate_over_range(
++                    mega_zk_window, mega_zk_params, gate_sep, mega_zk_alphas, begin, std::min(end, mega_zk_end));
++                translator_round.accumulate_univariate_over_range(translator_window,
++                                                                  translator_relation_parameters,
++                                                                  gate_sep,
++                                                                  translator_alphas,
++                                                                  begin,
++                                                                  std::min(end, translator_end));
++            }
++        }
++
++        U_joint = mega_zk_round.finalize_univariate(mega_zk_alphas, gate_sep);
++        U_joint += U_H_offset;
++        SumcheckRoundUnivariate U_T = translator_round.finalize_univariate(translator_alphas, gate_sep);
++        for (auto& eval : U_T.evaluations) {
++            eval *= alpha_power_KH;
++        }
++        U_joint += U_T;
++        const FF u_1 = send_round(1);
++
+         {
+-            BB_BENCH_NAME("joint_sumcheck/partially_evaluate");
+-            joint_partially_evaluate(mega_zk_polys, mega_zk_partial, translator_polys, translator_partial, u);
++            BB_BENCH_NAME("joint_sumcheck/partially_evaluate_twice");
++            std::vector<SizedJob> jobs;
++            allocate_and_fold_twice(jobs, mega_zk_partial, mega_zk_polys, mega_zk_circuit_size / 2, u_0, u_1);
++            allocate_and_fold_twice(jobs, translator_partial, translator_polys, translator_circuit_size / 2, u_0, u_1);
++            // Largest first, so the small tables fill the tail of the large ones.
++            std::stable_sort(
++                jobs.begin(), jobs.end(), [](const SizedJob& a, const SizedJob& b) { return a.size > b.size; });
++            parallel_for(jobs.size(), [&](size_t j) { jobs[j].run(); });
+         }
+-        rdp.update_evaluations(u, 0);
++        rdp.update_evaluations(u_1, 1);
+         mega_zk_round.advance_round();
+-        mega_zk_round.excluded_head_size = 2; // After round 0, disabled zone collapses to 1 edge pair
+-        update_round_state(0, u);
++        update_round_state(1, u_1);
++        first_in_place_round = 2;
+     }
+ 
+-    // ==================== Real rounds 1..mega_zk_log_n-1 ====================
+-    for (size_t round_idx = 1; round_idx < mega_zk_log_n; round_idx++) {
++    // ==================== Real rounds first_in_place_round..mega_zk_log_n-1 ====================
++    for (size_t round_idx = first_in_place_round; round_idx < mega_zk_log_n; round_idx++) {
+         const FF u = do_round(mega_zk_partial, translator_partial, round_idx);
+         {
+             BB_BENCH_NAME("joint_sumcheck/partially_evaluate_in_place");
+diff --git a/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp b/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
+index 07db6c3..62a6946 100644
+--- a/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
++++ b/barretenberg/cpp/src/barretenberg/flavor/partially_evaluated_multivariates.hpp
+@@ -29,6 +29,11 @@ class PartiallyEvaluatedMultivariatesBase : public AllEntitiesBase {
+     // static row-skip manifest; 0 means scan every row.
+     size_t row_skip_active_prefix_end = 0;
+ 
++    /**
++     * @brief An empty table whose polynomials the caller sizes and fills itself.
++     */
++    PartiallyEvaluatedMultivariatesBase() = default;
++
+     /**
+      * @brief Construct from full polynomials, allocating based on their actual sizes.
+      * @details After the initial sumcheck round, the new size is CEIL(size/2).
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+index f27b2d1..262b1d4 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/fold_stride2.hpp
+@@ -39,6 +39,21 @@ namespace bb {
+  * @note `dst` must be writable over `[begin, end)`; reads of `src` at index `2k`/`2k+1` are answered by
+  * `get`, so out-of-extent reads yield zero rather than UB.
+  */
++/**
++ * @brief The fold of one source pair, `even + challenge * (odd - even)`, exactly as `fold_stride2` computes each
++ * output on its scalar path.
++ */
++template <typename Fr> Fr fold_stride2_pair(const Fr& even, const Fr& odd, const Fr& challenge)
++{
++    // Equal neighbours (constant selector runs, zero padding inside the active extent) fold to themselves, so skip
++    // the multiplication. Only bit-identical representations are short-cut.
++    if (even.data[0] == odd.data[0] && even.data[1] == odd.data[1] && even.data[2] == odd.data[2] &&
++        even.data[3] == odd.data[3]) {
++        return even;
++    }
++    return even + challenge * (odd - even);
++}
++
+ template <typename Fr>
+ void fold_stride2(
+     const Polynomial<Fr>& src, Polynomial<Fr>& dst, const size_t begin, const size_t end, const Fr& challenge)
+@@ -77,16 +92,7 @@ void fold_stride2(
+     }
+ #endif
+     for (; k < end; ++k) {
+-        const Fr even = src[2 * k];
+-        const Fr odd = src[2 * k + 1];
+-        // Equal neighbours (constant selector runs, zero padding inside the active extent) fold to themselves, so
+-        // skip the multiplication. Only bit-identical representations are short-cut.
+-        if (even.data[0] == odd.data[0] && even.data[1] == odd.data[1] && even.data[2] == odd.data[2] &&
+-            even.data[3] == odd.data[3]) {
+-            dst[ScalarIndex{ k }] = even;
+-        } else {
+-            dst[ScalarIndex{ k }] = even + challenge * (odd - even);
+-        }
++        dst[ScalarIndex{ k }] = fold_stride2_pair(src[2 * k], src[2 * k + 1], challenge);
+     }
+ }
+ 
+diff --git a/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck_round.hpp b/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck_round.hpp
+index f518c5a..7264106 100644
+--- a/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck_round.hpp
++++ b/barretenberg/cpp/src/barretenberg/sumcheck/sumcheck_round.hpp
+@@ -211,7 +211,15 @@ template <typename Flavor> class SumcheckProverRound {
+         } else {
+             return round_size;
+         }
++        return effective_round_size_for_witness_end(max_end_index);
++    }
+ 
++    /**
++     * @brief The effective round size of a table whose witness polynomials end at most at `max_end_index`; see
++     * compute_effective_round_size.
++     */
++    size_t effective_round_size_for_witness_end(const size_t max_end_index) const
++    {
+         size_t effective = max_end_index + (max_end_index % 2); // round up to next even
+         // ZK flavors without row disabling (e.g. Translator) must iterate over the full round_size.
+         if constexpr (Flavor::HasZK && !UseRowDisablingPolynomial<Flavor>) {
+@@ -451,6 +459,65 @@ template <typename Flavor> class SumcheckProverRound {
+         const SubrelationBatching subrelation_batching = compute_subrelation_batching(alphas);
+         accumulate_edge_chunks<ResolvedElement>(
+             chunks, polynomials, relation_parameters, gate_separators, &subrelation_batching);
++        return finalize_univariate(alphas, gate_separators);
++    }
++
++    /**
++     * @brief Add the contributions of the edges in `[begin, end)` to the round accumulators without producing the
++     * round univariate; `finalize_univariate` does that once every edge of the round has been covered.
++     * @details Lets a caller cover a round's edges window by window from tables that only hold a window of rows
++     * (indexed by absolute row, zero outside it). Covering `[0, effective_round_size)` with disjoint windows
++     * accumulates the same per-relation sums as compute_univariate: field addition is exact, so neither the split
++     * nor the order of the edges changes the result. The caller supplies the round's effective end (see
++     * compute_effective_round_size), since it cannot be read off a window. Rows below `excluded_head_size` are left
++     * to compute_offset_area_contribution, as in compute_univariate.
++     */
++    template <typename Element = void, typename ProverPolynomialsOrPartiallyEvaluatedMultivariates>
++    void accumulate_univariate_over_range(ProverPolynomialsOrPartiallyEvaluatedMultivariates& polynomials,
++                                          const bb::RelationParameters<FF>& relation_parameters,
++                                          const bb::GateSeparatorPolynomial<FF>& gate_separators,
++                                          const SubrelationSeparators& alphas,
++                                          const size_t begin,
++                                          const size_t end)
++    {
++        static_assert(!HAS_STATIC_ROW_SKIP_MANIFEST<ProverPolynomialsOrPartiallyEvaluatedMultivariates>,
++                      "a static row-skip manifest describes the whole table, not a window of it");
++#ifdef BB_FORCE_SCALAR_LANE
++        using AutoResolved = FF;
++#else
++        using AutoResolved =
++            std::conditional_t<SupportsSimdSumcheck<Flavor> && simd_available_v<typename FF::Params> &&
++                                   !USES_ROW_MANIFEST<ProverPolynomialsOrPartiallyEvaluatedMultivariates>,
++                               VectorField<typename FF::Params>,
++                               FF>;
++#endif
++        using ResolvedElement = std::conditional_t<std::is_same_v<Element, void>, AutoResolved, Element>;
++        BB_ASSERT(begin % 2 == 0 && end % 2 == 0, "edge range bounds must be even");
++
++        const size_t scan_begin = std::max(begin, excluded_head_size);
++        if (scan_begin >= end) {
++            return;
++        }
++        const SubrelationBatching subrelation_batching = compute_subrelation_batching(alphas);
++        if constexpr (CAN_SKIP_ROWS<ProverPolynomialsOrPartiallyEvaluatedMultivariates>) {
++            ListedEdgeChunks chunks{
++                scan_live_edge_ranges(polynomials, { EdgeRange{ .begin = scan_begin, .end = end } }), ROWS_PER_CHUNK
++            };
++            accumulate_edge_chunks<ResolvedElement>(
++                chunks, polynomials, relation_parameters, gate_separators, &subrelation_batching);
++        } else {
++            ContiguousEdgeChunks chunks{ scan_begin, end, ROWS_PER_CHUNK };
++            accumulate_edge_chunks<ResolvedElement>(
++                chunks, polynomials, relation_parameters, gate_separators, &subrelation_batching);
++        }
++    }
++
++    /**
++     * @brief Batch the accumulated per-relation contributions into the round univariate and reset the accumulators.
++     */
++    SumcheckRoundUnivariate finalize_univariate(const SubrelationSeparators& alphas,
++                                                const bb::GateSeparatorPolynomial<FF>& gate_separators)
++    {
+         return batch_over_relations<SumcheckRoundUnivariate>(univariate_accumulators, alphas, gate_separators);
+     }
+ 
+@@ -811,56 +878,8 @@ template <typename Flavor> class SumcheckProverRound {
+             // scan over the whole trace.
+             result = compute_row_skip_edge_ranges(polynomials, effective_round_size);
+         } else if constexpr (CAN_SKIP_ROWS<ProverPolynomialsOrPartiallyEvaluatedMultivariates>) {
+-            // Iterate over edge-pairs (stride-2) so each thread gets an even-aligned range.
+-            const std::vector<EdgeRange> scan_ranges = compute_row_skip_edge_ranges(polynomials, effective_round_size);
+-            // Cost per iteration: skip_entire_row reads across polynomial columns.
+-            // Overestimates by using total entity count (skip_entire_row only checks a subset).
+-            constexpr size_t heuristic_cost = bb::thread_heuristics::FF_COPY_COST * 2 * Flavor::NUM_ALL_ENTITIES;
+-            std::vector<std::vector<EdgeRange>> all_thread_ranges(bb::get_num_cpus());
+-
+-            for (const auto& scan_range : scan_ranges) {
+-                const size_t num_edge_pairs = (scan_range.end - scan_range.begin) / 2;
+-                bb::parallel_for_heuristic(
+-                    num_edge_pairs,
+-                    [&](ThreadChunk chunk) {
+-                        auto range = chunk.range(num_edge_pairs);
+-                        if (range.empty()) {
+-                            return;
+-                        }
+-                        // Scan edge pairs to find contiguous live ranges.
+-                        size_t current_block_start = 0;
+-                        size_t current_block_size = 0;
+-                        std::vector<EdgeRange> thread_ranges;
+-                        for (size_t pair_idx : range) {
+-                            size_t edge_idx = scan_range.begin + pair_idx * 2;
+-                            if (!Flavor::skip_entire_row(polynomials, edge_idx)) {
+-                                if (current_block_size == 0) {
+-                                    current_block_start = edge_idx;
+-                                }
+-                                current_block_size += 2; // each pair covers 2 edges
+-                            } else {
+-                                if (current_block_size > 0) {
+-                                    thread_ranges.push_back(
+-                                        EdgeRange{ .begin = current_block_start,
+-                                                   .end = current_block_start + current_block_size });
+-                                    current_block_size = 0;
+-                                }
+-                            }
+-                        }
+-                        if (current_block_size > 0) {
+-                            thread_ranges.push_back(EdgeRange{ .begin = current_block_start,
+-                                                               .end = current_block_start + current_block_size });
+-                        }
+-                        auto& ranges = all_thread_ranges[chunk.thread_index];
+-                        ranges.insert(ranges.end(), thread_ranges.begin(), thread_ranges.end());
+-                    },
+-                    heuristic_cost);
+-            }
+-
+-            for (const auto& thread_ranges : all_thread_ranges) {
+-                result.insert(result.end(), thread_ranges.begin(), thread_ranges.end());
+-            }
+-            merge_edge_ranges(result);
++            result =
++                scan_live_edge_ranges(polynomials, compute_row_skip_edge_ranges(polynomials, effective_round_size));
+         } else {
+             // The disabled head rows are handled by compute_offset_area_contribution, so skip them here.
+             result.push_back(EdgeRange{ .begin = excluded_head_size, .end = effective_round_size });
+@@ -868,6 +887,67 @@ template <typename Flavor> class SumcheckProverRound {
+         return result;
+     }
+ 
++    /**
++     * @brief Scan `scan_ranges` with the flavor's `skip_entire_row` predicate and return the merged contiguous runs
++     * of edge pairs that are not skipped.
++     */
++    template <typename ProverPolynomialsOrPartiallyEvaluatedMultivariates>
++    std::vector<EdgeRange> scan_live_edge_ranges(ProverPolynomialsOrPartiallyEvaluatedMultivariates& polynomials,
++                                                 const std::vector<EdgeRange>& scan_ranges) const
++        requires CAN_SKIP_ROWS<ProverPolynomialsOrPartiallyEvaluatedMultivariates>
++    {
++        std::vector<EdgeRange> result;
++        // Iterate over edge-pairs (stride-2) so each thread gets an even-aligned range.
++        // Cost per iteration: skip_entire_row reads across polynomial columns.
++        // Overestimates by using total entity count (skip_entire_row only checks a subset).
++        constexpr size_t heuristic_cost = bb::thread_heuristics::FF_COPY_COST * 2 * Flavor::NUM_ALL_ENTITIES;
++        std::vector<std::vector<EdgeRange>> all_thread_ranges(bb::get_num_cpus());
++
++        for (const auto& scan_range : scan_ranges) {
++            const size_t num_edge_pairs = (scan_range.end - scan_range.begin) / 2;
++            bb::parallel_for_heuristic(
++                num_edge_pairs,
++                [&](ThreadChunk chunk) {
++                    auto range = chunk.range(num_edge_pairs);
++                    if (range.empty()) {
++                        return;
++                    }
++                    // Scan edge pairs to find contiguous live ranges.
++                    size_t current_block_start = 0;
++                    size_t current_block_size = 0;
++                    std::vector<EdgeRange> thread_ranges;
++                    for (size_t pair_idx : range) {
++                        size_t edge_idx = scan_range.begin + pair_idx * 2;
++                        if (!Flavor::skip_entire_row(polynomials, edge_idx)) {
++                            if (current_block_size == 0) {
++                                current_block_start = edge_idx;
++                            }
++                            current_block_size += 2; // each pair covers 2 edges
++                        } else {
++                            if (current_block_size > 0) {
++                                thread_ranges.push_back(EdgeRange{ .begin = current_block_start,
++                                                                   .end = current_block_start + current_block_size });
++                                current_block_size = 0;
++                            }
++                        }
++                    }
++                    if (current_block_size > 0) {
++                        thread_ranges.push_back(
++                            EdgeRange{ .begin = current_block_start, .end = current_block_start + current_block_size });
++                    }
++                    auto& ranges = all_thread_ranges[chunk.thread_index];
++                    ranges.insert(ranges.end(), thread_ranges.begin(), thread_ranges.end());
++                },
++                heuristic_cost);
++        }
++
++        for (const auto& thread_ranges : all_thread_ranges) {
++            result.insert(result.end(), thread_ranges.begin(), thread_ranges.end());
++        }
++        merge_edge_ranges(result);
++        return result;
++    }
++
+     /**
+      * @brief Contribution to the round univariate from the offset-area head rows (rows 0 ..
+      * `TRACE_OFFSET - 1`), which are excluded from the main sumcheck loop.
+-- 
+2.43.0
+

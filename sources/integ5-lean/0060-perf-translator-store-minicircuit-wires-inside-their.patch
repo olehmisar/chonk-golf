@@ -1,0 +1,118 @@
+From 8ff1593057699cfedda47be075361aac1cf8040b Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 11:25:21 +0000
+Subject: [PATCH 60/65] perf(translator): store minicircuit wires inside their
+ concatenated columns
+
+Each of the 77 non-op-queue translator minicircuit wires is copied into a
+block of one of the 5 concatenated polynomials
+(concatenated_i[j * MINI_CIRCUIT_SIZE + k] = group_i_wire_j[k]), and both
+copies stay alive until the end of ChonkProve. The wires are now allocated as
+views of their blocks (Polynomial::alias_of), so the values are held once:
+about 19 MiB less live memory from translator key construction through the
+joint sumcheck, which is where peak RSS is reached.
+
+Why the output is unchanged: every wire value is written once, through the
+view, into exactly the concatenated slot the copy loop used to write
+(same partition as partition_minicircuit_wires_into_groups, same
+start_index/end_index), and the concatenated slots no wire covers keep their
+zero initialisation. The masking values are drawn in the same order, before
+the concatenated polynomials are read. compute_concatenated_polynomials skips
+a wire that already aliases its block and still copies any other. Nothing
+writes a minicircuit wire after concatenation, so the sumcheck and PCS read the
+same values as before; commitments, transcript and randomness are untouched.
+---
+ .../barretenberg/polynomials/polynomial.hpp   | 20 +++++++++++++
+ .../translator_vm/translator_flavor.hpp       | 28 +++++++++++++++----
+ .../translator_vm/translator_proving_key.cpp  |  5 ++++
+ 3 files changed, 47 insertions(+), 6 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
+index ab11540..2d4ed6d 100644
+--- a/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
++++ b/barretenberg/cpp/src/barretenberg/polynomials/polynomial.hpp
+@@ -651,6 +651,26 @@ template <typename Fr> class Polynomial {
+         }
+     }
+ 
++    /**
++     * @brief A polynomial backed by a window of `base`'s storage: index i of the result (for i in
++     * [start_index, start_index + size)) is index base_offset + i of `base`. Writes through either are visible in both,
++     * and the storage lives as long as any polynomial sharing it.
++     */
++    static Polynomial alias_of(
++        const Polynomial& base, size_t base_offset, size_t size, size_t virtual_size, size_t start_index)
++    {
++        BB_ASSERT_GTE(base_offset + start_index, base.start_index());
++        BB_ASSERT_LTE(base_offset + start_index + size, base.end_index());
++        Polynomial result;
++        result.coefficients_.backing_memory_ = base.coefficients_.backing_memory_;
++        result.coefficients_.backing_memory_.raw_data =
++            const_cast<Fr*>(base.data()) + (base_offset + start_index - base.start_index());
++        result.coefficients_.start_ = start_index;
++        result.coefficients_.end_ = start_index + size;
++        result.coefficients_.virtual_size_ = virtual_size;
++        return result;
++    }
++
+     /**
+      * @brief Write random ZK masking values at positions {1, 2, 3} (the disabled head region after the zero row).
+      */
+diff --git a/barretenberg/cpp/src/barretenberg/translator_vm/translator_flavor.hpp b/barretenberg/cpp/src/barretenberg/translator_vm/translator_flavor.hpp
+index 4869abb..852a5c6 100644
+--- a/barretenberg/cpp/src/barretenberg/translator_vm/translator_flavor.hpp
++++ b/barretenberg/cpp/src/barretenberg/translator_vm/translator_flavor.hpp
+@@ -1065,12 +1065,28 @@ class TranslatorFlavor {
+ 
+             op = Polynomial{ MINI_CIRCUIT_SIZE, circuit_size };
+ 
+-            // All minicircuit wires (non-op-queue) are only non-zero in [1, MINI_CIRCUIT_SIZE)
+-            for (auto& poly : NonOpQueueWiresToBeShiftedEntities<Polynomial>::get_all()) {
+-                if (poly.is_empty()) {
+-                    poly = Polynomial{ /*size*/ MINI_CIRCUIT_SIZE - 1,
+-                                       /*virtual_size*/ circuit_size,
+-                                       /*start_index*/ 1 };
++            // All minicircuit wires (non-op-queue) are only non-zero in [1, MINI_CIRCUIT_SIZE). Each one is stored
++            // in its block of the concatenated polynomial it belongs to (concatenated_i[j * MINI_CIRCUIT_SIZE + k] =
++            // group_i_wire_j[k]), so the wire values are held once rather than in both places.
++            {
++                auto concatenated = get_concatenated();
++                auto wires = NonOpQueueWiresToBeShiftedEntities<Polynomial>::get_all();
++                constexpr size_t num_non_range = NonRangeMainWires<Polynomial>::_members_size;
++                constexpr size_t num_range_groups = NUM_CONCATENATED_POLYS - 1;
++                static_assert(RangeConstraintWires<Polynomial>::_members_size ==
++                              num_range_groups * CONCATENATION_GROUP_SIZE);
++                static_assert(num_non_range <= CONCATENATION_GROUP_SIZE);
++                for (size_t idx = 0; idx < wires.size(); idx++) {
++                    // Same partition as partition_minicircuit_wires_into_groups: range constraint wires fill groups
++                    // 0..num_range_groups-1 in order, the non-range main wires lead the last group.
++                    const bool is_range = idx >= num_non_range;
++                    const size_t group = is_range ? (idx - num_non_range) / CONCATENATION_GROUP_SIZE : num_range_groups;
++                    const size_t slot = is_range ? (idx - num_non_range) % CONCATENATION_GROUP_SIZE : idx;
++                    wires[idx] = Polynomial::alias_of(concatenated[group],
++                                                      /*base_offset*/ slot * MINI_CIRCUIT_SIZE,
++                                                      /*size*/ MINI_CIRCUIT_SIZE - 1,
++                                                      /*virtual_size*/ circuit_size,
++                                                      /*start_index*/ 1);
+                 }
+             }
+ 
+diff --git a/barretenberg/cpp/src/barretenberg/translator_vm/translator_proving_key.cpp b/barretenberg/cpp/src/barretenberg/translator_vm/translator_proving_key.cpp
+index a71199e..5fb0e4f 100644
+--- a/barretenberg/cpp/src/barretenberg/translator_vm/translator_proving_key.cpp
++++ b/barretenberg/cpp/src/barretenberg/translator_vm/translator_proving_key.cpp
+@@ -42,6 +42,11 @@ void TranslatorProvingKey::compute_concatenated_polynomials()
+ 
+         // Copy into appropriate position in the concatenated polynomial: j * MINI + k
+         // Note: null padding slots in group 4 are zero-sized polynomials, so this loop is a no-op for them.
++        // A wire allocated as a view of its block (see ProverPolynomials) already holds its values there.
++        if (!group[j].is_empty() &&
++            &group[j][group[j].start_index()] == &current_target[(j * MINI_CIRCUIT_SIZE) + group[j].start_index()]) {
++            return;
++        }
+         for (size_t k = group[j].start_index(); k < group[j].end_index(); k++) {
+             current_target.at(j * MINI_CIRCUIT_SIZE + k) = group[j][k];
+         }
+-- 
+2.43.0
+

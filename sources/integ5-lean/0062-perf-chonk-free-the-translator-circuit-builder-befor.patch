@@ -1,0 +1,48 @@
+From d5bb4020e2afcdab6119bf4270abe6545d6f7abe Mon Sep 17 00:00:00 2001
+From: bench <bench@local>
+Date: Sun, 11 Oct 2026 11:39:51 +0000
+Subject: [PATCH 62/65] perf(chonk): free the translator circuit builder before
+ translator proving
+
+Chonk::prove kept the TranslatorCircuitBuilder alive until it returned, so its
+variables, wires and reconstructed op table (several MiB, mostly in blocks
+below the mmap threshold) sat on the heap through the translator oink, the
+joint sumcheck and the joint PCS, where peak RSS is reached. The builder is
+only read by the TranslatorProvingKey constructor, which copies what it needs,
+so it is now scoped to that construction.
+
+Why the output is unchanged: the proving key is built from the same builder in
+the same way; the builder is destroyed afterwards instead of at the end of the
+function. Nothing reads it after the key exists, and freeing memory draws no
+randomness and touches no transcript.
+
+Together with releasing the final accumulator this lowers headline peak RSS
+from about 246.8 to 234.0 MiB (median of 6 runs).
+---
+ barretenberg/cpp/src/barretenberg/chonk/chonk.cpp | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+index f438c87..ddaeeb1 100644
+--- a/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
++++ b/barretenberg/cpp/src/barretenberg/chonk/chonk.cpp
+@@ -753,9 +753,13 @@ ChonkProof Chonk::prove()
+     vinfo("finished eccvm proving.");
+ 
+     // Phase 4: Build translator proving key from ECCVM-derived challenges.
+-    TranslatorCircuitBuilder translator_builder(
+-        goblin.translation_batching_challenge_v, goblin.evaluation_challenge_x, goblin.op_queue);
+-    auto translator_key = std::make_shared<TranslatorProvingKey>(translator_builder);
++    // The circuit builder is only needed to populate the proving key; scope it so it is freed before proving.
++    std::shared_ptr<TranslatorProvingKey> translator_key;
++    {
++        TranslatorCircuitBuilder translator_builder(
++            goblin.translation_batching_challenge_v, goblin.evaluation_challenge_x, goblin.op_queue);
++        translator_key = std::make_shared<TranslatorProvingKey>(translator_builder);
++    }
+ 
+     // Phase 5: Translator Oink + Joint Sumcheck + Joint PCS on the shared transcript.
+     vinfo("prove translator and joint...");
+-- 
+2.43.0
+
